@@ -31,7 +31,7 @@ public class JdkClassReader {
                         | (classModel.findAttribute(Attributes.DEPRECATED).isPresent() ? Opcodes.ACC_DEPRECATED : 0)
                         | (classModel.findAttribute(Attributes.RECORD).isPresent() ? Opcodes.ACC_RECORD : 0),
                 classModel.thisClass().asInternalName(),
-                null,
+                classModel.findAttribute(Attributes.SIGNATURE).map(signature -> signature.signature().stringValue()).orElse(null),
                 classModel.superclass().map(ClassEntry::asInternalName).orElse(null),
                 classModel.interfaces().stream().map(ClassEntry::asInternalName).toArray(String[]::new));
         String sourceFile = classModel.findAttribute(Attributes.SOURCE_FILE)
