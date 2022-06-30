@@ -137,6 +137,7 @@ public class JdkClassReader {
                         annotationVisitor.visitEnd();
                     }
                 });
+                // TODO: How to find out when to call visitInsAnnotation, visitTryCatchAnnotation, visitLocalVariableAnnotation
                 acceptAnnotations(methodModel, methodVisitor::visitAnnotation, methodVisitor::visitTypeAnnotation);
                 acceptParameterAnnotations(methodModel, methodVisitor, true);
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
@@ -311,7 +312,6 @@ public class JdkClassReader {
                             key.start(),
                             key.end(),
                             key.slot()));
-                    // TODO: visitInsAnnotation, visitTryCatchAnnotation, visitLocalVariableAnnotation
                     methodVisitor.visitMaxs(code.maxStack(), code.maxLocals());
                 });
                 methodVisitor.visitEnd();
@@ -323,19 +323,21 @@ public class JdkClassReader {
     private static void acceptAnnotations(AttributedElement element, AnnotationVisitorSource annotationVisitorSource, TypeAnnotationVisitorSource typeAnnotationVisitorSource) {
         element.findAttribute(Attributes.RUNTIME_VISIBLE_ANNOTATIONS).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
-                .forEach(annotation -> acceptAnnotation(annotationVisitorSource.visitAnnotation(annotation.className().stringValue(), true), annotation.elements()));
+                .forEach(annotation -> appendAnnotationValues(annotationVisitorSource.visitAnnotation(annotation.className().stringValue(), true), annotation.elements()));
         element.findAttribute(Attributes.RUNTIME_INVISIBLE_ANNOTATIONS).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
-                .forEach(annotation -> acceptAnnotation(annotationVisitorSource.visitAnnotation(annotation.className().stringValue(), false), annotation.elements()));
+                .forEach(annotation -> appendAnnotationValues(annotationVisitorSource.visitAnnotation(annotation.className().stringValue(), false), annotation.elements()));
         element.findAttribute(Attributes.RUNTIME_VISIBLE_TYPE_ANNOTATIONS).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
-                .forEach(annotation -> acceptAnnotation(typeAnnotationVisitorSource.visitTypeAnnotation(annotation.targetInfo().targetType().targetTypeValue(),
+                .filter(annotation -> annotation.targetInfo().targetType().targetTypeValue() < TypeReference.LOCAL_VARIABLE)
+                .forEach(annotation -> appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(annotation.targetInfo().targetType().targetTypeValue(),
                         toTypePath(annotation.targetPath()),
                         annotation.className().stringValue(),
                         true), annotation.elements()));
         element.findAttribute(Attributes.RUNTIME_INVISIBLE_TYPE_ANNOTATIONS).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
-                .forEach(annotation -> acceptAnnotation(typeAnnotationVisitorSource.visitTypeAnnotation(annotation.targetInfo().targetType().targetTypeValue(),
+                .filter(annotation -> annotation.targetInfo().targetType().targetTypeValue() < TypeReference.LOCAL_VARIABLE)
+                .forEach(annotation -> appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(annotation.targetInfo().targetType().targetTypeValue(),
                         toTypePath(annotation.targetPath()),
                         annotation.className().stringValue(),
                         false), annotation.elements()));
@@ -352,7 +354,7 @@ public class JdkClassReader {
             }
             for (int index = 0; index < annotations.size(); index++) {
                 for (Annotation annotation : annotations.get(index)) {
-                    acceptAnnotation(methodVisitor.visitParameterAnnotation(index, annotation.className().stringValue(), visible), annotation.elements());
+                    appendAnnotationValues(methodVisitor.visitParameterAnnotation(index, annotation.className().stringValue(), visible), annotation.elements());
                 }
             }
         });
@@ -365,7 +367,7 @@ public class JdkClassReader {
                 .forEach(unknownAttribute -> consumer.accept(new ByteArrayAttribute(unknownAttribute.attributeName(), unknownAttribute.contents())));
     }
 
-    private static void acceptAnnotation(AnnotationVisitor annotationVisitor, List<AnnotationElement> elements) {
+    private static void appendAnnotationValues(AnnotationVisitor annotationVisitor, List<AnnotationElement> elements) {
         if (annotationVisitor != null) {
             elements.forEach(element -> appendAnnotationValue(annotationVisitor, element.name().stringValue(), element.value()));
             annotationVisitor.visitEnd();
@@ -379,7 +381,7 @@ public class JdkClassReader {
             case AnnotationValue.OfClass value ->
                     annotationVisitor.visit(name, Type.getType(value.className().stringValue()));
             case AnnotationValue.OfAnnotation value ->
-                    acceptAnnotation(annotationVisitor.visitAnnotation(name, value.annotation().className().stringValue()), value.annotation().elements());
+                    appendAnnotationValues(annotationVisitor.visitAnnotation(name, value.annotation().className().stringValue()), value.annotation().elements());
             case AnnotationValue.OfEnum value ->
                     annotationVisitor.visitEnum(name, value.className().stringValue(), value.constantName().stringValue());
             case AnnotationValue.OfArray value -> {
