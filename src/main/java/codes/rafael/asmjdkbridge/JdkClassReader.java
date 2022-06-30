@@ -180,126 +180,126 @@ public class JdkClassReader {
                         }
                         offset += element.sizeInBytes();
                         switch (element) {
-                            case MonitorInstruction instruction ->
-                                    methodVisitor.visitInsn(instruction.opcode().bytecode());
-                            case TypeCheckInstruction instruction ->
-                                    methodVisitor.visitTypeInsn(element.opcode().bytecode(), instruction.type().asInternalName());
-                            case LoadInstruction instruction -> {
-                                if (instruction.slot() < 4) {
-                                    methodVisitor.visitVarInsn(switch (instruction.typeKind()) {
+                            case MonitorInstruction value ->
+                                    methodVisitor.visitInsn(value.opcode().bytecode());
+                            case TypeCheckInstruction value ->
+                                    methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.type().asInternalName());
+                            case LoadInstruction value -> {
+                                if (value.slot() < 4) {
+                                    methodVisitor.visitVarInsn(switch (value.typeKind()) {
                                         case BooleanType, ByteType, CharType, ShortType, IntType -> Opcodes.ILOAD;
                                         case LongType -> Opcodes.LLOAD;
                                         case FloatType -> Opcodes.FLOAD;
                                         case DoubleType -> Opcodes.DLOAD;
                                         case ReferenceType -> Opcodes.ALOAD;
                                         default ->
-                                                throw new IllegalStateException("Unexpected type: " + instruction.typeKind());
-                                    }, instruction.slot());
+                                                throw new IllegalStateException("Unexpected type: " + value.typeKind());
+                                    }, value.slot());
                                 } else {
-                                    methodVisitor.visitVarInsn(element.opcode().bytecode(), instruction.slot());
+                                    methodVisitor.visitVarInsn(element.opcode().bytecode(), value.slot());
                                 }
                             }
-                            case OperatorInstruction instruction ->
-                                    methodVisitor.visitInsn(instruction.opcode().bytecode());
-                            case ReturnInstruction instruction ->
-                                    methodVisitor.visitInsn(instruction.opcode().bytecode());
-                            case InvokeInstruction instruction ->
+                            case OperatorInstruction value ->
+                                    methodVisitor.visitInsn(value.opcode().bytecode());
+                            case ReturnInstruction value ->
+                                    methodVisitor.visitInsn(value.opcode().bytecode());
+                            case InvokeInstruction value ->
                                     methodVisitor.visitMethodInsn(element.opcode().bytecode(),
-                                            instruction.owner().asInternalName(),
-                                            instruction.name().stringValue(),
-                                            instruction.type().stringValue(),
-                                            instruction.isInterface());
-                            case IncrementInstruction instruction ->
-                                    methodVisitor.visitIincInsn(instruction.slot(), instruction.constant());
-                            case FieldInstruction instruction ->
+                                            value.owner().asInternalName(),
+                                            value.name().stringValue(),
+                                            value.type().stringValue(),
+                                            value.isInterface());
+                            case IncrementInstruction value ->
+                                    methodVisitor.visitIincInsn(value.slot(), value.constant());
+                            case FieldInstruction value ->
                                     methodVisitor.visitFieldInsn(element.opcode().bytecode(),
-                                            instruction.owner().asInternalName(),
-                                            instruction.name().stringValue(),
-                                            instruction.type().stringValue());
-                            case InvokeDynamicInstruction instruction ->
-                                    methodVisitor.visitInvokeDynamicInsn(instruction.name().stringValue(),
-                                            instruction.type().stringValue(),
-                                            (Handle) toAsmConstant(instruction.bootstrapMethod()),
-                                            instruction.bootstrapArgs().stream().map(JdkClassReader::toAsmConstant).toArray());
-                            case BranchInstruction instruction ->
-                                    methodVisitor.visitJumpInsn(element.opcode().bytecode(), labels.computeIfAbsent(instruction.target(), label -> new org.objectweb.asm.Label()));
-                            case StoreInstruction instruction -> {
-                                if (instruction.slot() < 4) {
-                                    methodVisitor.visitVarInsn(switch (instruction.typeKind()) {
+                                            value.owner().asInternalName(),
+                                            value.name().stringValue(),
+                                            value.type().stringValue());
+                            case InvokeDynamicInstruction value ->
+                                    methodVisitor.visitInvokeDynamicInsn(value.name().stringValue(),
+                                            value.type().stringValue(),
+                                            (Handle) toAsmConstant(value.bootstrapMethod()),
+                                            value.bootstrapArgs().stream().map(JdkClassReader::toAsmConstant).toArray());
+                            case BranchInstruction value ->
+                                    methodVisitor.visitJumpInsn(element.opcode().bytecode(), labels.computeIfAbsent(value.target(), label -> new org.objectweb.asm.Label()));
+                            case StoreInstruction value -> {
+                                if (value.slot() < 4) {
+                                    methodVisitor.visitVarInsn(switch (value.typeKind()) {
                                         case BooleanType, ByteType, CharType, ShortType, IntType -> Opcodes.ISTORE;
                                         case LongType -> Opcodes.LSTORE;
                                         case FloatType -> Opcodes.FSTORE;
                                         case DoubleType -> Opcodes.DSTORE;
                                         case ReferenceType -> Opcodes.ASTORE;
                                         default ->
-                                                throw new IllegalStateException("Unexpected type: " + instruction.typeKind());
-                                    }, instruction.slot());
+                                                throw new IllegalStateException("Unexpected type: " + value.typeKind());
+                                    }, value.slot());
                                 } else {
-                                    methodVisitor.visitVarInsn(element.opcode().bytecode(), instruction.slot());
+                                    methodVisitor.visitVarInsn(element.opcode().bytecode(), value.slot());
                                 }
                             }
-                            case NewReferenceArrayInstruction instruction ->
-                                    methodVisitor.visitTypeInsn(element.opcode().bytecode(), instruction.componentType().asInternalName());
-                            case LookupSwitchInstruction instruction ->
-                                    methodVisitor.visitLookupSwitchInsn(labels.computeIfAbsent(instruction.defaultTarget(), label -> new org.objectweb.asm.Label()),
-                                            instruction.cases().stream().mapToInt(SwitchCase::caseValue).toArray(),
-                                            instruction.cases().stream().map(value -> labels.computeIfAbsent(value.target(), label -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
-                            case TableSwitchInstruction instruction ->
-                                    methodVisitor.visitTableSwitchInsn(instruction.lowValue(),
-                                            instruction.highValue(),
-                                            labels.computeIfAbsent(instruction.defaultTarget(), label -> new org.objectweb.asm.Label()),
-                                            instruction.cases().stream().map(value -> labels.computeIfAbsent(value.target(), label -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
-                            case ArrayStoreInstruction instruction ->
-                                    methodVisitor.visitInsn(instruction.opcode().bytecode());
-                            case ArrayLoadInstruction instruction ->
-                                    methodVisitor.visitInsn(instruction.opcode().bytecode());
-                            case ConstantInstruction instruction ->
-                                    methodVisitor.visitLdcInsn(toAsmConstant(instruction.constantValue()));
-                            case StackInstruction instruction ->
-                                    methodVisitor.visitInsn(instruction.opcode().bytecode());
-                            case NopInstruction instruction -> methodVisitor.visitInsn(instruction.opcode().bytecode());
-                            case ThrowInstruction instruction ->
-                                    methodVisitor.visitInsn(instruction.opcode().bytecode());
-                            case NewObjectInstruction instruction ->
-                                    methodVisitor.visitTypeInsn(element.opcode().bytecode(), instruction.className().asInternalName());
-                            case ConvertInstruction instruction ->
-                                    methodVisitor.visitInsn(instruction.opcode().bytecode());
-                            case NewMultiArrayInstruction instruction ->
-                                    methodVisitor.visitMultiANewArrayInsn(instruction.arrayType().asInternalName(), instruction.dimensions());
-                            case NewPrimitiveArrayInstruction instruction ->
-                                    methodVisitor.visitInsn(instruction.opcode().bytecode());
-                            case LocalVariableType instruction -> localVariables.compute(new MergedLocalVariableKey(
-                                    labels.computeIfAbsent(instruction.startScope(), label -> new org.objectweb.asm.Label()),
-                                    labels.computeIfAbsent(instruction.endScope(), label -> new org.objectweb.asm.Label()),
-                                    instruction.name().stringValue(),
-                                    instruction.slot()
-                            ), (key, value) -> new MergedLocalVariableValue(value == null ? null : value.descriptor, instruction.signature().stringValue()));
-                            case ExceptionCatch instruction ->
-                                    methodVisitor.visitTryCatchBlock(labels.computeIfAbsent(instruction.tryStart(), label -> new org.objectweb.asm.Label()),
-                                            labels.computeIfAbsent(instruction.tryEnd(), label -> new org.objectweb.asm.Label()),
-                                            labels.computeIfAbsent(instruction.handler(), label -> new org.objectweb.asm.Label()),
-                                            instruction.catchType().map(ClassEntry::asInternalName).orElse(null));
-                            case LocalVariable instruction -> localVariables.compute(new MergedLocalVariableKey(
-                                    labels.computeIfAbsent(instruction.startScope(), label -> new org.objectweb.asm.Label()),
-                                    labels.computeIfAbsent(instruction.endScope(), label -> new org.objectweb.asm.Label()),
-                                    instruction.name().stringValue(),
-                                    instruction.slot()
-                            ), (key, value) -> new MergedLocalVariableValue(instruction.typeSymbol().descriptorString(), value == null ? null : value.signature));
-                            case LineNumber instruction -> {
+                            case NewReferenceArrayInstruction value ->
+                                    methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.componentType().asInternalName());
+                            case LookupSwitchInstruction value ->
+                                    methodVisitor.visitLookupSwitchInsn(labels.computeIfAbsent(value.defaultTarget(), label -> new org.objectweb.asm.Label()),
+                                            value.cases().stream().mapToInt(SwitchCase::caseValue).toArray(),
+                                            value.cases().stream().map(aCase -> labels.computeIfAbsent(aCase.target(), label -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
+                            case TableSwitchInstruction value ->
+                                    methodVisitor.visitTableSwitchInsn(value.lowValue(),
+                                            value.highValue(),
+                                            labels.computeIfAbsent(value.defaultTarget(), label -> new org.objectweb.asm.Label()),
+                                            value.cases().stream().map(aCase -> labels.computeIfAbsent(aCase.target(), label -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
+                            case ArrayStoreInstruction value ->
+                                    methodVisitor.visitInsn(value.opcode().bytecode());
+                            case ArrayLoadInstruction value ->
+                                    methodVisitor.visitInsn(value.opcode().bytecode());
+                            case ConstantInstruction value ->
+                                    methodVisitor.visitLdcInsn(toAsmConstant(value.constantValue()));
+                            case StackInstruction value ->
+                                    methodVisitor.visitInsn(value.opcode().bytecode());
+                            case NopInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
+                            case ThrowInstruction value ->
+                                    methodVisitor.visitInsn(value.opcode().bytecode());
+                            case NewObjectInstruction value ->
+                                    methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.className().asInternalName());
+                            case ConvertInstruction value ->
+                                    methodVisitor.visitInsn(value.opcode().bytecode());
+                            case NewMultiArrayInstruction value ->
+                                    methodVisitor.visitMultiANewArrayInsn(value.arrayType().asInternalName(), value.dimensions());
+                            case NewPrimitiveArrayInstruction value ->
+                                    methodVisitor.visitInsn(value.opcode().bytecode());
+                            case LocalVariableType value -> localVariables.compute(new MergedLocalVariableKey(
+                                    labels.computeIfAbsent(value.startScope(), label -> new org.objectweb.asm.Label()),
+                                    labels.computeIfAbsent(value.endScope(), label -> new org.objectweb.asm.Label()),
+                                    value.name().stringValue(),
+                                    value.slot()
+                            ), (key, values) -> new MergedLocalVariableValue(values == null ? null : values.descriptor, value.signature().stringValue()));
+                            case ExceptionCatch value ->
+                                    methodVisitor.visitTryCatchBlock(labels.computeIfAbsent(value.tryStart(), label -> new org.objectweb.asm.Label()),
+                                            labels.computeIfAbsent(value.tryEnd(), label -> new org.objectweb.asm.Label()),
+                                            labels.computeIfAbsent(value.handler(), label -> new org.objectweb.asm.Label()),
+                                            value.catchType().map(ClassEntry::asInternalName).orElse(null));
+                            case LocalVariable value -> localVariables.compute(new MergedLocalVariableKey(
+                                    labels.computeIfAbsent(value.startScope(), label -> new org.objectweb.asm.Label()),
+                                    labels.computeIfAbsent(value.endScope(), label -> new org.objectweb.asm.Label()),
+                                    value.name().stringValue(),
+                                    value.slot()
+                            ), (key, values) -> new MergedLocalVariableValue(value.typeSymbol().descriptorString(), values == null ? null : values.signature));
+                            case LineNumber value -> {
                                 if (currentPositionLabel == null) {
                                     currentPositionLabel = new org.objectweb.asm.Label();
                                     methodVisitor.visitLabel(currentPositionLabel);
                                 }
-                                methodVisitor.visitLineNumber(instruction.line(), currentPositionLabel);
+                                methodVisitor.visitLineNumber(value.line(), currentPositionLabel);
                             }
-                            case LabelTarget instruction -> {
-                                currentPositionLabel = labels.computeIfAbsent(instruction.label(), label -> new org.objectweb.asm.Label());
+                            case LabelTarget value -> {
+                                currentPositionLabel = labels.computeIfAbsent(value.label(), label -> new org.objectweb.asm.Label());
                                 methodVisitor.visitLabel(currentPositionLabel);
                             }
                             case CharacterRange ignored -> {
-                                // TODO: How to write this back to a byte array?
+                                // TODO: Is there an easier way to deconstruct to byte array then by knowing spec?
                             }
-                            default -> throw new UnsupportedOperationException("Failed to ");
+                            default -> throw new UnsupportedOperationException("Unknown value: " + element);
                         }
                         if (element instanceof Instruction) {
                             currentPositionLabel = null;
@@ -389,7 +389,7 @@ public class JdkClassReader {
                     nested.visitEnd();
                 }
             }
-            default -> throw new UnsupportedOperationException();
+            default -> throw new UnsupportedOperationException("Unknown annotation value: " + annotationValue);
         }
     }
 
