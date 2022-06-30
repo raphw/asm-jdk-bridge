@@ -88,10 +88,11 @@
                 <version>3.8.0</version>
                 <inherited>true</inherited>
                 <configuration>
-                    <source>19</source>
-                    <target>19</target>
+                    <source>20</source>
+                    <target>20</target>
                     <encoding>utf-8</encoding>
                     <compilerArgs>
+                        <arg>--enable-preview</arg>
                         <arg>--add-exports</arg>
                         <arg>java.base/jdk.classfile=ALL-UNNAMED</arg>
                         <arg>--add-exports</arg>
@@ -110,6 +111,7 @@
                 <version>3.0.0-M5</version>
                 <configuration>
                     <argLine>
+                        --enable-preview
                         --add-exports java.base/jdk.classfile=ALL-UNNAMED
                         --add-exports java.base/jdk.classfile.attribute=ALL-UNNAMED
                         --add-exports java.base/jdk.classfile.constantpool=ALL-UNNAMED

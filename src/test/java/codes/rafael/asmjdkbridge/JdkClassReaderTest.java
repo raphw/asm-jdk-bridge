@@ -2,6 +2,7 @@ package codes.rafael.asmjdkbridge;
 
 import codes.rafael.asmjdkbridge.sample.TrivialType;
 import jdk.classfile.Classfile;
+import org.junit.AssumptionViolatedException;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -12,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.Constructor;
 import java.util.Collection;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -41,8 +43,18 @@ public class JdkClassReaderTest {
             classFile = inputStream.readAllBytes();
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
-        new ClassReader(classFile).accept(new TraceClassVisitor(new PrintWriter(asm)), 0);
+        nonValidatingClassReader(classFile).accept(new TraceClassVisitor(new PrintWriter(asm)), 0);
         new JdkClassReader(Classfile.parse(classFile)).accept(new TraceClassVisitor(new PrintWriter(jdk)));
         assertEquals(asm.toString(), jdk.toString());
+    }
+
+    private static ClassReader nonValidatingClassReader(byte[] classFile) {
+        try {
+            Constructor<ClassReader> constructor = ClassReader.class.getDeclaredConstructor(byte[].class, int.class, boolean.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(classFile, 0, false);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 }
