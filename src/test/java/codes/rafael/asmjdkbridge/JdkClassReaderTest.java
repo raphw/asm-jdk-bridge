@@ -1,8 +1,10 @@
 package codes.rafael.asmjdkbridge;
 
-import codes.rafael.asmjdkbridge.sample.TrivialType;
+import codes.rafael.asmjdkbridge.sample.FieldAndMethod;
+import codes.rafael.asmjdkbridge.sample.LoadStoreAndReturn;
+import codes.rafael.asmjdkbridge.sample.Operations;
+import codes.rafael.asmjdkbridge.sample.Trivial;
 import jdk.classfile.Classfile;
-import org.junit.AssumptionViolatedException;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -23,10 +25,13 @@ import static org.junit.Assert.assertEquals;
 @RunWith(Parameterized.class)
 public class JdkClassReaderTest {
 
-    @Parameterized.Parameters
+    @Parameterized.Parameters(name = "{1}")
     public static Collection<Object[]> data() {
         return Stream.of(
-                TrivialType.class
+                Trivial.class,
+                LoadStoreAndReturn.class,
+                FieldAndMethod.class,
+                Operations.class
         ).map(type -> new Object[]{type}).collect(Collectors.toList());
     }
 

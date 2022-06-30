@@ -254,8 +254,37 @@ public class JdkClassReader {
                                     methodVisitor.visitInsn(value.opcode().bytecode());
                             case ArrayLoadInstruction value ->
                                     methodVisitor.visitInsn(value.opcode().bytecode());
-                            case ConstantInstruction value ->
+                            case ConstantInstruction value -> {
+                                // Note: javac does not seem to understand nested type matching, use instanceof instead
+                                // It seems like the Java class file API translates [ILFD]CONST_X values to LDC values, translate back.
+                                if (value.constantValue() instanceof Integer i) {
+                                    if (i >= -1 && i <= 5) {
+                                        methodVisitor.visitInsn(Opcodes.ICONST_0 + i);
+                                    } else {
+                                        methodVisitor.visitLdcInsn(i);
+                                    }
+                                } else if (value.constantValue() instanceof Long l) {
+                                    if (l >= 0 && l <= 1) {
+                                        methodVisitor.visitInsn(Opcodes.LCONST_0 + l.intValue());
+                                    } else {
+                                        methodVisitor.visitLdcInsn(l);
+                                    }
+                                } else if (value.constantValue() instanceof Float f) {
+                                    if (f == 0f || f == 1f || f == 2f) {
+                                        methodVisitor.visitInsn(Opcodes.FCONST_0 + f.intValue());
+                                    } else {
+                                        methodVisitor.visitLdcInsn(f);
+                                    }
+                                } else if (value.constantValue() instanceof Double d) {
+                                    if (d == 0d || d == 1d) {
+                                        methodVisitor.visitInsn(Opcodes.DCONST_0 + d.intValue());
+                                    } else {
+                                        methodVisitor.visitLdcInsn(d);
+                                    }
+                                } else {
                                     methodVisitor.visitLdcInsn(toAsmConstant(value.constantValue()));
+                                }
+                            }
                             case StackInstruction value ->
                                     methodVisitor.visitInsn(value.opcode().bytecode());
                             case NopInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
