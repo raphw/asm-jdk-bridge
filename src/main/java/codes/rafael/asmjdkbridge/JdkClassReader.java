@@ -18,10 +18,11 @@ import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class JdkClassReader {
 
-    private final ClassModel classModel;
+    private final ClassModel classModel; // TODO: Would be more desirable if a ClassWriter could be handled similarly, prototype with sharing.
 
     public JdkClassReader(ClassModel classModel) {
         this.classModel = classModel;
@@ -146,42 +147,63 @@ public class JdkClassReader {
                         .filter(attribute -> attribute instanceof UnknownAttribute)
                         .map(UnknownAttribute.class::cast)
                         .forEach(unknownAttribute -> methodVisitor.visitAttribute(new ByteArrayAttribute(unknownAttribute.attributeName(), unknownAttribute.contents())));
-                // TODO: check if JDK reader handles "wide" statements transparently
                 methodModel.code().ifPresent(code -> {
-                    Map<Integer, StackMapTableAttribute.StackMapFrame> frames = new HashMap<>(methodModel.findAttribute(Attributes.STACK_MAP_TABLE)
+                    // TODO: Stack map frames should use labels rather then offsets in the API
+                    Map<Integer, StackMapTableAttribute.StackMapFrame> frames = code.findAttribute(Attributes.STACK_MAP_TABLE)
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapTableAttribute.StackMapFrame::absoluteOffset, Function.identity())))
-                            .orElse(Collections.emptyMap()));
+                            .orElse(Collections.emptyMap());
+                    System.out.println(frames);
+                    Set<Integer> offsets = frames.values().stream()
+                            .flatMap(stackMapFrame -> Stream.concat(stackMapFrame.declaredStack().stream(), stackMapFrame.declaredLocals().stream()))
+                            .filter(verificationTypeInfo -> verificationTypeInfo instanceof StackMapTableAttribute.UninitializedVerificationTypeInfo)
+                            .map(StackMapTableAttribute.UninitializedVerificationTypeInfo.class::cast)
+                            .map(StackMapTableAttribute.UninitializedVerificationTypeInfo::offset)
+                            .collect(Collectors.toSet());
+                    Map<Integer, org.objectweb.asm.Label> offsetLabels = new HashMap<>();
                     Map<MergedLocalVariableKey, MergedLocalVariableValue> localVariables = new LinkedHashMap<>();
                     methodVisitor.visitCode();
                     int offset = 0;
                     org.objectweb.asm.Label currentPositionLabel = null;
                     for (CodeElement element : code) {
-                        StackMapTableAttribute.StackMapFrame frame = frames.remove(offset);
-                        if (frame != null) {
-                            // TODO: this does not seem right.
-                            if (expandFrames) {
-                                methodVisitor.visitFrame(Opcodes.F_NEW,
-                                        frame.absoluteOffset(),
-                                        frame.absoluteOffset() < 1
-                                                ? null
-                                                : frame.effectiveLocals().stream().map(StackMapTableAttribute.VerificationTypeInfo::type).toArray(),
-                                        frame.effectiveStack().size(),
-                                        frame.effectiveStack().isEmpty()
-                                                ? null
-                                                : frame.effectiveStack().stream().map(StackMapTableAttribute.VerificationTypeInfo::type).toArray());
-                            } else {
-                                methodVisitor.visitFrame(frame.frameType(),
-                                        frame.offsetDelta(),
-                                        frame.offsetDelta() < 1
-                                                ? null
-                                                : frame.declaredLocals().stream().map(StackMapTableAttribute.VerificationTypeInfo::type).toArray(),
-                                        frame.declaredStack().size(),
-                                        frame.declaredStack().isEmpty()
-                                                ? null
-                                                : frame.declaredStack().stream().map(StackMapTableAttribute.VerificationTypeInfo::type).toArray());
+                        if (element instanceof Instruction) {
+                            if (offsets.contains(offset)) {
+                                org.objectweb.asm.Label label = offsetLabels.get(offset);
+                                if (label != null) {
+                                    methodVisitor.visitLabel(label);
+                                } else if (currentPositionLabel != null) {
+                                    offsetLabels.put(offset, currentPositionLabel);
+                                } else {
+                                    currentPositionLabel = new org.objectweb.asm.Label();
+                                    methodVisitor.visitLabel(currentPositionLabel);
+                                    offsetLabels.put(offset, currentPositionLabel);
+                                }
+                            }
+                            StackMapTableAttribute.StackMapFrame frame = frames.get(offset);
+                            if (frame != null) {
+                                if (expandFrames) {
+                                    methodVisitor.visitFrame(Opcodes.F_NEW,
+                                            frame.effectiveLocals().size(),
+                                            frame.effectiveLocals().isEmpty() ? null : frame.effectiveLocals().stream()
+                                                    .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels))
+                                                    .toArray(),
+                                            frame.effectiveStack().size(),
+                                            frame.effectiveStack().isEmpty() ? null : frame.effectiveStack().stream()
+                                                    .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels))
+                                                    .toArray());
+                                } else {
+                                    // TODO: Cannot properly represent CROP frame
+                                    methodVisitor.visitFrame(toAsmFrameType(frame.frameKind()),
+                                            frame.declaredLocals().size(),
+                                            frame.declaredLocals().isEmpty() ? null : frame.declaredLocals().stream()
+                                                    .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels))
+                                                    .toArray(),
+                                            frame.declaredStack().size(),
+                                            frame.declaredStack().isEmpty() ? null : frame.declaredStack().stream()
+                                                    .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels))
+                                                    .toArray());
+                                }
                             }
                         }
-                        offset += element.sizeInBytes();
                         switch (element) {
                             case MonitorInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case TypeCheckInstruction value -> methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.type().asInternalName());
@@ -280,6 +302,7 @@ public class JdkClassReader {
                         if (element instanceof Instruction) {
                             currentPositionLabel = null;
                         }
+                        offset += element.sizeInBytes();
                     }
                     localVariables.forEach((key, value) -> methodVisitor.visitLocalVariable(key.name(),
                             value.descriptor(),
@@ -406,6 +429,26 @@ public class JdkClassReader {
         }).collect(Collectors.joining()));
     }
 
+    private static int toAsmFrameType(StackMapTableAttribute.FrameKind frameKind) {
+        return switch (frameKind) {
+            case SAME -> Opcodes.F_SAME;
+            case SAME_LOCALS_1_STACK_ITEM -> Opcodes.F_SAME1;
+            case APPEND -> Opcodes.F_APPEND;
+            case CHOP -> Opcodes.F_CHOP;
+            case FULL_FRAME -> Opcodes.F_FULL;
+            default -> throw new UnsupportedOperationException("Unknown frame kind: " + frameKind);
+        };
+    }
+
+    private static Object toAsmFrameValue(StackMapTableAttribute.VerificationTypeInfo verificationTypeInfo, Map<Integer, org.objectweb.asm.Label> labels) {
+        return switch (verificationTypeInfo) {
+            case StackMapTableAttribute.SimpleVerificationTypeInfo value -> value.type().tag();
+            case StackMapTableAttribute.ObjectVerificationTypeInfo value -> value.className().asInternalName();
+            case StackMapTableAttribute.UninitializedVerificationTypeInfo value -> labels.computeIfAbsent(value.offset(), ignored -> new org.objectweb.asm.Label());
+            default -> throw new UnsupportedOperationException("Unknown verification type info: " + verificationTypeInfo);
+        };
+    }
+
     @FunctionalInterface
     private interface AnnotationVisitorSource {
         AnnotationVisitor visitAnnotation(String descriptor, boolean visible);
@@ -421,12 +464,10 @@ public class JdkClassReader {
             org.objectweb.asm.Label end,
             String name,
             int slot
-    ) {
-    }
+    ) { }
 
     private record MergedLocalVariableValue(
             String descriptor,
             String signature
-    ) {
-    }
+    ) { }
 }

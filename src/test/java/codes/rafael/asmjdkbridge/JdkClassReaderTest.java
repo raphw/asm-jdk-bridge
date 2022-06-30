@@ -22,14 +22,15 @@ import static org.junit.Assert.assertEquals;
 @RunWith(Parameterized.class)
 public class JdkClassReaderTest {
 
-    @Parameterized.Parameters(name = "{1}")
+    @Parameterized.Parameters(name = "{0}")
     public static Collection<Object[]> data() {
         return Stream.of(
                 Trivial.class,
                 LoadStoreAndReturn.class,
                 FieldConstructorAndMethod.class,
                 Operations.class,
-                Invokedynamic.class
+                Invokedynamic.class,
+                BranchesAndStackMapFrames.class
         ).map(type -> new Object[]{type}).collect(Collectors.toList());
     }
 
