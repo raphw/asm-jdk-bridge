@@ -27,7 +27,7 @@ public class JdkClassReaderTest {
         return Stream.of(
                 Trivial.class,
                 LoadStoreAndReturn.class,
-                FieldAndMethod.class,
+                FieldConstructorAndMethod.class,
                 Operations.class,
                 Invokedynamic.class
         ).map(type -> new Object[]{type}).collect(Collectors.toList());

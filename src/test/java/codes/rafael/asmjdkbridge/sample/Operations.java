@@ -8,4 +8,9 @@ public class Operations {
         float f = 1f + a;
         double d = 1d + a;
     }
+
+    String c(Object o) {
+        String s = (String) o;
+        return s;
+    }
 }

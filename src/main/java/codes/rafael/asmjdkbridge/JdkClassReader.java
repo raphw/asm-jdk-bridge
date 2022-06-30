@@ -158,6 +158,7 @@ public class JdkClassReader {
                     for (CodeElement element : code) {
                         StackMapTableAttribute.StackMapFrame frame = frames.remove(offset);
                         if (frame != null) {
+                            // TODO: this does not seem right.
                             if (expandFrames) {
                                 methodVisitor.visitFrame(Opcodes.F_NEW,
                                         frame.absoluteOffset(),
@@ -182,134 +183,77 @@ public class JdkClassReader {
                         }
                         offset += element.sizeInBytes();
                         switch (element) {
-                            case MonitorInstruction value ->
-                                    methodVisitor.visitInsn(value.opcode().bytecode());
-                            case TypeCheckInstruction value ->
-                                    methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.type().asInternalName());
-                            case LoadInstruction value -> {
-                                if (value.slot() < 4) {
-                                    methodVisitor.visitVarInsn(switch (value.typeKind()) {
-                                        case BooleanType, ByteType, CharType, ShortType, IntType -> Opcodes.ILOAD;
-                                        case LongType -> Opcodes.LLOAD;
-                                        case FloatType -> Opcodes.FLOAD;
-                                        case DoubleType -> Opcodes.DLOAD;
-                                        case ReferenceType -> Opcodes.ALOAD;
-                                        default ->
-                                                throw new IllegalStateException("Unexpected type: " + value.typeKind());
-                                    }, value.slot());
-                                } else {
-                                    methodVisitor.visitVarInsn(element.opcode().bytecode(), value.slot());
-                                }
-                            }
-                            case OperatorInstruction value ->
-                                    methodVisitor.visitInsn(value.opcode().bytecode());
-                            case ReturnInstruction value ->
-                                    methodVisitor.visitInsn(value.opcode().bytecode());
-                            case InvokeInstruction value ->
-                                    methodVisitor.visitMethodInsn(element.opcode().bytecode(),
-                                            value.owner().asInternalName(),
-                                            value.name().stringValue(),
-                                            value.type().stringValue(),
-                                            value.isInterface());
-                            case IncrementInstruction value ->
-                                    methodVisitor.visitIincInsn(value.slot(), value.constant());
-                            case FieldInstruction value ->
-                                    methodVisitor.visitFieldInsn(element.opcode().bytecode(),
-                                            value.owner().asInternalName(),
-                                            value.name().stringValue(),
-                                            value.type().stringValue());
-                            case InvokeDynamicInstruction value ->
-                                    methodVisitor.visitInvokeDynamicInsn(value.name().stringValue(),
-                                            value.type().stringValue(),
-                                            (Handle) toAsmConstant(value.bootstrapMethod()),
-                                            value.bootstrapArgs().stream().map(JdkClassReader::toAsmConstant).toArray());
-                            case BranchInstruction value ->
-                                    methodVisitor.visitJumpInsn(element.opcode().bytecode(), labels.computeIfAbsent(value.target(), label -> new org.objectweb.asm.Label()));
-                            case StoreInstruction value -> {
-                                if (value.slot() < 4) {
-                                    methodVisitor.visitVarInsn(switch (value.typeKind()) {
-                                        case BooleanType, ByteType, CharType, ShortType, IntType -> Opcodes.ISTORE;
-                                        case LongType -> Opcodes.LSTORE;
-                                        case FloatType -> Opcodes.FSTORE;
-                                        case DoubleType -> Opcodes.DSTORE;
-                                        case ReferenceType -> Opcodes.ASTORE;
-                                        default ->
-                                                throw new IllegalStateException("Unexpected type: " + value.typeKind());
-                                    }, value.slot());
-                                } else {
-                                    methodVisitor.visitVarInsn(element.opcode().bytecode(), value.slot());
-                                }
-                            }
-                            case NewReferenceArrayInstruction value ->
-                                    methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.componentType().asInternalName());
-                            case LookupSwitchInstruction value ->
-                                    methodVisitor.visitLookupSwitchInsn(labels.computeIfAbsent(value.defaultTarget(), label -> new org.objectweb.asm.Label()),
-                                            value.cases().stream().mapToInt(SwitchCase::caseValue).toArray(),
-                                            value.cases().stream().map(aCase -> labels.computeIfAbsent(aCase.target(), label -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
-                            case TableSwitchInstruction value ->
-                                    methodVisitor.visitTableSwitchInsn(value.lowValue(),
-                                            value.highValue(),
-                                            labels.computeIfAbsent(value.defaultTarget(), label -> new org.objectweb.asm.Label()),
-                                            value.cases().stream().map(aCase -> labels.computeIfAbsent(aCase.target(), label -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
-                            case ArrayStoreInstruction value ->
-                                    methodVisitor.visitInsn(value.opcode().bytecode());
-                            case ArrayLoadInstruction value ->
-                                    methodVisitor.visitInsn(value.opcode().bytecode());
+                            case MonitorInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
+                            case TypeCheckInstruction value -> methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.type().asInternalName());
+                            case LoadInstruction value -> methodVisitor.visitVarInsn(switch (value.typeKind()) {
+                                case BooleanType, ByteType, CharType, ShortType, IntType -> Opcodes.ILOAD;
+                                case LongType -> Opcodes.LLOAD;
+                                case FloatType -> Opcodes.FLOAD;
+                                case DoubleType -> Opcodes.DLOAD;
+                                case ReferenceType -> Opcodes.ALOAD;
+                                default -> throw new IllegalStateException("Unexpected type: " + value.typeKind());
+                            }, value.slot());
+                            case OperatorInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
+                            case ReturnInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
+                            case InvokeInstruction value -> methodVisitor.visitMethodInsn(element.opcode().bytecode(),
+                                    value.owner().asInternalName(),
+                                    value.name().stringValue(),
+                                    value.type().stringValue(),
+                                    value.isInterface());
+                            case IncrementInstruction value -> methodVisitor.visitIincInsn(value.slot(), value.constant());
+                            case FieldInstruction value -> methodVisitor.visitFieldInsn(element.opcode().bytecode(),
+                                    value.owner().asInternalName(),
+                                    value.name().stringValue(),
+                                    value.type().stringValue());
+                            case InvokeDynamicInstruction value -> methodVisitor.visitInvokeDynamicInsn(value.name().stringValue(),
+                                    value.type().stringValue(),
+                                    (Handle) toAsmConstant(value.bootstrapMethod()),
+                                    value.bootstrapArgs().stream().map(JdkClassReader::toAsmConstant).toArray());
+                            case BranchInstruction value -> methodVisitor.visitJumpInsn(
+                                    value.opcode() == Opcode.GOTO_W ? Opcodes.GOTO : value.opcode().bytecode(),
+                                    labels.computeIfAbsent(value.target(), label -> new org.objectweb.asm.Label()));
+                            case StoreInstruction value -> methodVisitor.visitVarInsn(switch (value.typeKind()) {
+                                case BooleanType, ByteType, CharType, ShortType, IntType -> Opcodes.ISTORE;
+                                case LongType -> Opcodes.LSTORE;
+                                case FloatType -> Opcodes.FSTORE;
+                                case DoubleType -> Opcodes.DSTORE;
+                                case ReferenceType -> Opcodes.ASTORE;
+                                default -> throw new IllegalStateException("Unexpected type: " + value.typeKind());
+                            }, value.slot());
+                            case NewReferenceArrayInstruction value -> methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.componentType().asInternalName());
+                            case LookupSwitchInstruction value -> methodVisitor.visitLookupSwitchInsn(labels.computeIfAbsent(value.defaultTarget(), label -> new org.objectweb.asm.Label()),
+                                    value.cases().stream().mapToInt(SwitchCase::caseValue).toArray(),
+                                    value.cases().stream().map(aCase -> labels.computeIfAbsent(aCase.target(), label -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
+                            case TableSwitchInstruction value -> methodVisitor.visitTableSwitchInsn(value.lowValue(),
+                                    value.highValue(),
+                                    labels.computeIfAbsent(value.defaultTarget(), label -> new org.objectweb.asm.Label()),
+                                    value.cases().stream().map(aCase -> labels.computeIfAbsent(aCase.target(), label -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
+                            case ArrayStoreInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
+                            case ArrayLoadInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case ConstantInstruction value -> {
-                                // Note: javac does not seem to understand nested type matching, use instanceof instead
-                                // It seems like the Java class file API translates [ILFD]CONST_X values to LDC values, translate back.
-                                if (value.constantValue() instanceof Integer i) {
-                                    if (i >= -1 && i <= 5) {
-                                        methodVisitor.visitInsn(Opcodes.ICONST_0 + i);
-                                    } else {
-                                        methodVisitor.visitLdcInsn(i);
-                                    }
-                                } else if (value.constantValue() instanceof Long l) {
-                                    if (l >= 0 && l <= 1) {
-                                        methodVisitor.visitInsn(Opcodes.LCONST_0 + l.intValue());
-                                    } else {
-                                        methodVisitor.visitLdcInsn(l);
-                                    }
-                                } else if (value.constantValue() instanceof Float f) {
-                                    if (f == 0f || f == 1f || f == 2f) {
-                                        methodVisitor.visitInsn(Opcodes.FCONST_0 + f.intValue());
-                                    } else {
-                                        methodVisitor.visitLdcInsn(f);
-                                    }
-                                } else if (value.constantValue() instanceof Double d) {
-                                    if (d == 0d || d == 1d) {
-                                        methodVisitor.visitInsn(Opcodes.DCONST_0 + d.intValue());
-                                    } else {
-                                        methodVisitor.visitLdcInsn(d);
-                                    }
-                                } else {
-                                    methodVisitor.visitLdcInsn(toAsmConstant(value.constantValue()));
+                                switch (value.opcode()) {
+                                    case LDC, LDC_W, LDC2_W -> methodVisitor.visitLdcInsn(toAsmConstant(value.constantValue()));
+                                    case BIPUSH, SIPUSH -> methodVisitor.visitIntInsn(value.opcode().bytecode(), (Integer) value.constantValue());
+                                    default -> methodVisitor.visitInsn(value.opcode().bytecode());
                                 }
                             }
-                            case StackInstruction value ->
-                                    methodVisitor.visitInsn(value.opcode().bytecode());
+                            case StackInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case NopInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
-                            case ThrowInstruction value ->
-                                    methodVisitor.visitInsn(value.opcode().bytecode());
-                            case NewObjectInstruction value ->
-                                    methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.className().asInternalName());
-                            case ConvertInstruction value ->
-                                    methodVisitor.visitInsn(value.opcode().bytecode());
-                            case NewMultiArrayInstruction value ->
-                                    methodVisitor.visitMultiANewArrayInsn(value.arrayType().asInternalName(), value.dimensions());
-                            case NewPrimitiveArrayInstruction value ->
-                                    methodVisitor.visitInsn(value.opcode().bytecode());
+                            case ThrowInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
+                            case NewObjectInstruction value -> methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.className().asInternalName());
+                            case ConvertInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
+                            case NewMultiArrayInstruction value -> methodVisitor.visitMultiANewArrayInsn(value.arrayType().asInternalName(), value.dimensions());
+                            case NewPrimitiveArrayInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case LocalVariableType value -> localVariables.compute(new MergedLocalVariableKey(
                                     labels.computeIfAbsent(value.startScope(), label -> new org.objectweb.asm.Label()),
                                     labels.computeIfAbsent(value.endScope(), label -> new org.objectweb.asm.Label()),
                                     value.name().stringValue(),
                                     value.slot()
                             ), (key, values) -> new MergedLocalVariableValue(values == null ? null : values.descriptor, value.signature().stringValue()));
-                            case ExceptionCatch value ->
-                                    methodVisitor.visitTryCatchBlock(labels.computeIfAbsent(value.tryStart(), label -> new org.objectweb.asm.Label()),
-                                            labels.computeIfAbsent(value.tryEnd(), label -> new org.objectweb.asm.Label()),
-                                            labels.computeIfAbsent(value.handler(), label -> new org.objectweb.asm.Label()),
-                                            value.catchType().map(ClassEntry::asInternalName).orElse(null));
+                            case ExceptionCatch value -> methodVisitor.visitTryCatchBlock(labels.computeIfAbsent(value.tryStart(), label -> new org.objectweb.asm.Label()),
+                                    labels.computeIfAbsent(value.tryEnd(), label -> new org.objectweb.asm.Label()),
+                                    labels.computeIfAbsent(value.handler(), label -> new org.objectweb.asm.Label()),
+                                    value.catchType().map(ClassEntry::asInternalName).orElse(null));
                             case LocalVariable value -> localVariables.compute(new MergedLocalVariableKey(
                                     labels.computeIfAbsent(value.startScope(), label -> new org.objectweb.asm.Label()),
                                     labels.computeIfAbsent(value.endScope(), label -> new org.objectweb.asm.Label()),
@@ -329,6 +273,7 @@ public class JdkClassReader {
                             }
                             case CharacterRange ignored -> {
                                 // TODO: Is there an easier way to deconstruct to byte array then by knowing spec?
+                                // Note: This would allow for better forward compatibility if unknown attributes should just be dumped.
                             }
                             default -> throw new UnsupportedOperationException("Unknown value: " + element);
                         }
@@ -406,14 +351,10 @@ public class JdkClassReader {
 
     private static void appendAnnotationValue(AnnotationVisitor annotationVisitor, String name, AnnotationValue annotationValue) {
         switch (annotationValue) {
-            case AnnotationValue.OfConstant value ->
-                    annotationVisitor.visit(name, toAsmConstant(value.constantValue()));
-            case AnnotationValue.OfClass value ->
-                    annotationVisitor.visit(name, Type.getType(value.className().stringValue()));
-            case AnnotationValue.OfAnnotation value ->
-                    appendAnnotationValues(annotationVisitor.visitAnnotation(name, value.annotation().className().stringValue()), value.annotation().elements());
-            case AnnotationValue.OfEnum value ->
-                    annotationVisitor.visitEnum(name, value.className().stringValue(), value.constantName().stringValue());
+            case AnnotationValue.OfConstant value -> annotationVisitor.visit(name, toAsmConstant(value.constantValue()));
+            case AnnotationValue.OfClass value -> annotationVisitor.visit(name, Type.getType(value.className().stringValue()));
+            case AnnotationValue.OfAnnotation value -> appendAnnotationValues(annotationVisitor.visitAnnotation(name, value.annotation().className().stringValue()), value.annotation().elements());
+            case AnnotationValue.OfEnum value -> annotationVisitor.visitEnum(name, value.className().stringValue(), value.constantName().stringValue());
             case AnnotationValue.OfArray value -> {
                 AnnotationVisitor nested = annotationVisitor.visitArray(name);
                 if (nested != null) {
@@ -439,8 +380,7 @@ public class JdkClassReader {
                     value.methodName(),
                     value.lookupDescriptor(),
                     value.isOwnerInterface());
-            case MethodHandleDesc value ->
-                    throw new UnsupportedOperationException("Cannot map non-direct method handle to ASM constant: " + value);
+            case MethodHandleDesc value -> throw new UnsupportedOperationException("Cannot map non-direct method handle to ASM constant: " + value);
             case DynamicConstantDesc<?> value -> new ConstantDynamic(value.constantName(),
                     value.constantType().descriptorString(),
                     (Handle) toAsmConstant(value.bootstrapMethod()),
