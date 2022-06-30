@@ -1,9 +1,6 @@
 package codes.rafael.asmjdkbridge;
 
-import codes.rafael.asmjdkbridge.sample.FieldAndMethod;
-import codes.rafael.asmjdkbridge.sample.LoadStoreAndReturn;
-import codes.rafael.asmjdkbridge.sample.Operations;
-import codes.rafael.asmjdkbridge.sample.Trivial;
+import codes.rafael.asmjdkbridge.sample.*;
 import jdk.classfile.Classfile;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -31,7 +28,8 @@ public class JdkClassReaderTest {
                 Trivial.class,
                 LoadStoreAndReturn.class,
                 FieldAndMethod.class,
-                Operations.class
+                Operations.class,
+                Invokedynamic.class
         ).map(type -> new Object[]{type}).collect(Collectors.toList());
     }
 

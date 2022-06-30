@@ -146,6 +146,7 @@ public class JdkClassReader {
                         .filter(attribute -> attribute instanceof UnknownAttribute)
                         .map(UnknownAttribute.class::cast)
                         .forEach(unknownAttribute -> methodVisitor.visitAttribute(new ByteArrayAttribute(unknownAttribute.attributeName(), unknownAttribute.contents())));
+                // TODO: check if JDK reader handles "wide" statements transparently
                 methodModel.code().ifPresent(code -> {
                     Map<Integer, StackMapTableAttribute.StackMapFrame> frames = new HashMap<>(methodModel.findAttribute(Attributes.STACK_MAP_TABLE)
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapTableAttribute.StackMapFrame::absoluteOffset, Function.identity())))
@@ -434,7 +435,7 @@ public class JdkClassReader {
             case ClassDesc value -> Type.getType(value.descriptorString());
             case MethodTypeDesc value -> Type.getMethodType(value.descriptorString());
             case DirectMethodHandleDesc value -> new Handle(value.refKind(),
-                    value.owner().descriptorString(),
+                    toInternalName(value.owner()),
                     value.methodName(),
                     value.lookupDescriptor(),
                     value.isOwnerInterface());
@@ -446,6 +447,14 @@ public class JdkClassReader {
                     value.bootstrapArgsList().stream().map(JdkClassReader::toAsmConstant).toArray());
             default -> throw new UnsupportedOperationException("Unknown constant: " + constant);
         };
+    }
+
+    private static String toInternalName(ClassDesc constant) {
+        if (!constant.isClassOrInterface()) {
+            throw new IllegalArgumentException("Not a class or interface: " + constant);
+        }
+        String descriptor = constant.descriptorString();
+        return descriptor.substring(1, descriptor.length() - 1);
     }
 
     private static TypePath toTypePath(List<TypeAnnotation.TypePathComponent> components) {
