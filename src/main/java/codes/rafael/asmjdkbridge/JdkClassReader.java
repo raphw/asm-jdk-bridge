@@ -296,8 +296,10 @@ public class JdkClassReader {
                                 currentPositionLabel = labels.computeIfAbsent(instruction.label(), label -> new org.objectweb.asm.Label());
                                 methodVisitor.visitLabel(currentPositionLabel);
                             }
-                            default ->
-                                    throw new UnsupportedOperationException("Unsupported instruction: " + element.opcode());
+                            case CharacterRange ignored -> {
+                                // TODO: How to write this back to a byte array?
+                            }
+                            default -> throw new UnsupportedOperationException("Failed to ");
                         }
                         if (element instanceof Instruction) {
                             currentPositionLabel = null;
@@ -405,7 +407,8 @@ public class JdkClassReader {
                     value.methodName(),
                     value.lookupDescriptor(),
                     value.isOwnerInterface());
-            case MethodHandleDesc value -> throw new UnsupportedOperationException("Cannot map non-direct method handle to ASM constant: " + value);
+            case MethodHandleDesc value ->
+                    throw new UnsupportedOperationException("Cannot map non-direct method handle to ASM constant: " + value);
             case DynamicConstantDesc<?> value -> new ConstantDynamic(value.constantName(),
                     value.constantType().descriptorString(),
                     (Handle) toAsmConstant(value.bootstrapMethod()),
