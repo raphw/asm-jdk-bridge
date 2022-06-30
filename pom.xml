@@ -5,7 +5,6 @@
     <groupId>codes.rafael.asmjdkbridge</groupId>
     <artifactId>asm-jdk-bridge</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <packaging>bundle</packaging>
 
     <inceptionYear>2022</inceptionYear>
 
@@ -47,6 +46,12 @@
             <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-util</artifactId>
+            <version>9.3</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <!-- OSS parent for deployment to Maven Central -->
@@ -83,94 +88,35 @@
                 <version>3.8.0</version>
                 <inherited>true</inherited>
                 <configuration>
-                    <source>20</source>
-                    <target>20</target>
+                    <source>19</source>
+                    <target>19</target>
                     <encoding>utf-8</encoding>
+                    <compilerArgs>
+                        <arg>--add-exports</arg>
+                        <arg>java.base/jdk.classfile=ALL-UNNAMED</arg>
+                        <arg>--add-exports</arg>
+                        <arg>java.base/jdk.classfile.attribute=ALL-UNNAMED</arg>
+                        <arg>--add-exports</arg>
+                        <arg>java.base/jdk.classfile.constantpool=ALL-UNNAMED</arg>
+                        <arg>--add-exports</arg>
+                        <arg>java.base/jdk.classfile.instruction=ALL-UNNAMED</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
             <plugin>
+
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-release-plugin</artifactId>
-                <version>2.5.3</version>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.0.0-M5</version>
                 <configuration>
-                    <useReleaseProfile>false</useReleaseProfile>
-                    <releaseProfiles>extras,gpg</releaseProfiles>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.felix</groupId>
-                <artifactId>maven-bundle-plugin</artifactId>
-                <version>3.5.0</version>
-                <extensions>true</extensions>
-                <configuration>
-                    <instructions>
-                        <Export-Package>com.blogspot.mydailyjava.weaklockfree</Export-Package>
-                    </instructions>
+                    <argLine>
+                        --add-exports java.base/jdk.classfile=ALL-UNNAMED
+                        --add-exports java.base/jdk.classfile.attribute=ALL-UNNAMED
+                        --add-exports java.base/jdk.classfile.constantpool=ALL-UNNAMED
+                        --add-exports java.base/jdk.classfile.instruction=ALL-UNNAMED
+                    </argLine>
                 </configuration>
             </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <profile>
-            <id>extras</id>
-            <activation>
-                <activeByDefault>false</activeByDefault>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-source-plugin</artifactId>
-                        <version>3.0.1</version>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>jar</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>3.3.1</version>
-                        <executions>
-                            <execution>
-                                <id>attach-javadoc</id>
-                                <goals>
-                                    <goal>jar</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <profile>
-            <id>gpg</id>
-            <activation>
-                <activeByDefault>false</activeByDefault>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-gpg-plugin</artifactId>
-                        <version>1.6</version>
-                        <executions>
-                            <execution>
-                                <phase>verify</phase>
-                                <goals>
-                                    <goal>sign</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 </project>

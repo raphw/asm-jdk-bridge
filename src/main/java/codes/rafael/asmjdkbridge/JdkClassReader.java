@@ -25,6 +25,10 @@ public class JdkClassReader {
     }
 
     public void accept(ClassVisitor classVisitor) {
+        accept(classVisitor, false);
+    }
+
+    public void accept(ClassVisitor classVisitor, boolean expandFrames) {
         Map<Label, org.objectweb.asm.Label> labels = new HashMap<>();
         classVisitor.visit(classModel.minorVersion() << 16 | classModel.majorVersion(),
                 classModel.flags().flagsMask()
@@ -86,8 +90,8 @@ public class JdkClassReader {
         classModel.findAttribute(Attributes.RECORD).stream()
                 .flatMap(record -> record.components().stream())
                 .forEach(recordComponent -> classVisitor.visitRecordComponent(recordComponent.name().stringValue(),
-                    recordComponent.descriptor().stringValue(),
-                    recordComponent.descriptorSymbol().descriptorString()));
+                        recordComponent.descriptor().stringValue(),
+                        recordComponent.descriptorSymbol().descriptorString()));
         classModel.findAttribute(Attributes.INNER_CLASSES).stream()
                 .flatMap(innerClasses -> innerClasses.classes().stream())
                 .forEach(innerClass -> classVisitor.visitInnerClass(innerClass.innerClass().asInternalName(),
@@ -131,16 +135,34 @@ public class JdkClassReader {
                     Map<Integer, StackMapTableAttribute.StackMapFrame> frames = new HashMap<>(methodModel.findAttribute(Attributes.STACK_MAP_TABLE)
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapTableAttribute.StackMapFrame::absoluteOffset, Function.identity())))
                             .orElse(Collections.emptyMap()));
+                    Map<MergedLocalVariableKey, MergedLocalVariableValue> localVariables = new LinkedHashMap<>();
                     methodVisitor.visitCode();
                     int offset = 0;
+                    org.objectweb.asm.Label currentPositionLabel = null;
                     for (CodeElement element : code) {
                         StackMapTableAttribute.StackMapFrame frame = frames.remove(offset);
                         if (frame != null) {
-                            methodVisitor.visitFrame(frame.frameType(),
-                                    frame.declaredLocals().size(),
-                                    frame.declaredLocals().stream().map(StackMapTableAttribute.VerificationTypeInfo::type).toArray(),
-                                    frame.declaredStack().size(),
-                                    frame.declaredStack().stream().map(StackMapTableAttribute.VerificationTypeInfo::type).toArray());
+                            if (expandFrames) {
+                                methodVisitor.visitFrame(Opcodes.F_NEW,
+                                        frame.absoluteOffset(),
+                                        frame.absoluteOffset() < 1
+                                                ? null
+                                                : frame.effectiveLocals().stream().map(StackMapTableAttribute.VerificationTypeInfo::type).toArray(),
+                                        frame.effectiveStack().size(),
+                                        frame.effectiveStack().isEmpty()
+                                                ? null
+                                                : frame.effectiveStack().stream().map(StackMapTableAttribute.VerificationTypeInfo::type).toArray());
+                            } else {
+                                methodVisitor.visitFrame(frame.frameType(),
+                                        frame.offsetDelta(),
+                                        frame.offsetDelta() < 1
+                                                ? null
+                                                : frame.declaredLocals().stream().map(StackMapTableAttribute.VerificationTypeInfo::type).toArray(),
+                                        frame.declaredStack().size(),
+                                        frame.declaredStack().isEmpty()
+                                                ? null
+                                                : frame.declaredStack().stream().map(StackMapTableAttribute.VerificationTypeInfo::type).toArray());
+                            }
                         }
                         offset += element.sizeInBytes();
                         if (element instanceof MonitorInstruction) {
@@ -148,7 +170,18 @@ public class JdkClassReader {
                         } else if (element instanceof TypeCheckInstruction instruction) {
                             methodVisitor.visitTypeInsn(element.opcode().bytecode(), instruction.type().asInternalName());
                         } else if (element instanceof LoadInstruction instruction) {
-                            methodVisitor.visitVarInsn(element.opcode().bytecode(), instruction.slot());
+                            if (instruction.slot() < 4) {
+                                methodVisitor.visitVarInsn(switch (instruction.typeKind()) {
+                                    case BooleanType, ByteType, CharType, ShortType, IntType -> Opcodes.ILOAD;
+                                    case LongType -> Opcodes.LLOAD;
+                                    case FloatType -> Opcodes.FLOAD;
+                                    case DoubleType -> Opcodes.DLOAD;
+                                    case ReferenceType -> Opcodes.ALOAD;
+                                    default -> throw new IllegalStateException("Unexpected type: " + instruction.typeKind());
+                                }, instruction.slot());
+                            } else {
+                                methodVisitor.visitVarInsn(element.opcode().bytecode(), instruction.slot());
+                            }
                         } else if (element instanceof OperatorInstruction) {
                             methodVisitor.visitInsn(element.opcode().bytecode());
                         } else if (element instanceof ReturnInstruction) {
@@ -174,7 +207,18 @@ public class JdkClassReader {
                         } else if (element instanceof BranchInstruction instruction) {
                             methodVisitor.visitJumpInsn(element.opcode().bytecode(), labels.computeIfAbsent(instruction.target(), label -> new org.objectweb.asm.Label()));
                         } else if (element instanceof StoreInstruction instruction) {
-                            methodVisitor.visitVarInsn(element.opcode().bytecode(), instruction.slot());
+                            if (instruction.slot() < 4) {
+                                methodVisitor.visitVarInsn(switch (instruction.typeKind()) {
+                                    case BooleanType, ByteType, CharType, ShortType, IntType -> Opcodes.ISTORE;
+                                    case LongType -> Opcodes.LSTORE;
+                                    case FloatType -> Opcodes.FSTORE;
+                                    case DoubleType -> Opcodes.DSTORE;
+                                    case ReferenceType -> Opcodes.ASTORE;
+                                    default -> throw new IllegalStateException("Unexpected type: " + instruction.typeKind());
+                                }, instruction.slot());
+                            } else {
+                                methodVisitor.visitVarInsn(element.opcode().bytecode(), instruction.slot());
+                            }
                         } else if (element instanceof NewReferenceArrayInstruction instruction) {
                             methodVisitor.visitTypeInsn(element.opcode().bytecode(), instruction.componentType().asInternalName());
                         } else if (element instanceof LookupSwitchInstruction instruction) {
@@ -206,34 +250,46 @@ public class JdkClassReader {
                             methodVisitor.visitMultiANewArrayInsn(instruction.arrayType().asInternalName(), instruction.dimensions());
                         } else if (element instanceof NewPrimitiveArrayInstruction) {
                             methodVisitor.visitInsn(element.opcode().bytecode());
-                        } else if (element instanceof LocalVariableType instruction) { // TODO: merge with LocalVariable?
-                            methodVisitor.visitLocalVariable(instruction.name().stringValue(),
-                                    null,
-                                    instruction.signatureSymbol().signatureString(),
+                        } else if (element instanceof LocalVariableType instruction) {
+                            localVariables.compute(new MergedLocalVariableKey(
                                     labels.computeIfAbsent(instruction.startScope(), label -> new org.objectweb.asm.Label()),
                                     labels.computeIfAbsent(instruction.endScope(), label -> new org.objectweb.asm.Label()),
-                                    instruction.slot());
+                                    instruction.name().stringValue(),
+                                    instruction.slot()
+                            ), (key, value) -> new MergedLocalVariableValue(value == null ? null : value.descriptor, instruction.signature().stringValue()));
                         } else if (element instanceof ExceptionCatch instruction) {
                             methodVisitor.visitTryCatchBlock(labels.computeIfAbsent(instruction.tryStart(), label -> new org.objectweb.asm.Label()),
                                     labels.computeIfAbsent(instruction.tryEnd(), label -> new org.objectweb.asm.Label()),
                                     labels.computeIfAbsent(instruction.handler(), label -> new org.objectweb.asm.Label()),
                                     instruction.catchType().map(ClassEntry::asInternalName).orElse(null));
-                        } else if (element instanceof LocalVariable instruction) { // TODO: merge with LocalVariableType?
-                            methodVisitor.visitLocalVariable(instruction.name().stringValue(),
-                                    instruction.type().stringValue(),
-                                    null,
+                        } else if (element instanceof LocalVariable instruction) {
+                            localVariables.compute(new MergedLocalVariableKey(
                                     labels.computeIfAbsent(instruction.startScope(), label -> new org.objectweb.asm.Label()),
                                     labels.computeIfAbsent(instruction.endScope(), label -> new org.objectweb.asm.Label()),
-                                    instruction.slot());
+                                    instruction.name().stringValue(),
+                                    instruction.slot()
+                            ), (key, value) -> new MergedLocalVariableValue(instruction.typeSymbol().descriptorString(), value == null ? null : value.signature));
                         } else if (element instanceof LineNumber instruction) {
-                            org.objectweb.asm.Label label = new org.objectweb.asm.Label();
-                            methodVisitor.visitLabel(label);
-                            methodVisitor.visitLineNumber(instruction.line(), label);
+                            if (currentPositionLabel == null) {
+                                currentPositionLabel = new org.objectweb.asm.Label();
+                                methodVisitor.visitLabel(currentPositionLabel);
+                            }
+                            methodVisitor.visitLineNumber(instruction.line(), currentPositionLabel);
                         } else if (element instanceof LabelTarget instruction) {
-                            methodVisitor.visitLabel(labels.computeIfAbsent(instruction.label(), label -> new org.objectweb.asm.Label()));
+                            currentPositionLabel = labels.computeIfAbsent(instruction.label(), label -> new org.objectweb.asm.Label());
+                            methodVisitor.visitLabel(currentPositionLabel);
                         } else { // TODO: allow forwarding or throw exception (also: CharacterRange)
                         }
+                        if (element instanceof Instruction) {
+                            currentPositionLabel = null;
+                        }
                     }
+                    localVariables.forEach((key, value) -> methodVisitor.visitLocalVariable(key.name(),
+                            value.descriptor(),
+                            value.signature(),
+                            key.start(),
+                            key.end(),
+                            key.slot()));
                     // TODO: visitInsAnnotation, visitTryCatchAnnotation, visitLocalVariableAnnotation
                     methodVisitor.visitMaxs(code.maxStack(), code.maxLocals());
                 });
@@ -349,4 +405,16 @@ public class JdkClassReader {
     private interface TypeAnnotationVisitorSource {
         AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible);
     }
+
+    private record MergedLocalVariableKey(
+            org.objectweb.asm.Label start,
+            org.objectweb.asm.Label end,
+            String name,
+            int slot
+    ) { }
+
+    private record MergedLocalVariableValue(
+            String descriptor,
+            String signature
+    ) { }
 }
