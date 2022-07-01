@@ -139,10 +139,6 @@ public class JdkClassReader {
                 acceptParameterAnnotations(methodModel, methodVisitor, true);
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
                 acceptAttributes(methodModel, methodVisitor::visitAttribute);
-                methodModel.attributes().stream()
-                        .filter(attribute -> attribute instanceof UnknownAttribute)
-                        .map(UnknownAttribute.class::cast)
-                        .forEach(unknownAttribute -> methodVisitor.visitAttribute(new ByteArrayAttribute(unknownAttribute.attributeName(), unknownAttribute.contents())));
                 methodModel.code().ifPresent(code -> {
                     // TODO: Stack map frames should use labels rather then offsets in the API?
                     Map<Integer, StackMapTableAttribute.StackMapFrame> frames = code.findAttribute(Attributes.STACK_MAP_TABLE)
@@ -355,21 +351,6 @@ public class JdkClassReader {
     }
 
     private static void acceptParameterAnnotations(MethodModel methodModel, MethodVisitor methodVisitor, boolean visible) {
-        int count = methodModel.descriptorSymbol().parameterCount();
-        Optional<List<List<Annotation>>> target = visible
-                ? methodModel.findAttribute(Attributes.RUNTIME_VISIBLE_PARAMETER_ANNOTATIONS).map(RuntimeVisibleParameterAnnotationsAttribute::parameterAnnotations)
-                : methodModel.findAttribute(Attributes.RUNTIME_INVISIBLE_PARAMETER_ANNOTATIONS).map(RuntimeInvisibleParameterAnnotationsAttribute::parameterAnnotations);
-        target.ifPresent(annotations -> {
-            methodVisitor.visitAnnotableParameterCount(count, visible);
-            for (int index = 0; index < annotations.size(); index++) {
-                for (Annotation annotation : annotations.get(index)) {
-                    appendAnnotationValues(methodVisitor.visitParameterAnnotation(index, annotation.className().stringValue(), visible), annotation.elements());
-                }
-            }
-        });
-    }
-
-    private static void acceptInlineAnnotations(MethodModel methodModel, MethodVisitor methodVisitor, boolean visible) {
         int count = methodModel.descriptorSymbol().parameterCount();
         Optional<List<List<Annotation>>> target = visible
                 ? methodModel.findAttribute(Attributes.RUNTIME_VISIBLE_PARAMETER_ANNOTATIONS).map(RuntimeVisibleParameterAnnotationsAttribute::parameterAnnotations)

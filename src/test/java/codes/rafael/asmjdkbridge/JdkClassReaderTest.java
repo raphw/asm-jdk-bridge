@@ -44,7 +44,8 @@ public class JdkClassReaderTest {
                 {Annotations.class, false},
                 {TypeAnnotationsWithoutPath.class, false},
                 {TypeAnnotationsWithPath.class, false},
-                {TypeAnnotationsInCode.class, false}
+                {TypeAnnotationsInCode.class, false},
+                {CustomAttribute.make(), false}
         });
     }
 
