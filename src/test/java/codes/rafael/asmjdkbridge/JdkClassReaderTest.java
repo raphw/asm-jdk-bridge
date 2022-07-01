@@ -25,14 +25,16 @@ public class JdkClassReaderTest {
     @Parameterized.Parameters(name = "{0}")
     public static Collection<Object[]> data() {
         return Stream.of(
-                Trivial.class,
+                /*Trivial.class,
                 LoadStoreAndReturn.class,
                 FieldConstructorAndMethod.class,
                 Operations.class,
                 Invokedynamic.class,
                 BranchesAndStackMapFrames.class,
                 Switches.class,
-                TryThrowCatch.class
+                TryThrowCatch.class,
+                Annotations.class,
+                */TypeAnnotations.class
         ).map(type -> new Object[]{type}).collect(Collectors.toList());
     }
 

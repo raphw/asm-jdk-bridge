@@ -327,14 +327,18 @@ public class JdkClassReader {
         element.findAttribute(Attributes.RUNTIME_VISIBLE_TYPE_ANNOTATIONS).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
                 .filter(annotation -> annotation.targetInfo().targetType().targetTypeValue() < TypeReference.LOCAL_VARIABLE)
-                .forEach(annotation -> appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(annotation.targetInfo().targetType().targetTypeValue(),
-                        toTypePath(annotation.targetPath()),
-                        annotation.className().stringValue(),
-                        true), annotation.elements()));
+                .forEach(annotation -> {
+                    appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(
+                            TypeReference.newTypeReference(annotation.targetInfo().targetType().targetTypeValue()).getValue(),
+                            toTypePath(annotation.targetPath()),
+                            annotation.className().stringValue(),
+                            true), annotation.elements());
+                });
         element.findAttribute(Attributes.RUNTIME_INVISIBLE_TYPE_ANNOTATIONS).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
                 .filter(annotation -> annotation.targetInfo().targetType().targetTypeValue() < TypeReference.LOCAL_VARIABLE)
-                .forEach(annotation -> appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(annotation.targetInfo().targetType().targetTypeValue(),
+                .forEach(annotation -> appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(
+                        TypeReference.newTypeReference(annotation.targetInfo().targetType().targetTypeValue()).getValue(),
                         toTypePath(annotation.targetPath()),
                         annotation.className().stringValue(),
                         false), annotation.elements()));
@@ -346,9 +350,7 @@ public class JdkClassReader {
                 ? methodModel.findAttribute(Attributes.RUNTIME_VISIBLE_PARAMETER_ANNOTATIONS).map(RuntimeVisibleParameterAnnotationsAttribute::parameterAnnotations)
                 : methodModel.findAttribute(Attributes.RUNTIME_INVISIBLE_PARAMETER_ANNOTATIONS).map(RuntimeInvisibleParameterAnnotationsAttribute::parameterAnnotations);
         target.ifPresent(annotations -> {
-            if (annotations.size() != count) {
-                methodVisitor.visitAnnotableParameterCount(count, visible);
-            }
+            methodVisitor.visitAnnotableParameterCount(count, visible);
             for (int index = 0; index < annotations.size(); index++) {
                 for (Annotation annotation : annotations.get(index)) {
                     appendAnnotationValues(methodVisitor.visitParameterAnnotation(index, annotation.className().stringValue(), visible), annotation.elements());
@@ -420,6 +422,9 @@ public class JdkClassReader {
     }
 
     private static TypePath toTypePath(List<TypeAnnotation.TypePathComponent> components) {
+        if (components.isEmpty()) {
+            return null;
+        }
         return TypePath.fromString(components.stream().map(component -> switch (component.typePathKind()) {
             case ARRAY -> "[";
             case INNER_TYPE -> ".";
