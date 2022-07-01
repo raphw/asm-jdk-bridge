@@ -39,7 +39,8 @@ public class JdkClassReaderTest {
                 {TypeAnnotationsWithoutPath.class, false},
                 {TypeAnnotationsWithPath.class, false},
                 {RecordComponents.class, false},
-                {NoRecordComponents.class, false}
+                {NoRecordComponents.class, false},
+                {TypeAnnotationsInMethod.class, false}
         });
     }
 
