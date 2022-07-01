@@ -11,6 +11,16 @@ public class Annotations {
     @B(1)
     Object o;
 
+    @C(
+            aa = "a",
+            ba = 0,
+            c = @D,
+            ca = @D,
+            e = E.VALUE,
+            ea = E.VALUE
+    )
+    Object v;
+
     @A(2)
     @B(2)
     Object a(@A(3) @B(3) Object o) {
@@ -24,5 +34,26 @@ public class Annotations {
 
     @interface B {
         int value();
+    }
+
+    @interface C {
+
+        String[] aa();
+
+        int[] ba();
+
+        D c();
+
+        D[] ca();
+
+        E e();
+
+        E[] ea();
+    }
+
+    @interface D { }
+
+    enum E {
+        VALUE
     }
 }
