@@ -91,24 +91,24 @@ public class JdkClassReader {
         classModel.findAttribute(Attributes.PERMITTED_SUBCLASSES).stream()
                 .flatMap(permittedSubclasses -> permittedSubclasses.permittedSubclasses().stream())
                 .forEach(nestMember -> classVisitor.visitPermittedSubclass(nestMember.asInternalName()));
-        classModel.findAttribute(Attributes.RECORD).stream()
-                .flatMap(record -> record.components().stream())
-                .forEach(recordComponent -> {
-                    RecordComponentVisitor recordComponentVisitor = classVisitor.visitRecordComponent(recordComponent.name().stringValue(),
-                            recordComponent.descriptor().stringValue(),
-                            recordComponent.descriptorSymbol().descriptorString());
-                    if (recordComponentVisitor != null) {
-                        acceptAnnotations(recordComponent, recordComponentVisitor::visitAnnotation, recordComponentVisitor::visitTypeAnnotation);
-                        acceptAttributes(recordComponent, recordComponentVisitor::visitAttribute);
-                        recordComponentVisitor.visitEnd();
-                    }
-                });
         classModel.findAttribute(Attributes.INNER_CLASSES).stream()
                 .flatMap(innerClasses -> innerClasses.classes().stream())
                 .forEach(innerClass -> classVisitor.visitInnerClass(innerClass.innerClass().asInternalName(),
                         innerClass.outerClass().map(ClassEntry::asInternalName).orElse(null),
                         innerClass.innerName().map(Utf8Entry::stringValue).orElse(null),
                         innerClass.flagsMask()));
+        classModel.findAttribute(Attributes.RECORD).stream()
+                .flatMap(record -> record.components().stream())
+                .forEach(recordComponent -> {
+                    RecordComponentVisitor recordComponentVisitor = classVisitor.visitRecordComponent(recordComponent.name().stringValue(),
+                            recordComponent.descriptor().stringValue(),
+                            recordComponent.findAttribute(Attributes.SIGNATURE).map(signature -> signature.signature().stringValue()).orElse(null));
+                    if (recordComponentVisitor != null) {
+                        acceptAnnotations(recordComponent, recordComponentVisitor::visitAnnotation, recordComponentVisitor::visitTypeAnnotation);
+                        acceptAttributes(recordComponent, recordComponentVisitor::visitAttribute);
+                        recordComponentVisitor.visitEnd();
+                    }
+                });
         for (FieldModel fieldModel : classModel.fields()) {
             FieldVisitor fieldVisitor = classVisitor.visitField(fieldModel.flags().flagsMask() | (fieldModel.findAttribute(Attributes.DEPRECATED).isPresent() ? Opcodes.ACC_DEPRECATED : 0),
                     fieldModel.fieldName().stringValue(),
@@ -447,8 +447,8 @@ public class JdkClassReader {
 
     private static int toAsmFrameType(StackMapTableAttribute.FrameKind frameKind) {
         return switch (frameKind) {
-            case SAME -> Opcodes.F_SAME;
-            case SAME_LOCALS_1_STACK_ITEM -> Opcodes.F_SAME1;
+            case SAME, SAME_FRAME_EXTENDED -> Opcodes.F_SAME; // TODO: inconsistent naming?
+            case SAME_LOCALS_1_STACK_ITEM, SAME_LOCALS_1_STACK_ITEM_EXTENDED -> Opcodes.F_SAME1;
             case APPEND -> Opcodes.F_APPEND;
             case CHOP -> Opcodes.F_CHOP;
             case FULL_FRAME -> Opcodes.F_FULL;

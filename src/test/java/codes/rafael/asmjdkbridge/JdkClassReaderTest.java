@@ -15,36 +15,41 @@ import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Constructor;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
 public class JdkClassReaderTest {
 
-    @Parameterized.Parameters(name = "{0}")
+    @Parameterized.Parameters(name = "{0} (expandFrames={1})")
     public static Collection<Object[]> data() {
-        return Stream.of(
-                Trivial.class,
-                LoadStoreAndReturn.class,
-                FieldConstructorAndMethod.class,
-                Operations.class,
-                Invokedynamic.class,
-                BranchesAndStackMapFrames.class,
-                Switches.class,
-                TryThrowCatch.class,
-                Annotations.class,
-                TypeAnnotationsWithoutPath.class,
-                TypeAnnotationsWithPath.class
-        ).map(type -> new Object[]{type}).collect(Collectors.toList());
+        return Arrays.asList(new Object[][]{
+                {Trivial.class, false},
+                {LoadStoreAndReturn.class, false},
+                {FieldConstructorAndMethod.class, false},
+                {Operations.class, false},
+                {Invokedynamic.class, false},
+                {BranchesAndStackMapFrames.class, false},
+                {BranchesAndStackMapFrames.class, true},
+                {Switches.class, false},
+                {TryThrowCatch.class, false},
+                {Annotations.class, false},
+                {TypeAnnotationsWithoutPath.class, false},
+                {TypeAnnotationsWithPath.class, false},
+                {RecordComponents.class, false},
+                {NoRecordComponents.class, false}
+        });
     }
 
     private final Class<?> target;
 
-    public JdkClassReaderTest(Class<?> target) {
+    private final boolean expandFrames;
+
+    public JdkClassReaderTest(Class<?> target, boolean expandFrames) {
         this.target = target;
+        this.expandFrames = expandFrames;
     }
 
     @Test
@@ -54,8 +59,8 @@ public class JdkClassReaderTest {
             classFile = inputStream.readAllBytes();
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
-        nonValidatingClassReader(classFile).accept(toVisitor(asm), 0);
-        new JdkClassReader(Classfile.parse(classFile)).accept(toVisitor(jdk));
+        nonValidatingClassReader(classFile).accept(toVisitor(asm), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
+        new JdkClassReader(Classfile.parse(classFile)).accept(toVisitor(jdk), expandFrames);
         assertEquals(asm.toString(), jdk.toString());
     }
 
