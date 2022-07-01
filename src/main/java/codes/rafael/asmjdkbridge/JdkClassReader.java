@@ -427,7 +427,7 @@ public class JdkClassReader {
                 case TypeAnnotation.OffsetTarget value -> offsetTypeAnnotations.merge(labels.computeIfAbsent(value.target(), label -> new org.objectweb.asm.Label()),
                         Collections.singletonList(Map.entry(typeAnnotation, visible)),
                         (left, right) -> Stream.of(left.stream(), right.stream()).flatMap(Function.identity()).collect(Collectors.toList()));
-                case TypeAnnotation.CatchTarget value -> appendAnnotationValues(methodVisitor.visitTryCatchAnnotation(
+                case TypeAnnotation.CatchTarget value -> appendAnnotationValues(methodVisitor.visitTryCatchAnnotation( // TODO: verify annotation index?
                         TypeReference.newTypeReference(value.targetType().targetTypeValue()).getValue(),
                         toTypePath(typeAnnotation.targetPath()),
                         typeAnnotation.className().stringValue(),
