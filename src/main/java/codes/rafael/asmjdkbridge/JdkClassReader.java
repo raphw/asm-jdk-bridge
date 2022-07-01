@@ -135,7 +135,6 @@ public class JdkClassReader {
                         annotationVisitor.visitEnd();
                     }
                 });
-                // TODO: How to find out when to call visitInsAnnotation, visitTryCatchAnnotation, visitLocalVariableAnnotation
                 acceptAnnotations(methodModel, methodVisitor::visitAnnotation, methodVisitor::visitTypeAnnotation);
                 acceptParameterAnnotations(methodModel, methodVisitor, true);
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
@@ -145,7 +144,7 @@ public class JdkClassReader {
                         .map(UnknownAttribute.class::cast)
                         .forEach(unknownAttribute -> methodVisitor.visitAttribute(new ByteArrayAttribute(unknownAttribute.attributeName(), unknownAttribute.contents())));
                 methodModel.code().ifPresent(code -> {
-                    // TODO: Stack map frames should use labels rather then offsets in the API
+                    // TODO: Stack map frames should use labels rather then offsets in the API?
                     Map<Integer, StackMapTableAttribute.StackMapFrame> frames = code.findAttribute(Attributes.STACK_MAP_TABLE)
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapTableAttribute.StackMapFrame::absoluteOffset, Function.identity())))
                             .orElse(Collections.emptyMap());
@@ -295,8 +294,8 @@ public class JdkClassReader {
                                 // TODO: Is there an easier way to deconstruct to byte array then by knowing spec?
                                 // Note: This would allow for better forward compatibility if unknown attributes should just be dumped to binary.
                             }
-                            case RuntimeVisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), true, labels, localVariableAnnotations, offsetTypeAnnotations);
-                            case RuntimeInvisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), false, labels, localVariableAnnotations, offsetTypeAnnotations);
+                            case RuntimeVisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), true, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
+                            case RuntimeInvisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), false, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
                             default -> throw new UnsupportedOperationException("Unknown value: " + element);
                         }
                         if (element instanceof Instruction) {
@@ -315,7 +314,6 @@ public class JdkClassReader {
                             key.start(),
                             key.end(),
                             key.slot()));
-                    // TODO: Generify Annotation and Target?
                     localVariableAnnotations.forEach(entry -> {
                         TypeAnnotation.LocalVarTarget target = (TypeAnnotation.LocalVarTarget) entry.getKey().targetInfo();
                         appendAnnotationValues(methodVisitor.visitLocalVariableAnnotation(
@@ -419,6 +417,7 @@ public class JdkClassReader {
 
     private static void appendCodeAnnotations(List<TypeAnnotation> typeAnnotations,
                                               boolean visible,
+                                              MethodVisitor methodVisitor,
                                               Map<Label, org.objectweb.asm.Label> labels,
                                               List<Map.Entry<TypeAnnotation, Boolean>> localVariableAnnotations,
                                               Map<org.objectweb.asm.Label, List<Map.Entry<TypeAnnotation, Boolean>>> offsetTypeAnnotations) {
@@ -428,6 +427,11 @@ public class JdkClassReader {
                 case TypeAnnotation.OffsetTarget value -> offsetTypeAnnotations.merge(labels.computeIfAbsent(value.target(), label -> new org.objectweb.asm.Label()),
                         Collections.singletonList(Map.entry(typeAnnotation, visible)),
                         (left, right) -> Stream.of(left.stream(), right.stream()).flatMap(Function.identity()).collect(Collectors.toList()));
+                case TypeAnnotation.CatchTarget value -> appendAnnotationValues(methodVisitor.visitTryCatchAnnotation(
+                        TypeReference.newTypeReference(value.targetType().targetTypeValue()).getValue(),
+                        toTypePath(typeAnnotation.targetPath()),
+                        typeAnnotation.className().stringValue(),
+                        visible), typeAnnotation.elements());
                 default -> throw new UnsupportedOperationException("Unexpected target: " + typeAnnotation.targetInfo());
             }
         });
@@ -490,7 +494,7 @@ public class JdkClassReader {
 
     private static int toAsmFrameType(StackMapTableAttribute.FrameKind frameKind) {
         return switch (frameKind) {
-            case SAME, SAME_FRAME_EXTENDED -> Opcodes.F_SAME; // TODO: inconsistent naming?
+            case SAME, SAME_FRAME_EXTENDED -> Opcodes.F_SAME; // TODO: inconsistent naming? (should be SAME_EXTENDED)
             case SAME_LOCALS_1_STACK_ITEM, SAME_LOCALS_1_STACK_ITEM_EXTENDED -> Opcodes.F_SAME1;
             case APPEND -> Opcodes.F_APPEND;
             case CHOP -> Opcodes.F_CHOP;
@@ -529,21 +533,6 @@ public class JdkClassReader {
     private record MergedLocalVariableValue(
             String descriptor,
             String signature
-    ) {
-    }
-
-    private record AnnotationLocalVariableKey(
-            int typeReference,
-            TypePath typePath,
-            String descriptor,
-            boolean visible
-    ) {
-    }
-
-    private record AnnotationLocalVariableValue(
-            org.objectweb.asm.Label start,
-            org.objectweb.asm.Label end,
-            int index
     ) {
     }
 }

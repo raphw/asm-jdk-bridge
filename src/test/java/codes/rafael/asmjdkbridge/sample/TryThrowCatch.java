@@ -23,5 +23,14 @@ public class TryThrowCatch {
         }
     }
 
+    int t3() {
+        Object o = null;
+        try {
+            throw new RuntimeException();
+        } finally {
+            x();
+        }
+    }
+
     void x() { }
 }

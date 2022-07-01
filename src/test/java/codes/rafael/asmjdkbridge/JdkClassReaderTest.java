@@ -30,17 +30,18 @@ public class JdkClassReaderTest {
                 {LoadStoreAndReturn.class, false},
                 {FieldConstructorAndMethod.class, false},
                 {Operations.class, false},
+                {ArrayInstructions.class, false},
                 {Invokedynamic.class, false},
                 {BranchesAndStackMapFrames.class, false},
                 {BranchesAndStackMapFrames.class, true},
                 {Switches.class, false},
                 {TryThrowCatch.class, false},
+                {RecordComponents.class, false},
+                {NoRecordComponents.class, false},
                 {Annotations.class, false},
                 {TypeAnnotationsWithoutPath.class, false},
                 {TypeAnnotationsWithPath.class, false},
-                {RecordComponents.class, false},
-                {NoRecordComponents.class, false},
-                {TypeAnnotationsInMethod.class, false}
+                {TypeAnnotationsInCode.class, false}
         });
     }
 
