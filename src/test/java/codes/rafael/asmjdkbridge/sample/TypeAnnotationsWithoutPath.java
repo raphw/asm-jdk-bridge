@@ -7,16 +7,16 @@ import java.lang.annotation.Target;
 
 @Annotations.A(0)
 @Annotations.B(0)
-public class TypeAnnotations {
+public class TypeAnnotationsWithoutPath {
 
     @A(1)
     @B(1)
-    Object o;
+    Object f;
 
     @A(2)
     @B(2)
-    Object a(@A(3) @B(3) Object o) {
-        return o;
+    Object m(@A(3) @B(3) Object p) throws @A(4) @B(4) RuntimeException {
+        return p;
     }
 
     @Retention(RetentionPolicy.RUNTIME)

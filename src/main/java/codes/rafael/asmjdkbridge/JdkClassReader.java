@@ -327,18 +327,14 @@ public class JdkClassReader {
         element.findAttribute(Attributes.RUNTIME_VISIBLE_TYPE_ANNOTATIONS).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
                 .filter(annotation -> annotation.targetInfo().targetType().targetTypeValue() < TypeReference.LOCAL_VARIABLE)
-                .forEach(annotation -> {
-                    appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(
-                            TypeReference.newTypeReference(annotation.targetInfo().targetType().targetTypeValue()).getValue(),
-                            toTypePath(annotation.targetPath()),
-                            annotation.className().stringValue(),
-                            true), annotation.elements());
-                });
+                .forEach(annotation -> appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(toTypeReference(annotation.targetInfo()).getValue(),
+                        toTypePath(annotation.targetPath()),
+                        annotation.className().stringValue(),
+                        true), annotation.elements()));
         element.findAttribute(Attributes.RUNTIME_INVISIBLE_TYPE_ANNOTATIONS).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
                 .filter(annotation -> annotation.targetInfo().targetType().targetTypeValue() < TypeReference.LOCAL_VARIABLE)
-                .forEach(annotation -> appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(
-                        TypeReference.newTypeReference(annotation.targetInfo().targetType().targetTypeValue()).getValue(),
+                .forEach(annotation -> appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(toTypeReference(annotation.targetInfo()).getValue(),
                         toTypePath(annotation.targetPath()),
                         annotation.className().stringValue(),
                         false), annotation.elements()));
@@ -421,6 +417,22 @@ public class JdkClassReader {
         return descriptor.substring(1, descriptor.length() - 1);
     }
 
+    private static TypeReference toTypeReference(TypeAnnotation.TargetInfo targetInfo) {
+        return switch (targetInfo) {
+            case TypeAnnotation.SupertypeTarget value -> TypeReference.newSuperTypeReference(value.supertypeIndex());
+            case TypeAnnotation.TypeParameterTarget value -> TypeReference.newTypeParameterReference(value.targetType().targetTypeValue(), value.typeParameterIndex());
+            case TypeAnnotation.TypeParameterBoundTarget value -> TypeReference.newTypeParameterBoundReference(value.targetType().targetTypeValue(), value.typeParameterIndex(), value.boundIndex());
+            case TypeAnnotation.LocalVarTarget value -> throw new UnsupportedOperationException("LocalVarTarget");
+            case TypeAnnotation.ThrowsTarget value -> TypeReference.newExceptionReference(value.throwsTargetIndex());
+            case TypeAnnotation.CatchTarget value -> throw new UnsupportedOperationException("CatchTarget");
+            case TypeAnnotation.OffsetTarget value -> throw new UnsupportedOperationException("OffsetTarget");
+            case TypeAnnotation.TypeArgumentTarget value -> throw new IllegalStateException("TypeArgumentTarget");
+            case TypeAnnotation.FormalParameterTarget value -> TypeReference.newFormalParameterReference(value.formalParameterIndex());
+            case TypeAnnotation.EmptyTarget value -> TypeReference.newTypeReference(value.targetType().targetTypeValue());
+            default -> throw new UnsupportedOperationException("Unknown target: " + targetInfo);
+        };
+    }
+
     private static TypePath toTypePath(List<TypeAnnotation.TypePathComponent> components) {
         if (components.isEmpty()) {
             return null;
@@ -468,10 +480,12 @@ public class JdkClassReader {
             org.objectweb.asm.Label end,
             String name,
             int slot
-    ) { }
+    ) {
+    }
 
     private record MergedLocalVariableValue(
             String descriptor,
             String signature
-    ) { }
+    ) {
+    }
 }

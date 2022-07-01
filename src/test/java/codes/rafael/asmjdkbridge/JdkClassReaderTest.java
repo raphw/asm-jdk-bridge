@@ -6,6 +6,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.util.TraceClassVisitor;
 
 import java.io.IOException;
@@ -25,7 +27,7 @@ public class JdkClassReaderTest {
     @Parameterized.Parameters(name = "{0}")
     public static Collection<Object[]> data() {
         return Stream.of(
-                /*Trivial.class,
+                Trivial.class,
                 LoadStoreAndReturn.class,
                 FieldConstructorAndMethod.class,
                 Operations.class,
@@ -34,7 +36,8 @@ public class JdkClassReaderTest {
                 Switches.class,
                 TryThrowCatch.class,
                 Annotations.class,
-                */TypeAnnotations.class
+                TypeAnnotationsWithoutPath.class,
+                TypeAnnotationsWithPath.class
         ).map(type -> new Object[]{type}).collect(Collectors.toList());
     }
 
@@ -51,8 +54,8 @@ public class JdkClassReaderTest {
             classFile = inputStream.readAllBytes();
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
-        nonValidatingClassReader(classFile).accept(new TraceClassVisitor(new PrintWriter(asm)), 0);
-        new JdkClassReader(Classfile.parse(classFile)).accept(new TraceClassVisitor(new PrintWriter(jdk)));
+        nonValidatingClassReader(classFile).accept(toVisitor(asm), 0);
+        new JdkClassReader(Classfile.parse(classFile)).accept(toVisitor(jdk));
         assertEquals(asm.toString(), jdk.toString());
     }
 
@@ -64,5 +67,10 @@ public class JdkClassReaderTest {
         } catch (Exception e) {
             throw new AssertionError(e);
         }
+    }
+
+    private static ClassVisitor toVisitor(StringWriter writer) {
+        return new ClassVisitor(Opcodes.ASM9, new TraceClassVisitor(new PrintWriter(writer))) {
+        };
     }
 }
