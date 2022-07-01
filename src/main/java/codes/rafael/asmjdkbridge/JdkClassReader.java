@@ -145,7 +145,7 @@ public class JdkClassReader {
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapTableAttribute.StackMapFrame::absoluteOffset, Function.identity())))
                             .orElse(Collections.emptyMap());
                     Set<Integer> offsets = frames.values().stream()
-                            .flatMap(stackMapFrame -> Stream.concat(stackMapFrame.declaredStack().stream(), stackMapFrame.declaredLocals().stream()))
+                            .flatMap(stackMapFrame -> Stream.concat(stackMapFrame.effectiveStack().stream(), stackMapFrame.effectiveLocals().stream()))
                             .filter(verificationTypeInfo -> verificationTypeInfo instanceof StackMapTableAttribute.UninitializedVerificationTypeInfo)
                             .map(StackMapTableAttribute.UninitializedVerificationTypeInfo.class::cast)
                             .map(StackMapTableAttribute.UninitializedVerificationTypeInfo::offset)
@@ -184,16 +184,22 @@ public class JdkClassReader {
                                                     .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels))
                                                     .toArray());
                                 } else {
-                                    // TODO: Cannot properly represent CROP frame
-                                    methodVisitor.visitFrame(toAsmFrameType(frame.frameKind()),
-                                            frame.declaredLocals().size(),
-                                            frame.declaredLocals().isEmpty() ? null : frame.declaredLocals().stream()
-                                                    .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels))
-                                                    .toArray(),
-                                            frame.declaredStack().size(),
-                                            frame.declaredStack().isEmpty() ? null : frame.declaredStack().stream()
-                                                    .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels))
-                                                    .toArray());
+                                    switch (frame) {
+                                        case StackMapTableAttribute.StackMapFrame.Same ignored -> methodVisitor.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+                                        case StackMapTableAttribute.StackMapFrame.Same1 same1 -> methodVisitor.visitFrame(Opcodes.F_SAME1,
+                                                0, null,
+                                                1, new Object[] {toAsmFrameValue(same1.declaredStack(), offsetLabels)});
+                                        case StackMapTableAttribute.StackMapFrame.Append append -> methodVisitor.visitFrame(Opcodes.F_APPEND,
+                                                append.declaredLocals().size(), append.declaredLocals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels)).toArray(),
+                                                0, null);
+                                        case StackMapTableAttribute.StackMapFrame.Chop chop -> methodVisitor.visitFrame(Opcodes.F_CHOP,
+                                                chop.choppedLocals().size(), null,
+                                                0, null);
+                                        case StackMapTableAttribute.StackMapFrame.Full full -> methodVisitor.visitFrame(Opcodes.F_FULL,
+                                                full.declaredLocals().size(), full.declaredLocals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels)).toArray(),
+                                                full.declaredStack().size(), full.declaredStack().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels)).toArray());
+                                        default -> throw new UnsupportedOperationException("Unknown frame type: " + frame);
+                                    }
                                 }
                             }
                         }
@@ -471,17 +477,6 @@ public class JdkClassReader {
             case WILDCARD -> "*";
             case TYPE_ARGUMENT -> component.typeArgumentIndex() + ";";
         }).collect(Collectors.joining()));
-    }
-
-    private static int toAsmFrameType(StackMapTableAttribute.FrameKind frameKind) {
-        return switch (frameKind) {
-            case SAME, SAME_FRAME_EXTENDED -> Opcodes.F_SAME; // TODO: inconsistent naming? (should be SAME_EXTENDED)
-            case SAME_LOCALS_1_STACK_ITEM, SAME_LOCALS_1_STACK_ITEM_EXTENDED -> Opcodes.F_SAME1;
-            case APPEND -> Opcodes.F_APPEND;
-            case CHOP -> Opcodes.F_CHOP;
-            case FULL_FRAME -> Opcodes.F_FULL;
-            default -> throw new UnsupportedOperationException("Unknown frame kind: " + frameKind);
-        };
     }
 
     private static Object toAsmFrameValue(StackMapTableAttribute.VerificationTypeInfo verificationTypeInfo, Map<Integer, org.objectweb.asm.Label> labels) {
