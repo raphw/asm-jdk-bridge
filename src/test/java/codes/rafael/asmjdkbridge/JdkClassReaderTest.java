@@ -23,6 +23,7 @@ import static org.junit.Assert.assertEquals;
 @RunWith(Parameterized.class)
 public class JdkClassReaderTest {
 
+    @SuppressWarnings("deprecation")
     @Parameterized.Parameters(name = "{0} (expandFrames={1})")
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][]{
@@ -30,6 +31,8 @@ public class JdkClassReaderTest {
                 {LoadStoreAndReturn.class, false},
                 {FieldConstructorAndMethod.class, false},
                 {Operations.class, false},
+                {DeprecatedClass.class, false},
+                {SyntheticConstructor.Inner.class, false},
                 {ArrayInstructions.class, false},
                 {Invokedynamic.class, false},
                 {BranchesAndStackMapFrames.class, false},
@@ -57,7 +60,7 @@ public class JdkClassReaderTest {
     @Test
     public void parsed_class_files_are_equal() throws IOException {
         byte[] classFile;
-        try (InputStream inputStream = target.getResourceAsStream(target.getSimpleName() + ".class")) {
+        try (InputStream inputStream = target.getResourceAsStream(target.getName().substring(target.getPackageName().length() + 1) + ".class")) {
             classFile = inputStream.readAllBytes();
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
