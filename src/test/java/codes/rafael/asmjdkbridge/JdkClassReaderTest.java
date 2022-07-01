@@ -30,7 +30,9 @@ public class JdkClassReaderTest {
                 FieldConstructorAndMethod.class,
                 Operations.class,
                 Invokedynamic.class,
-                BranchesAndStackMapFrames.class
+                BranchesAndStackMapFrames.class,
+                Switches.class,
+                TryThrowCatch.class
         ).map(type -> new Object[]{type}).collect(Collectors.toList());
     }
 

@@ -152,7 +152,6 @@ public class JdkClassReader {
                     Map<Integer, StackMapTableAttribute.StackMapFrame> frames = code.findAttribute(Attributes.STACK_MAP_TABLE)
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapTableAttribute.StackMapFrame::absoluteOffset, Function.identity())))
                             .orElse(Collections.emptyMap());
-                    System.out.println(frames);
                     Set<Integer> offsets = frames.values().stream()
                             .flatMap(stackMapFrame -> Stream.concat(stackMapFrame.declaredStack().stream(), stackMapFrame.declaredLocals().stream()))
                             .filter(verificationTypeInfo -> verificationTypeInfo instanceof StackMapTableAttribute.UninitializedVerificationTypeInfo)

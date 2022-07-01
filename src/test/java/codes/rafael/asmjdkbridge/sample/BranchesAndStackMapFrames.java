@@ -28,6 +28,8 @@ public class BranchesAndStackMapFrames {
         }
     }
 
+    // TODO: Does not currently support crop frames
+
     /*int c(int v1, int v2) {
         if (v1 == 0) {
             int x1 = 0, x2 = 1, x3 = 3;
