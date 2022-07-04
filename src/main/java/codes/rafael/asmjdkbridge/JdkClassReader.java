@@ -109,7 +109,7 @@ public class JdkClassReader {
         for (FieldModel fieldModel : classModel.fields()) {
             FieldVisitor fieldVisitor = classVisitor.visitField(fieldModel.flags().flagsMask() | (fieldModel.findAttribute(Attributes.DEPRECATED).isPresent() ? Opcodes.ACC_DEPRECATED : 0),
                     fieldModel.fieldName().stringValue(),
-                    fieldModel.descriptorSymbol().descriptorString(),
+                    fieldModel.fieldType().stringValue(),
                     fieldModel.findAttribute(Attributes.SIGNATURE).map(signature -> signature.signature().stringValue()).orElse(null),
                     fieldModel.findAttribute(Attributes.CONSTANT_VALUE).map(constantValue -> toAsmConstant(constantValue.constant().constantValue())).orElse(null));
             if (fieldVisitor != null) {
@@ -121,7 +121,7 @@ public class JdkClassReader {
         for (MethodModel methodModel : classModel.methods()) {
             MethodVisitor methodVisitor = classVisitor.visitMethod(methodModel.flags().flagsMask() | (methodModel.findAttribute(Attributes.DEPRECATED).isPresent() ? Opcodes.ACC_DEPRECATED : 0),
                     methodModel.methodName().stringValue(),
-                    methodModel.descriptorSymbol().descriptorString(),
+                    methodModel.methodType().stringValue(),
                     methodModel.findAttribute(Attributes.SIGNATURE).map(signature -> signature.signature().stringValue()).orElse(null),
                     methodModel.findAttribute(Attributes.EXCEPTIONS).map(exceptions -> exceptions.exceptions().stream().map(ClassEntry::asInternalName).toArray(String[]::new)).orElse(null));
             if (methodVisitor != null) {
@@ -357,7 +357,7 @@ public class JdkClassReader {
     }
 
     private static void acceptParameterAnnotations(MethodModel methodModel, MethodVisitor methodVisitor, boolean visible) {
-        int count = methodModel.descriptorSymbol().parameterCount();
+        int count = methodModel.methodTypeSymbol().parameterCount();
         Optional<List<List<Annotation>>> target = visible
                 ? methodModel.findAttribute(Attributes.RUNTIME_VISIBLE_PARAMETER_ANNOTATIONS).map(RuntimeVisibleParameterAnnotationsAttribute::parameterAnnotations)
                 : methodModel.findAttribute(Attributes.RUNTIME_INVISIBLE_PARAMETER_ANNOTATIONS).map(RuntimeInvisibleParameterAnnotationsAttribute::parameterAnnotations);
