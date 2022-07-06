@@ -8,7 +8,7 @@
 
     <inceptionYear>2022</inceptionYear>
 
-    <name>A bridge to translate ASM from and to the OpenJDK class file API</name>
+    <name>ASM-OpenJDK-bridge</name>
     <description>Implements adapters to translate between ASM visitors and the OpenJDK class file API.</description>
     <url>https://github.com/raphw/asm-jdk-bridge</url>
 
@@ -101,6 +101,8 @@
                         <arg>java.base/jdk.classfile.constantpool=ALL-UNNAMED</arg>
                         <arg>--add-exports</arg>
                         <arg>java.base/jdk.classfile.instruction=ALL-UNNAMED</arg>
+                        <arg>--add-exports</arg>
+                        <arg>java.base/jdk.classfile.jdktypes=ALL-UNNAMED</arg>
                     </compilerArgs>
                 </configuration>
             </plugin>
@@ -116,6 +118,7 @@
                         --add-exports java.base/jdk.classfile.attribute=ALL-UNNAMED
                         --add-exports java.base/jdk.classfile.constantpool=ALL-UNNAMED
                         --add-exports java.base/jdk.classfile.instruction=ALL-UNNAMED
+                        --add-exports java.base/jdk.classfile.jdktypes=ALL-UNNAMED
                     </argLine>
                 </configuration>
             </plugin>

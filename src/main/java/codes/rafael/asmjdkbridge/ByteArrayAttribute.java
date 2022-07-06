@@ -2,11 +2,11 @@ package codes.rafael.asmjdkbridge;
 
 import org.objectweb.asm.*;
 
-public class ByteArrayAttribute extends Attribute {
+class ByteArrayAttribute extends Attribute {
 
     private final byte[] bytes;
 
-    public ByteArrayAttribute(String type, byte[] bytes) {
+    ByteArrayAttribute(String type, byte[] bytes) {
         super(type);
         this.bytes = bytes;
     }

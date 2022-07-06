@@ -2,11 +2,13 @@ package codes.rafael.asmjdkbridge;
 
 import codes.rafael.asmjdkbridge.sample.*;
 import jdk.classfile.Classfile;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.util.TraceClassVisitor;
 
@@ -18,6 +20,7 @@ import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
@@ -59,7 +62,7 @@ public class JdkClassReaderTest {
     }
 
     @Test
-    public void parsed_class_files_are_equal() throws IOException {
+    public void equal_reader_output() throws IOException {
         byte[] classFile;
         try (InputStream inputStream = target.getResourceAsStream(target.getName().substring(target.getPackageName().length() + 1) + ".class")) {
             classFile = inputStream.readAllBytes();
@@ -67,6 +70,24 @@ public class JdkClassReaderTest {
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
         nonValidatingClassReader(classFile).accept(toVisitor(asm), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
         new JdkClassReader(Classfile.parse(classFile)).accept(toVisitor(jdk), expandFrames);
+        assertEquals(asm.toString(), jdk.toString());
+    }
+
+    @Test
+    @Ignore("Not yet sufficiently supported")
+    public void equal_writer_output() throws IOException {
+        byte[] classFile;
+        try (InputStream inputStream = target.getResourceAsStream(target.getName().substring(target.getPackageName().length() + 1) + ".class")) {
+            classFile = inputStream.readAllBytes();
+        }
+        ClassReader classReader = nonValidatingClassReader(classFile);
+        ClassWriter asmWriter = new ClassWriter(0);
+        JdkClassWriter jdkWriter = new JdkClassWriter();
+        classReader.accept(asmWriter, expandFrames ? ClassReader.EXPAND_FRAMES : 0);
+        classReader.accept(jdkWriter, expandFrames ? ClassReader.EXPAND_FRAMES : 0);
+        StringWriter asm = new StringWriter(), jdk = new StringWriter();
+        nonValidatingClassReader(classFile).accept(toVisitor(asm), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
+        nonValidatingClassReader(classFile).accept(toVisitor(jdk), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
         assertEquals(asm.toString(), jdk.toString());
     }
 
