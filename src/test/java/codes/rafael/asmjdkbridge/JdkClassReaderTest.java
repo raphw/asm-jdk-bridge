@@ -74,7 +74,6 @@ public class JdkClassReaderTest {
     }
 
     @Test
-    @Ignore("Not yet sufficiently supported")
     public void equal_writer_output() throws IOException {
         byte[] classFile;
         try (InputStream inputStream = target.getResourceAsStream(target.getName().substring(target.getPackageName().length() + 1) + ".class")) {
@@ -86,8 +85,8 @@ public class JdkClassReaderTest {
         classReader.accept(asmWriter, expandFrames ? ClassReader.EXPAND_FRAMES : 0);
         classReader.accept(jdkWriter, expandFrames ? ClassReader.EXPAND_FRAMES : 0);
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
-        nonValidatingClassReader(classFile).accept(toVisitor(asm), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
-        nonValidatingClassReader(classFile).accept(toVisitor(jdk), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
+        nonValidatingClassReader(asmWriter.toByteArray()).accept(toVisitor(asm), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
+        nonValidatingClassReader(jdkWriter.toByteArray()).accept(toVisitor(jdk), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
         assertEquals(asm.toString(), jdk.toString());
     }
 

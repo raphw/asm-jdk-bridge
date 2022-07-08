@@ -76,7 +76,7 @@ class JdkAnnotationExtractor extends AnnotationVisitor {
 
     @Override
     public AnnotationVisitor visitArray(String name) {
-        return new ArrayCollector(values -> elements.add(AnnotationElement.ofArray(name, values.toArray(AnnotationValue[]::new))));
+        return new ValueCollector(values -> elements.add(AnnotationElement.ofArray(name, values.toArray(AnnotationValue[]::new))));
     }
 
     @Override
@@ -89,13 +89,13 @@ class JdkAnnotationExtractor extends AnnotationVisitor {
         handler.accept(Annotation.of(ClassDesc.ofDescriptor(descriptor), elements));
     }
 
-    private static class ArrayCollector extends AnnotationVisitor {
+    public static class ValueCollector extends AnnotationVisitor {
 
         private final Consumer<List<AnnotationValue>> handler;
 
         private final List<AnnotationValue> values = new ArrayList<>();
 
-        private ArrayCollector(Consumer<List<AnnotationValue>> handler) {
+        public ValueCollector(Consumer<List<AnnotationValue>> handler) {
             super(Opcodes.ASM9);
             this.handler = handler;
         }

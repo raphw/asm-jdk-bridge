@@ -19,7 +19,7 @@ import java.util.stream.Stream;
 
 public class JdkClassReader {
 
-    private final ClassModel classModel; // TODO: Would be more desirable if a ClassWriter could be handled similarly, prototype with sharing.
+    private final ClassModel classModel;
 
     public JdkClassReader(ClassModel classModel) {
         this.classModel = classModel;
@@ -203,7 +203,7 @@ public class JdkClassReader {
                                 }
                             }
                         }
-                        switch (element) { // TODO: Add toString methods to all "impl"?
+                        switch (element) {
                             case MonitorInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case TypeCheckInstruction value -> methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.type().asInternalName());
                             case LoadInstruction value -> methodVisitor.visitVarInsn(switch (value.typeKind()) {
@@ -413,7 +413,7 @@ public class JdkClassReader {
                 case TypeAnnotation.LocalVarTarget ignored -> localVariableAnnotations.add(Map.entry(typeAnnotation, visible));
                 case TypeAnnotation.OffsetTarget value -> offsetTypeAnnotations.merge(labels.computeIfAbsent(value.target(), label -> new org.objectweb.asm.Label()),
                         Collections.singletonList(Map.entry(typeAnnotation, visible)),
-                        (left, right) -> Stream.of(left.stream(), right.stream()).flatMap(Function.identity()).collect(Collectors.toList()));
+                        (left, right) -> Stream.of(left.stream(), right.stream()).flatMap(Function.identity()).toList());
                 case TypeAnnotation.CatchTarget value -> appendAnnotationValues(methodVisitor.visitTryCatchAnnotation( // TODO: verify annotation index?
                         TypeReference.newTypeReference(value.targetType().targetTypeValue()).getValue(),
                         toTypePath(typeAnnotation.targetPath()),
