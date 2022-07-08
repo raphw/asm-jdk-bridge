@@ -3,8 +3,11 @@ package codes.rafael.asmjdkbridge;
 import jdk.classfile.Annotation;
 import jdk.classfile.AnnotationElement;
 import jdk.classfile.AnnotationValue;
+import jdk.classfile.TypeAnnotation;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.TypePath;
+import org.objectweb.asm.TypeReference;
 
 import java.lang.constant.ClassDesc;
 import java.util.ArrayList;
@@ -24,6 +27,32 @@ class JdkAnnotationExtractor extends AnnotationVisitor {
         super(Opcodes.ASM9);
         this.descriptor = descriptor;
         this.handler = handler;
+    }
+
+    static AnnotationVisitor ofTypeAnnotation(int typeRef, TypePath typePath, String descriptor, Consumer<TypeAnnotation> handler) {
+        return new JdkAnnotationExtractor(descriptor, annotation -> {
+            List<TypeAnnotation.TypePathComponent> components = new ArrayList<>();
+            for (int index = 0; index < typePath.getLength(); index++) {
+                components.add(switch (typePath.getStep(index)) {
+                    case TypePath.ARRAY_ELEMENT -> TypeAnnotation.TypePathComponent.ARRAY
+                    case TypePath.INNER_TYPE -> TypeAnnotation.TypePathComponent.INNER_TYPE
+                    case TypePath.WILDCARD_BOUND -> TypeAnnotation.TypePathComponent.WILDCARD
+                    case TypePath.TYPE_ARGUMENT -> TypeAnnotation.TypePathComponent.of(TypeAnnotation.TypePathComponent.Kind.TYPE_ARGUMENT.tag(), typePath.getStepArgument(index))
+                });
+            }
+            /* TODO: implement
+            *  CLASS_TYPE_PARAMETER, METHOD_TYPE_PARAMETER, CLASS_EXTENDS, CLASS_TYPE_PARAMETER_BOUND, METHOD_TYPE_PARAMETER_BOUND, FIELD, METHOD_RETURN, METHOD_RECEIVER, METHOD_FORMAL_PARAMETER, THROWS, LOCAL_VARIABLE, RESOURCE_VARIABLE, EXCEPTION_PARAMETER, INSTANCEOF, NEW, CONSTRUCTOR_REFERENCE, METHOD_REFERENCE, CAST, CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT, METHOD_INVOCATION_TYPE_ARGUMENT, CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT, or METHOD_REFERENCE_TYPE_ARGUMENT.*/
+            TypeReference typeReference = new TypeReference(typeRef);
+            handler.accept(TypeAnnotation.of(
+                    switch (typeReference.getSort()) {
+                        case TypeReference.CLASS_TYPE_PARAMETER -> TypeAnnotation.TargetInfo.ofClassTypeParameter(typeReference.getTypeParameterIndex());
+                        default -> throw new UnsupportedOperationException("Unknown type reference: " + typeReference.getSort());
+                    },
+                    components,
+                    annotation.classSymbol(),
+                    annotation.elements()
+            ));
+        });
     }
 
     @Override

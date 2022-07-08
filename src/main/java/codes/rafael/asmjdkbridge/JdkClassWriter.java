@@ -19,6 +19,7 @@ public class JdkClassWriter extends ClassVisitor {
     private OpenBuilder.OpenClassBuilder openClassBuilder;
 
     private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
+    private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
     private final List<ClassDesc> permittedSubclasses = new ArrayList<>(), nestMembers = new ArrayList<>();
     private boolean isRecord;
     private final List<RecordComponentInfo> recordComponentInfos = new ArrayList<>();
@@ -133,8 +134,12 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-        // TODO: collect and trigger once guaranteed complete
-        return new JdkAnnotationExtractor(descriptor, annotation -> {
+        return JdkAnnotationExtractor.ofTypeAnnotation(typeRef, typePath, descriptor, typeAnnotation -> {
+            if (visible) {
+                visibleTypeAnnotations.add(typeAnnotation);
+            } else {
+                invisibleTypeAnnotations.add(typeAnnotation);
+            }
         });
     }
 
@@ -146,6 +151,14 @@ public class JdkClassWriter extends ClassVisitor {
         if (!invisibleAnnotations.isEmpty()) {
             openClassBuilder.accept(classBuilder -> RuntimeInvisibleAnnotationsAttribute.of(invisibleAnnotations));
             invisibleAnnotations.clear();
+        }
+        if (!visibleTypeAnnotations.isEmpty()) {
+            openClassBuilder.accept(classBuilder -> RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations));
+            visibleTypeAnnotations.clear();
+        }
+        if (!invisibleTypeAnnotations.isEmpty()) {
+            openClassBuilder.accept(classBuilder -> RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations));
+            invisibleTypeAnnotations.clear();
         }
     }
 
