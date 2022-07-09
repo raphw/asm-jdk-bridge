@@ -2,11 +2,10 @@ package codes.rafael.asmjdkbridge;
 
 import jdk.classfile.*;
 import jdk.classfile.attribute.*;
-import jdk.classfile.constantpool.Utf8Entry;
 import jdk.classfile.instruction.*;
-import org.objectweb.asm.*;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.*;
 
 import java.lang.constant.*;
 import java.util.*;
@@ -61,20 +60,18 @@ class JdkMethodWriter extends MethodVisitor {
     @Override
     public AnnotationVisitor visitAnnotationDefault() {
         completeParameterInfo();
-        return new JdkAnnotationExtractor.ValueCollector(elements -> {
-            if (elements.size() != 1) { // TODO: Make collector compatible to this case! Must support arrays etc
-                throw new IllegalStateException();
+        return JdkAnnotationExtractor.ofAnnotationValues(values -> {
+            if (values.size() != 1) {
+                throw new IllegalStateException("Expected exactly one default value: " + values.size());
             }
-            openMethodBuilder.accept(methodBuilder -> {
-                methodBuilder.with(AnnotationDefaultAttribute.of(elements.get(0)));
-            });
+            openMethodBuilder.accept(methodBuilder -> methodBuilder.with(AnnotationDefaultAttribute.of(values.get(0))));
         });
     }
 
     @Override
     public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
         completeParameterInfo();
-        return new JdkAnnotationExtractor(descriptor, annotation -> {
+        return JdkAnnotationExtractor.ofAnnotation(descriptor, annotation -> {
             if (visible) {
                 visibleAnnotations.add(annotation);
             } else {
@@ -107,7 +104,7 @@ class JdkMethodWriter extends MethodVisitor {
 
     @Override
     public AnnotationVisitor visitParameterAnnotation(int parameter, String descriptor, boolean visible) {
-        return new JdkAnnotationExtractor(descriptor, annotation -> {
+        return JdkAnnotationExtractor.ofAnnotation(descriptor, annotation -> {
             if (visible) {
                 visibleParameterAnnotations.get(parameter).add(annotation);
             } else {
@@ -370,7 +367,7 @@ class JdkMethodWriter extends MethodVisitor {
 
     @Override
     public AnnotationVisitor visitInsnAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-        return JdkAnnotationExtractor.ofTypeAnnotation(typePath, descriptor, (components, annotation) -> {
+        return JdkAnnotationExtractor.ofTypeAnnotation(typePath, (components, elements) -> {
             TypeReference typeReference = new TypeReference(typeRef);
             openCodeBuilder.accept(codeBuilder -> {
                 jdk.classfile.Label label = current == null ? codeBuilder.newBoundLabel() : labels.get(current);
@@ -385,7 +382,7 @@ class JdkMethodWriter extends MethodVisitor {
                     case TypeReference.METHOD_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodReferenceTypeArgument(label, typeReference.getTypeArgumentIndex());
                     case TypeReference.INSTANCEOF -> TypeAnnotation.TargetInfo.ofInstanceofExpr(label);
                     default -> throw new UnsupportedOperationException("Unexpected type reference: " + typeReference.getSort());
-                }, components, annotation.className(), annotation.elements());
+                }, components, ClassDesc.ofDescriptor(descriptor), elements);
                 codeBuilder.with(visible ? RuntimeVisibleTypeAnnotationsAttribute.of(typeAnnotation) : RuntimeInvisibleTypeAnnotationsAttribute.of(typeAnnotation));
             });
         });
@@ -404,7 +401,7 @@ class JdkMethodWriter extends MethodVisitor {
 
     @Override
     public AnnotationVisitor visitLocalVariableAnnotation(int typeRef, TypePath typePath, Label[] start, Label[] end, int[] indices, String descriptor, boolean visible) {
-        return JdkAnnotationExtractor.ofTypeAnnotation(typePath, descriptor, (components, annotation) -> {
+        return JdkAnnotationExtractor.ofTypeAnnotation(typePath, (components, elements) -> {
             TypeReference typeReference = new TypeReference(typeRef);
             if (typeReference.getSort() != TypeReference.LOCAL_VARIABLE) {
                 throw new UnsupportedOperationException("Unexpected type reference: " + typeReference.getSort());
@@ -414,7 +411,7 @@ class JdkMethodWriter extends MethodVisitor {
                         labels.computeIfAbsent(start[index], ignored -> codeBuilder.newLabel()),
                         labels.computeIfAbsent(end[index], ignored -> codeBuilder.newLabel()),
                         indices[index]
-                )).toList()), components, annotation.className(), annotation.elements());
+                )).toList()), components, ClassDesc.ofDescriptor(descriptor), elements);
                 codeBuilder.with(visible ? RuntimeVisibleTypeAnnotationsAttribute.of(typeAnnotation) : RuntimeInvisibleTypeAnnotationsAttribute.of(typeAnnotation));
             });
         });

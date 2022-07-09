@@ -123,7 +123,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-        return new JdkAnnotationExtractor(descriptor, annotation -> {
+        return JdkAnnotationExtractor.ofAnnotation(descriptor, annotation -> {
             if (visible) {
                 visibleAnnotations.add(annotation);
             } else {

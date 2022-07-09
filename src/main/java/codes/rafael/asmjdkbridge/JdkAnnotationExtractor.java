@@ -14,24 +14,36 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.IntStream;
 
-class JdkAnnotationExtractor extends AnnotationVisitor {
+class JdkAnnotationExtractor<T> extends AnnotationVisitor {
 
-    private final String descriptor;
-    private final Consumer<Annotation> handler;
+    private final Consumer<List<T>> handler;
 
-    private final List<AnnotationElement> elements = new ArrayList<>();
+    private final List<T> elements = new ArrayList<>();
 
-    JdkAnnotationExtractor(String descriptor, Consumer<Annotation> handler) {
+    private final BiFunction<String, AnnotationValue, T> resolver;
+
+    private JdkAnnotationExtractor(Consumer<List<T>> handler, BiFunction<String, AnnotationValue, T> resolver) {
         super(Opcodes.ASM9);
-        this.descriptor = descriptor;
         this.handler = handler;
+        this.resolver = resolver;
+    }
+
+    static AnnotationVisitor ofAnnotationElements(Consumer<List<AnnotationElement>> handler) {
+        return new JdkAnnotationExtractor<>(handler, AnnotationElement::of);
+    }
+
+    static AnnotationVisitor ofAnnotationValues(Consumer<List<AnnotationValue>> handler) {
+        return new JdkAnnotationExtractor<>(handler, (name, value) -> value);
     }
 
     private static List<TypeAnnotation.TypePathComponent> toTypePathComponents(TypePath typePath) {
+        if (typePath == null) {
+            return List.of();
+        }
         return IntStream.range(0, typePath.getLength()).mapToObj(index -> switch (typePath.getStep(index)) {
             case TypePath.ARRAY_ELEMENT -> TypeAnnotation.TypePathComponent.ARRAY;
             case TypePath.INNER_TYPE -> TypeAnnotation.TypePathComponent.INNER_TYPE;
@@ -41,12 +53,16 @@ class JdkAnnotationExtractor extends AnnotationVisitor {
         }).toList();
     }
 
-    static AnnotationVisitor ofTypeAnnotation(TypePath typePath, String descriptor, BiConsumer<List<TypeAnnotation.TypePathComponent>, Annotation> handler) {
-        return new JdkAnnotationExtractor(descriptor, annotation -> handler.accept(toTypePathComponents(typePath), annotation));
+    static AnnotationVisitor ofAnnotation(String descriptor, Consumer<Annotation> handler) {
+        return ofAnnotationElements(elements -> handler.accept(Annotation.of(ClassDesc.ofDescriptor(descriptor), elements)));
+    }
+
+    static AnnotationVisitor ofTypeAnnotation(TypePath typePath, BiConsumer<List<TypeAnnotation.TypePathComponent>, List<AnnotationElement>> handler) {
+        return ofAnnotationElements(elements -> handler.accept(toTypePathComponents(typePath), elements));
     }
 
     static AnnotationVisitor ofTypeAnnotation(int typeRef, TypePath typePath, String descriptor, Consumer<TypeAnnotation> handler) {
-        return ofTypeAnnotation(typePath, descriptor, (components, annotation) -> {
+        return ofTypeAnnotation(typePath, (components, elements) -> {
             TypeReference typeReference = new TypeReference(typeRef);
             handler.accept(TypeAnnotation.of(
                     switch (typeReference.getSort()) {
@@ -64,120 +80,72 @@ class JdkAnnotationExtractor extends AnnotationVisitor {
                         default -> throw new UnsupportedOperationException("Unknown type reference: " + typeReference.getSort());
                     },
                     components,
-                    annotation.classSymbol(),
-                    annotation.elements()
+                    ClassDesc.ofDescriptor(descriptor),
+                    elements
             ));
         });
     }
 
     @Override
     public void visit(String name, Object value) {
-        elements.add(switch (value) {
-            case Boolean b -> AnnotationElement.ofBoolean(name, b);
-            case Byte b -> AnnotationElement.ofByte(name, b);
-            case Short s -> AnnotationElement.ofShort(name, s);
-            case Character c -> AnnotationElement.ofChar(name, c);
-            case Integer i -> AnnotationElement.ofInt(name, i);
-            case Long l -> AnnotationElement.ofLong(name, l);
-            case Float f -> AnnotationElement.ofFloat(name, f);
-            case Double d -> AnnotationElement.ofDouble(name, d);
-            case String s -> AnnotationElement.ofString(name, s);
-            case boolean[] b -> AnnotationElement.ofArray(name, IntStream.range(0, b.length)
+        elements.add(resolver.apply(name, switch (value) {
+            case Boolean b -> AnnotationValue.ofBoolean(b);
+            case Byte b -> AnnotationValue.ofByte(b);
+            case Short s -> AnnotationValue.ofShort(s);
+            case Character c -> AnnotationValue.ofChar(c);
+            case Integer i -> AnnotationValue.ofInt(i);
+            case Long l -> AnnotationValue.ofLong(l);
+            case Float f -> AnnotationValue.ofFloat(f);
+            case Double d -> AnnotationValue.ofDouble(d);
+            case String s -> AnnotationValue.ofString(s);
+            case boolean[] b -> AnnotationValue.ofArray(IntStream.range(0, b.length)
                     .mapToObj(index -> AnnotationValue.ofBoolean(b[index]))
                     .toArray(AnnotationValue[]::new));
-            case byte[] b -> AnnotationElement.ofArray(name, IntStream.range(0, b.length)
+            case byte[] b -> AnnotationValue.ofArray(IntStream.range(0, b.length)
                     .mapToObj(index -> AnnotationValue.ofByte(b[index]))
                     .toArray(AnnotationValue[]::new));
-            case short[] s -> AnnotationElement.ofArray(name, IntStream.range(0, s.length)
+            case short[] s -> AnnotationValue.ofArray(IntStream.range(0, s.length)
                     .mapToObj(index -> AnnotationValue.ofShort(s[index]))
                     .toArray(AnnotationValue[]::new));
-            case char[] c -> AnnotationElement.ofArray(name, IntStream.range(0, c.length)
+            case char[] c -> AnnotationValue.ofArray(IntStream.range(0, c.length)
                     .mapToObj(index -> AnnotationValue.ofChar(c[index]))
                     .toArray(AnnotationValue[]::new));
-            case int[] i -> AnnotationElement.ofArray(name, Arrays.stream(i)
+            case int[] i -> AnnotationValue.ofArray(Arrays.stream(i)
                     .mapToObj(AnnotationValue::ofInt)
                     .toArray(AnnotationValue[]::new));
-            case long[] l -> AnnotationElement.ofArray(name, Arrays.stream(l)
+            case long[] l -> AnnotationValue.ofArray(Arrays.stream(l)
                     .mapToObj(AnnotationValue::ofLong)
                     .toArray(AnnotationValue[]::new));
-            case float[] f -> AnnotationElement.ofArray(name, IntStream.range(0, f.length)
+            case float[] f -> AnnotationValue.ofArray(IntStream.range(0, f.length)
                     .mapToObj(index -> AnnotationValue.ofFloat(f[index]))
                     .toArray(AnnotationValue[]::new));
-            case double[] d -> AnnotationElement.ofArray(name, Arrays.stream(d)
+            case double[] d -> AnnotationValue.ofArray(Arrays.stream(d)
                     .mapToObj(AnnotationValue::ofDouble)
                     .toArray(AnnotationValue[]::new));
-            case String[] s -> AnnotationElement.ofArray(name, Arrays.stream(s)
+            case String[] s -> AnnotationValue.ofArray(Arrays.stream(s)
                     .map(AnnotationValue::ofString)
                     .toArray(AnnotationValue[]::new));
             default -> throw new UnsupportedOperationException("Unknown annotation constant: " + value);
-        });
+        }));
     }
 
     @Override
     public void visitEnum(String name, String descriptor, String value) {
-        elements.add(AnnotationElement.of(name, AnnotationValue.ofEnum(ClassDesc.ofDescriptor(descriptor), value)));
+        elements.add(resolver.apply(name, AnnotationValue.ofEnum(ClassDesc.ofDescriptor(descriptor), value)));
     }
 
     @Override
     public AnnotationVisitor visitArray(String name) {
-        return new ValueCollector(values -> elements.add(AnnotationElement.ofArray(name, values.toArray(AnnotationValue[]::new))));
+        return ofAnnotationValues(values -> elements.add(resolver.apply(name, AnnotationValue.ofArray(values.toArray(AnnotationValue[]::new)))));
     }
 
     @Override
     public AnnotationVisitor visitAnnotation(String name, String descriptor) {
-        return new JdkAnnotationExtractor(descriptor, annotation -> elements.add(AnnotationElement.ofAnnotation(name, annotation)));
+        return ofAnnotationElements(elements -> this.elements.add(resolver.apply(name, AnnotationValue.ofAnnotation(Annotation.of(ClassDesc.ofDescriptor(descriptor), elements)))));
     }
 
     @Override
     public void visitEnd() {
-        handler.accept(Annotation.of(ClassDesc.ofDescriptor(descriptor), elements));
-    }
-
-    public static class ValueCollector extends AnnotationVisitor {
-
-        private final Consumer<List<AnnotationValue>> handler;
-
-        private final List<AnnotationValue> values = new ArrayList<>();
-
-        public ValueCollector(Consumer<List<AnnotationValue>> handler) {
-            super(Opcodes.ASM9);
-            this.handler = handler;
-        }
-
-        @Override
-        public void visit(String name, Object value) {
-            values.add(switch (value) {
-                case Boolean b -> AnnotationValue.ofBoolean(b);
-                case Byte b -> AnnotationValue.ofByte(b);
-                case Short s -> AnnotationValue.ofShort(s);
-                case Character c -> AnnotationValue.ofChar(c);
-                case Integer i -> AnnotationValue.ofInt(i);
-                case Long l -> AnnotationValue.ofLong(l);
-                case Float f -> AnnotationValue.ofFloat(f);
-                case Double d -> AnnotationValue.ofDouble(d);
-                case String s -> AnnotationValue.ofString(s);
-                default -> throw new UnsupportedOperationException("Unknown annotation array value: " + value);
-            });
-        }
-
-        @Override
-        public AnnotationVisitor visitArray(String name) {
-            throw new UnsupportedOperationException("Cannot declare array within array");
-        }
-
-        @Override
-        public void visitEnum(String name, String descriptor, String value) {
-            values.add(AnnotationValue.ofEnum(ClassDesc.ofDescriptor(descriptor), value));
-        }
-
-        @Override
-        public AnnotationVisitor visitAnnotation(String name, String descriptor) {
-            return new JdkAnnotationExtractor(descriptor, annotation -> values.add(AnnotationValue.ofAnnotation(annotation)));
-        }
-
-        @Override
-        public void visitEnd() {
-            handler.accept(values);
-        }
+        handler.accept(elements);
     }
 }
