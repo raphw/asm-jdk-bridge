@@ -118,7 +118,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitAttribute(Attribute attribute) {
-        // TODO: not really considered by ASM
+        // TODO: not really considered in ASM as things are
     }
 
     @Override
@@ -145,19 +145,19 @@ public class JdkClassWriter extends ClassVisitor {
 
     private void completeAttributes() {
         if (!visibleAnnotations.isEmpty()) {
-            openClassBuilder.accept(classBuilder -> RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
+            openClassBuilder.accept(classBuilder -> classBuilder.with(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations)));
             visibleAnnotations.clear();
         }
         if (!invisibleAnnotations.isEmpty()) {
-            openClassBuilder.accept(classBuilder -> RuntimeInvisibleAnnotationsAttribute.of(invisibleAnnotations));
+            openClassBuilder.accept(classBuilder -> classBuilder.with(RuntimeInvisibleAnnotationsAttribute.of(invisibleAnnotations)));
             invisibleAnnotations.clear();
         }
         if (!visibleTypeAnnotations.isEmpty()) {
-            openClassBuilder.accept(classBuilder -> RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations));
+            openClassBuilder.accept(classBuilder -> classBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations)));
             visibleTypeAnnotations.clear();
         }
-        if (!invisibleTypeAnnotations.isEmpty()) {
-            openClassBuilder.accept(classBuilder -> RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations));
+        if (!invisibleAnnotations.isEmpty()) {
+            openClassBuilder.accept(classBuilder -> classBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations)));
             invisibleTypeAnnotations.clear();
         }
     }

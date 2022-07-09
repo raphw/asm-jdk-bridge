@@ -29,10 +29,12 @@ class JdkMethodWriter extends MethodVisitor {
 
     private final List<MethodParameterInfo> methodParameterInfos = new ArrayList<>();
     private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
+    private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
     private final List<List<Annotation>> visibleParameterAnnotations = new ArrayList<>(), invisibleParameterAnnotations = new ArrayList<>();
 
     private OpenBuilder.OpenCodeBuilder openCodeBuilder;
     private Map<Label, jdk.classfile.Label> labels;
+    private Label current;
 
     JdkMethodWriter(String descriptor, OpenBuilder.OpenMethodBuilder openMethodBuilder) {
         super(Opcodes.ASM9);
@@ -69,12 +71,6 @@ class JdkMethodWriter extends MethodVisitor {
     }
 
     @Override
-    public void visitAttribute(Attribute attribute) {
-        completeParameterInfo();
-        // TODO: not really considered in ASM today
-    }
-
-    @Override
     public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
         completeParameterInfo();
         return new JdkAnnotationExtractor(descriptor, annotation -> {
@@ -89,8 +85,12 @@ class JdkMethodWriter extends MethodVisitor {
     @Override
     public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
         completeParameterInfo();
-        // TODO: collect and trigger once guaranteed complete
-        return new JdkAnnotationExtractor(descriptor, annotation -> {
+        return JdkAnnotationExtractor.ofTypeAnnotation(typeRef, typePath, descriptor, typeAnnotation -> {
+            if (visible) {
+                visibleTypeAnnotations.add(typeAnnotation);
+            } else {
+                invisibleTypeAnnotations.add(typeAnnotation);
+            }
         });
     }
 
@@ -115,14 +115,28 @@ class JdkMethodWriter extends MethodVisitor {
         });
     }
 
+    @Override
+    public void visitAttribute(Attribute attribute) {
+        completeParameterInfo();
+        // TODO: not really considered in ASM as things are
+    }
+
     private void completeAttributes() {
         if (!visibleAnnotations.isEmpty()) {
-            openMethodBuilder.accept(methodBuilder -> RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
+            openMethodBuilder.accept(methodBuilder -> methodBuilder.with(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations)));
             visibleAnnotations.clear();
         }
         if (!invisibleAnnotations.isEmpty()) {
-            openMethodBuilder.accept(methodBuilder -> RuntimeInvisibleAnnotationsAttribute.of(invisibleAnnotations));
+            openMethodBuilder.accept(methodBuilder -> methodBuilder.with(RuntimeInvisibleAnnotationsAttribute.of(invisibleAnnotations)));
             invisibleAnnotations.clear();
+        }
+        if (!visibleTypeAnnotations.isEmpty()) {
+            openMethodBuilder.accept(methodBuilder -> methodBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations)));
+            visibleTypeAnnotations.clear();
+        }
+        if (!invisibleAnnotations.isEmpty()) {
+            openMethodBuilder.accept(methodBuilder -> methodBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations)));
+            invisibleTypeAnnotations.clear();
         }
         if (visibleParameterAnnotations.stream().anyMatch(annotations -> !annotations.isEmpty())) {
             openMethodBuilder.accept(methodBuilder -> RuntimeInvisibleParameterAnnotationsAttribute.of(visibleParameterAnnotations));
@@ -194,6 +208,7 @@ class JdkMethodWriter extends MethodVisitor {
             case Opcodes.MONITORENTER, Opcodes.MONITOREXIT -> MonitorInstruction.of(OPCODES[opcode]);
             default -> throw new UnsupportedOperationException("Unexpected opcode: " + opcode);
         }));
+        current = null;
     }
 
     @Override
@@ -213,11 +228,13 @@ class JdkMethodWriter extends MethodVisitor {
             });
             default -> throw new UnsupportedOperationException("Unexpected opcode: " + opcode);
         }));
+        current = null;
     }
 
     @Override
     public void visitIincInsn(int varIndex, int increment) {
         openCodeBuilder.accept(codeBuilder -> codeBuilder.incrementInstruction(varIndex, increment));
+        current = null;
     }
 
     @Override
@@ -227,6 +244,7 @@ class JdkMethodWriter extends MethodVisitor {
             case Opcodes.ISTORE, Opcodes.LSTORE, Opcodes.FSTORE, Opcodes.DSTORE, Opcodes.ASTORE -> StoreInstruction.of(OPCODES[opcode], varIndex);
             default -> throw new UnsupportedOperationException("Unexpected opcode: " + opcode);
         }));
+        current = null;
     }
 
     @Override
@@ -240,21 +258,25 @@ class JdkMethodWriter extends MethodVisitor {
                 default -> throw new UnsupportedOperationException("Unexpected opcode: " + opcode);
             }
         });
+        current = null;
     }
 
     @Override
     public void visitLdcInsn(Object value) {
         openCodeBuilder.accept(codeBuilder -> codeBuilder.constantInstruction(JdkClassWriter.toJdkConstant(value)));
+        current = null;
     }
 
     @Override
     public void visitMultiANewArrayInsn(String descriptor, int numDimensions) {
         openCodeBuilder.accept(codeBuilder -> codeBuilder.multianewarray(ClassDesc.ofDescriptor(descriptor), numDimensions));
+        current = null;
     }
 
     @Override
     public void visitJumpInsn(int opcode, Label label) {
         openCodeBuilder.accept(codeBuilder -> codeBuilder.branchInstruction(OPCODES[opcode], labels.computeIfAbsent(label, ignored -> codeBuilder.newLabel())));
+        current = null;
     }
 
     @Override
@@ -264,6 +286,7 @@ class JdkMethodWriter extends MethodVisitor {
                 max,
                 this.labels.computeIfAbsent(dflt, ignored -> codeBuilder.newLabel()),
                 IntStream.rangeClosed(min, max).mapToObj(index -> SwitchCase.of(index, this.labels.computeIfAbsent(labels[index], ignored -> codeBuilder.newLabel()))).toList()));
+        current = null;
     }
 
     @Override
@@ -271,6 +294,7 @@ class JdkMethodWriter extends MethodVisitor {
         openCodeBuilder.accept(codeBuilder -> codeBuilder.lookupswitch(
                 this.labels.computeIfAbsent(dflt, ignored -> codeBuilder.newLabel()),
                 IntStream.range(0, keys.length).mapToObj(index -> SwitchCase.of(keys[index], this.labels.computeIfAbsent(labels[index], ignored -> codeBuilder.newLabel()))).toList()));
+        current = null;
     }
 
     @Override
@@ -279,6 +303,7 @@ class JdkMethodWriter extends MethodVisitor {
                 ClassDesc.ofInternalName(owner),
                 name,
                 ClassDesc.ofDescriptor(descriptor)));
+        current = null;
     }
 
     @Override
@@ -292,6 +317,7 @@ class JdkMethodWriter extends MethodVisitor {
                 default -> throw new UnsupportedOperationException("Unexpected opcode: " + opcode);
             }
         });
+        current = null;
     }
 
     @Override
@@ -300,11 +326,22 @@ class JdkMethodWriter extends MethodVisitor {
                 name,
                 MethodTypeDesc.ofDescriptor(descriptor),
                 Stream.of(bootstrapMethodArguments).map(JdkClassWriter::toJdkConstant).toArray(ConstantDesc[]::new))));
+        current = null;
     }
 
     @Override
     public void visitLabel(Label label) {
         openCodeBuilder.accept(codeBuilder -> codeBuilder.labelBinding(labels.computeIfAbsent(label, ignored -> codeBuilder.newLabel())));
+        current = label;
+    }
+
+    @Override
+    public void visitLineNumber(int line, Label start) {
+        // TODO: Should there be a better way for this?
+        if (start != current) {
+            throw new UnsupportedOperationException("JDK Writer does not support delayed writing of line number");
+        }
+        openCodeBuilder.accept(codeBuilder -> codeBuilder.lineNumber(line));
     }
 
     @Override
