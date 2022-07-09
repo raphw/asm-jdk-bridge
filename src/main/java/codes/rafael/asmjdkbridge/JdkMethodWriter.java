@@ -93,12 +93,10 @@ class JdkMethodWriter extends MethodVisitor {
     }
 
     @Override
-    public void visitAnnotableParameterCount(int parameterCount, boolean visible) { // TODO: fix
+    public void visitAnnotableParameterCount(int parameterCount, boolean visible) {
         List<List<Annotation>> annotations = visible ? visibleParameterAnnotations : invisibleParameterAnnotations;
         if (parameterCount < annotations.size()) {
-            for (int index = parameterCount; index < annotations.size(); index++) {
-                annotations.add(new ArrayList<>());
-            }
+            annotations.subList(parameterCount, annotations.size()).clear();
         }
     }
 
@@ -137,11 +135,11 @@ class JdkMethodWriter extends MethodVisitor {
             invisibleTypeAnnotations.clear();
         }
         if (visibleParameterAnnotations.stream().anyMatch(annotations -> !annotations.isEmpty())) {
-            openMethodBuilder.accept(methodBuilder -> RuntimeInvisibleParameterAnnotationsAttribute.of(visibleParameterAnnotations));
+            openMethodBuilder.accept(methodBuilder -> methodBuilder.with(RuntimeVisibleParameterAnnotationsAttribute.of(visibleParameterAnnotations)));
             visibleParameterAnnotations.clear();
         }
         if (invisibleParameterAnnotations.stream().anyMatch(annotations -> !annotations.isEmpty())) {
-            openMethodBuilder.accept(methodBuilder -> RuntimeInvisibleParameterAnnotationsAttribute.of(invisibleParameterAnnotations));
+            openMethodBuilder.accept(methodBuilder -> methodBuilder.with(RuntimeInvisibleParameterAnnotationsAttribute.of(invisibleParameterAnnotations)));
             invisibleParameterAnnotations.clear();
         }
     }

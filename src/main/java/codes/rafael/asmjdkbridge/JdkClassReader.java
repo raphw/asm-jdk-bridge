@@ -357,12 +357,11 @@ public class JdkClassReader {
     }
 
     private static void acceptParameterAnnotations(MethodModel methodModel, MethodVisitor methodVisitor, boolean visible) {
-        int count = methodModel.methodTypeSymbol().parameterCount();
         Optional<List<List<Annotation>>> target = visible
                 ? methodModel.findAttribute(Attributes.RUNTIME_VISIBLE_PARAMETER_ANNOTATIONS).map(RuntimeVisibleParameterAnnotationsAttribute::parameterAnnotations)
                 : methodModel.findAttribute(Attributes.RUNTIME_INVISIBLE_PARAMETER_ANNOTATIONS).map(RuntimeInvisibleParameterAnnotationsAttribute::parameterAnnotations);
         target.ifPresent(annotations -> {
-            methodVisitor.visitAnnotableParameterCount(count, visible);
+            methodVisitor.visitAnnotableParameterCount(methodModel.methodTypeSymbol().parameterCount(), visible);
             for (int index = 0; index < annotations.size(); index++) {
                 for (Annotation annotation : annotations.get(index)) {
                     appendAnnotationValues(methodVisitor.visitParameterAnnotation(index, annotation.className().stringValue(), visible), annotation.elements());
