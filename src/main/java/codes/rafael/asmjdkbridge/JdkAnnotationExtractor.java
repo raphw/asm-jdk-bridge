@@ -13,7 +13,9 @@ import java.lang.constant.ClassDesc;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 class JdkAnnotationExtractor extends AnnotationVisitor {
@@ -29,19 +31,22 @@ class JdkAnnotationExtractor extends AnnotationVisitor {
         this.handler = handler;
     }
 
+    private static List<TypeAnnotation.TypePathComponent> toTypePathComponents(TypePath typePath) {
+        return IntStream.range(0, typePath.getLength()).mapToObj(index -> switch (typePath.getStep(index)) {
+            case TypePath.ARRAY_ELEMENT -> TypeAnnotation.TypePathComponent.ARRAY;
+            case TypePath.INNER_TYPE -> TypeAnnotation.TypePathComponent.INNER_TYPE;
+            case TypePath.WILDCARD_BOUND -> TypeAnnotation.TypePathComponent.WILDCARD;
+            case TypePath.TYPE_ARGUMENT -> TypeAnnotation.TypePathComponent.of(TypeAnnotation.TypePathComponent.Kind.TYPE_ARGUMENT.tag(), typePath.getStepArgument(index));
+            default -> throw new UnsupportedOperationException("Unknown type path type: " + typePath.getStep(index));
+        }).toList();
+    }
+
+    static AnnotationVisitor ofTypeAnnotation(TypePath typePath, String descriptor, BiConsumer<List<TypeAnnotation.TypePathComponent>, Annotation> handler) {
+        return new JdkAnnotationExtractor(descriptor, annotation -> handler.accept(toTypePathComponents(typePath), annotation));
+    }
+
     static AnnotationVisitor ofTypeAnnotation(int typeRef, TypePath typePath, String descriptor, Consumer<TypeAnnotation> handler) {
-        return new JdkAnnotationExtractor(descriptor, annotation -> {
-            List<TypeAnnotation.TypePathComponent> components = new ArrayList<>();
-            for (int index = 0; index < typePath.getLength(); index++) {
-                components.add(switch (typePath.getStep(index)) {
-                    case TypePath.ARRAY_ELEMENT -> TypeAnnotation.TypePathComponent.ARRAY;
-                    case TypePath.INNER_TYPE -> TypeAnnotation.TypePathComponent.INNER_TYPE;
-                    case TypePath.WILDCARD_BOUND -> TypeAnnotation.TypePathComponent.WILDCARD;
-                    case TypePath.TYPE_ARGUMENT -> TypeAnnotation.TypePathComponent.of(TypeAnnotation.TypePathComponent.Kind.TYPE_ARGUMENT.tag(), typePath.getStepArgument(index));
-                    default -> throw new UnsupportedOperationException("Unknown type path type: " + typePath.getStep(index));
-                });
-            }
-            // TODO: implement code inline
+        return ofTypeAnnotation(typePath, descriptor, (components, annotation) -> {
             TypeReference typeReference = new TypeReference(typeRef);
             handler.accept(TypeAnnotation.of(
                     switch (typeReference.getSort()) {
@@ -56,17 +61,6 @@ class JdkAnnotationExtractor extends AnnotationVisitor {
                         case TypeReference.METHOD_FORMAL_PARAMETER -> TypeAnnotation.TargetInfo.ofMethodFormalParameter(typeReference.getFormalParameterIndex());
                         case TypeReference.THROWS -> TypeAnnotation.TargetInfo.ofThrows(typeReference.getTryCatchBlockIndex());
                         case TypeReference.EXCEPTION_PARAMETER -> TypeAnnotation.TargetInfo.ofExceptionParameter(typeReference.getExceptionIndex());
-                        case TypeReference.LOCAL_VARIABLE,
-                                TypeReference.RESOURCE_VARIABLE,
-                                TypeReference.NEW,
-                                TypeReference.CONSTRUCTOR_REFERENCE,
-                                TypeReference.METHOD_REFERENCE,
-                                TypeReference.CAST,
-                                TypeReference.CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT,
-                                TypeReference.METHOD_INVOCATION_TYPE_ARGUMENT,
-                                TypeReference.CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT,
-                                TypeReference.METHOD_REFERENCE_TYPE_ARGUMENT,
-                                TypeReference.INSTANCEOF -> throw new UnsupportedOperationException();
                         default -> throw new UnsupportedOperationException("Unknown type reference: " + typeReference.getSort());
                     },
                     components,

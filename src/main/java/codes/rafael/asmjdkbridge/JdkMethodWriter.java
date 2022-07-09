@@ -2,6 +2,7 @@ package codes.rafael.asmjdkbridge;
 
 import jdk.classfile.*;
 import jdk.classfile.attribute.*;
+import jdk.classfile.constantpool.Utf8Entry;
 import jdk.classfile.instruction.*;
 import org.objectweb.asm.*;
 import org.objectweb.asm.Attribute;
@@ -336,12 +337,87 @@ class JdkMethodWriter extends MethodVisitor {
     }
 
     @Override
+    public void visitFrame(int type, int numLocal, Object[] local, int numStack, Object[] stack) {
+        // TODO: No factory
+    }
+
+    @Override
     public void visitLineNumber(int line, Label start) {
-        // TODO: Should there be a better way for this?
+        // TODO: Should there be a better way for writing this afterwards?
         if (start != current) {
             throw new UnsupportedOperationException("JDK Writer does not support delayed writing of line number");
         }
         openCodeBuilder.accept(codeBuilder -> codeBuilder.lineNumber(line));
+    }
+
+    @Override
+    public void visitLocalVariable(String name, String descriptor, String signature, Label start, Label end, int index) {
+        openCodeBuilder.accept(codeBuilder -> {
+            codeBuilder.localVariable(index,
+                    name,
+                    ClassDesc.ofDescriptor(descriptor),
+                    labels.computeIfAbsent(start, ignored -> codeBuilder.newLabel()),
+                    labels.computeIfAbsent(end, ignored -> codeBuilder.newLabel()));
+            if (signature != null) {
+                codeBuilder.localVariableType(index,
+                        name,
+                        Signature.parseFrom(signature),
+                        labels.computeIfAbsent(start, ignored -> codeBuilder.newLabel()),
+                        labels.computeIfAbsent(end, ignored -> codeBuilder.newLabel()));
+            }
+        });
+    }
+
+    @Override
+    public AnnotationVisitor visitInsnAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+        return JdkAnnotationExtractor.ofTypeAnnotation(typePath, descriptor, (components, annotation) -> {
+            TypeReference typeReference = new TypeReference(typeRef);
+            openCodeBuilder.accept(codeBuilder -> {
+                jdk.classfile.Label label = current == null ? codeBuilder.newBoundLabel() : labels.get(current);
+                TypeAnnotation typeAnnotation = TypeAnnotation.of(switch (typeReference.getSort()) {
+                    case TypeReference.NEW -> TypeAnnotation.TargetInfo.ofNewExpr(label);
+                    case TypeReference.CONSTRUCTOR_REFERENCE -> TypeAnnotation.TargetInfo.ofConstructorReference(label);
+                    case TypeReference.METHOD_REFERENCE -> TypeAnnotation.TargetInfo.ofMethodReference(label);
+                    case TypeReference.CAST -> TypeAnnotation.TargetInfo.ofCastExpr(label, typeReference.getTypeArgumentIndex());
+                    case TypeReference.CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorInvocationTypeArgument(label, typeReference.getTypeArgumentIndex());
+                    case TypeReference.METHOD_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodInvocationTypeArgument(label, typeReference.getTypeArgumentIndex());
+                    case TypeReference.CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorReferenceTypeArgument(label, typeReference.getTypeArgumentIndex());
+                    case TypeReference.METHOD_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodReferenceTypeArgument(label, typeReference.getTypeArgumentIndex());
+                    case TypeReference.INSTANCEOF -> TypeAnnotation.TargetInfo.ofInstanceofExpr(label);
+                    default -> throw new UnsupportedOperationException("Unexpected type reference: " + typeReference.getSort());
+                }, components, annotation.className(), annotation.elements());
+                codeBuilder.with(visible ? RuntimeVisibleTypeAnnotationsAttribute.of(typeAnnotation) : RuntimeInvisibleTypeAnnotationsAttribute.of(typeAnnotation));
+            });
+        });
+    }
+
+    @Override
+    public AnnotationVisitor visitTryCatchAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+        return JdkAnnotationExtractor.ofTypeAnnotation(typeRef, typePath, descriptor, typeAnnotation -> openCodeBuilder.accept(codeBuilder -> {
+            if (visible) {
+                codeBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(typeAnnotation));
+            } else {
+                codeBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(typeAnnotation));
+            }
+        }));
+    }
+
+    @Override
+    public AnnotationVisitor visitLocalVariableAnnotation(int typeRef, TypePath typePath, Label[] start, Label[] end, int[] indices, String descriptor, boolean visible) {
+        return JdkAnnotationExtractor.ofTypeAnnotation(typePath, descriptor, (components, annotation) -> {
+            TypeReference typeReference = new TypeReference(typeRef);
+            if (typeReference.getSort() != TypeReference.LOCAL_VARIABLE) {
+                throw new UnsupportedOperationException("Unexpected type reference: " + typeReference.getSort());
+            }
+            openCodeBuilder.accept(codeBuilder -> {
+                TypeAnnotation typeAnnotation = TypeAnnotation.of(TypeAnnotation.TargetInfo.ofLocalVariable(IntStream.range(0, indices.length).mapToObj(index -> TypeAnnotation.LocalVarTargetInfo.of(
+                        labels.computeIfAbsent(start[index], ignored -> codeBuilder.newLabel()),
+                        labels.computeIfAbsent(end[index], ignored -> codeBuilder.newLabel()),
+                        indices[index]
+                )).toList()), components, annotation.className(), annotation.elements());
+                codeBuilder.with(visible ? RuntimeVisibleTypeAnnotationsAttribute.of(typeAnnotation) : RuntimeInvisibleTypeAnnotationsAttribute.of(typeAnnotation));
+            });
+        });
     }
 
     @Override
