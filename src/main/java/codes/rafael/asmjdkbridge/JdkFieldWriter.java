@@ -64,7 +64,7 @@ class JdkFieldWriter extends FieldVisitor {
             openFieldBuilder.accept(fieldBuilder -> fieldBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations)));
             visibleTypeAnnotations.clear();
         }
-        if (!invisibleAnnotations.isEmpty()) {
+        if (!invisibleTypeAnnotations.isEmpty()) {
             openFieldBuilder.accept(fieldBuilder -> fieldBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations)));
             invisibleTypeAnnotations.clear();
         }

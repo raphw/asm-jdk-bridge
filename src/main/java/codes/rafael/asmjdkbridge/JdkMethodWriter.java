@@ -130,7 +130,7 @@ class JdkMethodWriter extends MethodVisitor {
             openMethodBuilder.accept(methodBuilder -> methodBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations)));
             visibleTypeAnnotations.clear();
         }
-        if (!invisibleAnnotations.isEmpty()) {
+        if (!invisibleTypeAnnotations.isEmpty()) {
             openMethodBuilder.accept(methodBuilder -> methodBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations)));
             invisibleTypeAnnotations.clear();
         }

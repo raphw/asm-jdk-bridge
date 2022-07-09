@@ -156,7 +156,7 @@ public class JdkClassWriter extends ClassVisitor {
             openClassBuilder.accept(classBuilder -> classBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations)));
             visibleTypeAnnotations.clear();
         }
-        if (!invisibleAnnotations.isEmpty()) {
+        if (!invisibleTypeAnnotations.isEmpty()) {
             openClassBuilder.accept(classBuilder -> classBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations)));
             invisibleTypeAnnotations.clear();
         }

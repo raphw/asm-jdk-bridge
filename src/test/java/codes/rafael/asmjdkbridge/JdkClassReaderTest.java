@@ -42,12 +42,12 @@ public class JdkClassReaderTest {
                 {BranchesAndStackMapFrames.class, true},
                 {Switches.class, false},
                 {TryThrowCatch.class, false},
-                {RecordComponents.class, false},
-                {NoRecordComponents.class, false},
                 {Annotations.class, false},
                 {TypeAnnotationsWithoutPath.class, false},
                 {TypeAnnotationsWithPath.class, false},
                 {TypeAnnotationsInCode.class, false},
+                {RecordComponents.class, false},
+                {NoRecordComponents.class, false},
                 {CustomAttribute.make(), false}
         });
     }
@@ -61,7 +61,7 @@ public class JdkClassReaderTest {
         this.expandFrames = expandFrames;
     }
 
-    //@Test
+    @Test
     public void equal_reader_output() throws IOException {
         byte[] classFile;
         try (InputStream inputStream = target.getResourceAsStream(target.getName().substring(target.getPackageName().length() + 1) + ".class")) {
@@ -88,8 +88,6 @@ public class JdkClassReaderTest {
         nonValidatingClassReader(asmWriter.toByteArray()).accept(toVisitor(asm), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
         nonValidatingClassReader(jdkWriter.toByteArray()).accept(toVisitor(jdk), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
         assertEquals(asm.toString(), jdk.toString());
-        //System.out.println(asm.toString());
-        //System.out.println(jdk.toString());
     }
 
     private static ClassReader nonValidatingClassReader(byte[] classFile) {
