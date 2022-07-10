@@ -342,7 +342,7 @@ class JdkMethodWriter extends MethodVisitor {
 
     @Override
     public void visitLineNumber(int line, Label start) {
-        // TODO: Should there be a better way for writing this afterwards?
+        // TODO: Should there be a better way for writing this after a line was passed?
         if (start != current) {
             throw new UnsupportedOperationException("JDK Writer does not support delayed writing of line number");
         }
@@ -422,7 +422,8 @@ class JdkMethodWriter extends MethodVisitor {
     }
 
     @Override
-    public void visitMaxs(int maxStack, int maxLocals) { // TODO: maximum values?
+    public void visitMaxs(int maxStack, int maxLocals) {
+        // TODO: retain maximum values as an option?
         openCodeBuilder.close();
     }
 
