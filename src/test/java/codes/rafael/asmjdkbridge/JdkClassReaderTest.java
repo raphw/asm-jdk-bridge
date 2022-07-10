@@ -31,7 +31,7 @@ public class JdkClassReaderTest {
     @Parameterized.Parameters(name = "{0} (expandFrames={1})")
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][]{
-                /*{Trivial.class, false, true},
+                {Trivial.class, false, true},
                 {LoadStoreAndReturn.class, false, true},
                 {FieldConstructorAndMethod.class, false, true},
                 {Operations.class, false, true},
@@ -45,13 +45,13 @@ public class JdkClassReaderTest {
                 {TryThrowCatch.class, false, false}, // TODO: glitches because of auto-compute of stack map frames
                 {Annotations.class, false, true},
                 {TypeAnnotationsWithoutPath.class, false, true},
-                {TypeAnnotationsWithPath.class, false, true},*/
+                {TypeAnnotationsWithPath.class, false, true},
                 {TypeAnnotationsInCode.class, false, false}, // TODO: why type annotations after DUP and not NEW?
-                /*{RecordComponents.class, false, true},
+                {RecordComponents.class, false, true},
                 {NoRecordComponents.class, false, true},
                 {JsrRet.make(), false, true}, // TODO: How to handle old class files (e.g. JDBC)?
                 {CustomAttribute.make(), false, false}, // TODO: How to handle unknown attributes on write in ASM?
-                {FrameWithMissingType.make(), false, false} // TODO: Frame generation yields invalid frame*/
+                {FrameWithMissingType.make(), false, false} // TODO: Frame generation yields invalid frame
         });
     }
 
@@ -81,7 +81,7 @@ public class JdkClassReaderTest {
         assertEquals(asm.toString(), jdk.toString());
     }
 
-    //@Test
+    @Test
     public void equal_writer_output() throws IOException {
         assumeFalse(target.getName().equals(JsrRet.class.getPackageName() + ".JmpRetGen"));
         byte[] classFile;
