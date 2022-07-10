@@ -375,14 +375,14 @@ class JdkMethodWriter extends MethodVisitor {
                 jdk.classfile.Label label = current == null ? codeBuilder.newBoundLabel() : labels.get(current);
                 TypeAnnotation typeAnnotation = TypeAnnotation.of(switch (typeReference.getSort()) {
                     case TypeReference.NEW -> TypeAnnotation.TargetInfo.ofNewExpr(label);
-                    case TypeReference.CONSTRUCTOR_REFERENCE -> TypeAnnotation.TargetInfo.ofConstructorReference(label);
-                    case TypeReference.METHOD_REFERENCE -> TypeAnnotation.TargetInfo.ofMethodReference(label);
                     case TypeReference.CAST -> TypeAnnotation.TargetInfo.ofCastExpr(label, typeReference.getTypeArgumentIndex());
+                    case TypeReference.INSTANCEOF -> TypeAnnotation.TargetInfo.ofInstanceofExpr(label);
                     case TypeReference.CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorInvocationTypeArgument(label, typeReference.getTypeArgumentIndex());
                     case TypeReference.METHOD_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodInvocationTypeArgument(label, typeReference.getTypeArgumentIndex());
+                    case TypeReference.CONSTRUCTOR_REFERENCE -> TypeAnnotation.TargetInfo.ofConstructorReference(label);
+                    case TypeReference.METHOD_REFERENCE -> TypeAnnotation.TargetInfo.ofMethodReference(label);
                     case TypeReference.CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorReferenceTypeArgument(label, typeReference.getTypeArgumentIndex());
                     case TypeReference.METHOD_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodReferenceTypeArgument(label, typeReference.getTypeArgumentIndex());
-                    case TypeReference.INSTANCEOF -> TypeAnnotation.TargetInfo.ofInstanceofExpr(label);
                     default -> throw new UnsupportedOperationException("Unexpected type reference: " + typeReference.getSort());
                 }, components, ClassDesc.ofDescriptor(descriptor), elements);
                 codeBuilder.with(visible ? RuntimeVisibleTypeAnnotationsAttribute.of(typeAnnotation) : RuntimeInvisibleTypeAnnotationsAttribute.of(typeAnnotation));
