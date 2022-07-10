@@ -152,8 +152,9 @@ public class JdkClassReader {
                             .collect(Collectors.toSet());
                     Map<Integer, org.objectweb.asm.Label> offsetLabels = new HashMap<>();
                     Map<MergedLocalVariableKey, MergedLocalVariableValue> localVariables = new LinkedHashMap<>();
-                    Map<org.objectweb.asm.Label, List<Map.Entry<TypeAnnotation, Boolean>>> offsetTypeAnnotations = new HashMap<>();
-                    List<Map.Entry<TypeAnnotation, Boolean>> localVariableAnnotations = new ArrayList<>();
+                    Map<org.objectweb.asm.Label, List<TypeAnnotationCapture>> offsetTypeAnnotations = new HashMap<>();
+                    Map<org.objectweb.asm.Label, List<TypeAnnotationArgumentIndexCapture>> offsetArgumentIndexTypeAnnotations = new HashMap<>();
+                    List<TypeAnnotationCapture> localVariableAnnotations = new ArrayList<>();
                     methodVisitor.visitCode();
                     int offset = 0;
                     org.objectweb.asm.Label currentPositionLabel = null;
@@ -296,16 +297,33 @@ public class JdkClassReader {
                                 // TODO: Is there an easier way to deconstruct to byte array then by knowing spec?
                                 // Note: This would allow for better forward compatibility if unknown attributes should just be dumped to binary.
                             }
-                            case RuntimeVisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), true, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
-                            case RuntimeInvisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), false, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
+                            case RuntimeVisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(),
+                                    true,
+                                    methodVisitor,
+                                    labels,
+                                    localVariableAnnotations,
+                                    offsetTypeAnnotations,
+                                    offsetArgumentIndexTypeAnnotations);
+                            case RuntimeInvisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(),
+                                    false,
+                                    methodVisitor,
+                                    labels,
+                                    localVariableAnnotations,
+                                    offsetTypeAnnotations,
+                                    offsetArgumentIndexTypeAnnotations);
                             default -> throw new UnsupportedOperationException("Unknown value: " + element);
                         }
                         if (element instanceof Instruction) {
-                            offsetTypeAnnotations.getOrDefault(currentPositionLabel, Collections.emptyList()).forEach(entry -> appendAnnotationValues(methodVisitor.visitInsnAnnotation(
-                                    TypeReference.newTypeReference(entry.getKey().targetInfo().targetType().targetTypeValue()).getValue(),
-                                    toTypePath(entry.getKey().targetPath()),
-                                    entry.getKey().className().stringValue(),
-                                    entry.getValue()), entry.getKey().elements()));
+                            offsetTypeAnnotations.getOrDefault(currentPositionLabel, Collections.emptyList()).forEach(capture -> appendAnnotationValues(methodVisitor.visitInsnAnnotation(
+                                    TypeReference.newTypeReference(capture.typeAnnotation().targetInfo().targetType().targetTypeValue()).getValue(),
+                                    toTypePath(capture.typeAnnotation().targetPath()),
+                                    capture.typeAnnotation().className().stringValue(),
+                                    capture.visible()), capture.typeAnnotation().elements()));
+                            offsetArgumentIndexTypeAnnotations.getOrDefault(currentPositionLabel, Collections.emptyList()).forEach(capture -> appendAnnotationValues(methodVisitor.visitInsnAnnotation(
+                                    TypeReference.newTypeArgumentReference(capture.typeAnnotation().targetInfo().targetType().targetTypeValue(), capture.index()).getValue(),
+                                    toTypePath(capture.typeAnnotation().targetPath()),
+                                    capture.typeAnnotation().className().stringValue(),
+                                    capture.visible()), capture.typeAnnotation().elements()));
                             currentPositionLabel = null;
                         }
                         offset += element.sizeInBytes();
@@ -317,15 +335,15 @@ public class JdkClassReader {
                             key.end(),
                             key.slot()));
                     localVariableAnnotations.forEach(entry -> {
-                        TypeAnnotation.LocalVarTarget target = (TypeAnnotation.LocalVarTarget) entry.getKey().targetInfo();
+                        TypeAnnotation.LocalVarTarget target = (TypeAnnotation.LocalVarTarget) entry.typeAnnotation().targetInfo();
                         appendAnnotationValues(methodVisitor.visitLocalVariableAnnotation(
-                                TypeReference.newTypeReference(entry.getKey().targetInfo().targetType().targetTypeValue()).getValue(),
-                                toTypePath(entry.getKey().targetPath()),
+                                TypeReference.newTypeReference(entry.typeAnnotation().targetInfo().targetType().targetTypeValue()).getValue(),
+                                toTypePath(entry.typeAnnotation().targetPath()),
                                 target.table().stream().map(localVarTargetInfo -> labels.get(localVarTargetInfo.startLabel())).toArray(org.objectweb.asm.Label[]::new),
                                 target.table().stream().map(localVarTargetInfo -> labels.get(localVarTargetInfo.endLabel())).toArray(org.objectweb.asm.Label[]::new),
                                 target.table().stream().mapToInt(TypeAnnotation.LocalVarTargetInfo::index).toArray(),
-                                entry.getKey().className().stringValue(),
-                                entry.getValue()), entry.getKey().elements());
+                                entry.typeAnnotation().className().stringValue(),
+                                entry.visible()), entry.typeAnnotation().elements());
                     });
                     methodVisitor.visitMaxs(code.maxStack(), code.maxLocals());
                 });
@@ -405,13 +423,17 @@ public class JdkClassReader {
                                               boolean visible,
                                               MethodVisitor methodVisitor,
                                               Map<Label, org.objectweb.asm.Label> labels,
-                                              List<Map.Entry<TypeAnnotation, Boolean>> localVariableAnnotations,
-                                              Map<org.objectweb.asm.Label, List<Map.Entry<TypeAnnotation, Boolean>>> offsetTypeAnnotations) {
+                                              List<TypeAnnotationCapture> localVariableAnnotations,
+                                              Map<org.objectweb.asm.Label, List<TypeAnnotationCapture>> offsetTypeAnnotations,
+                                              Map<org.objectweb.asm.Label, List<TypeAnnotationArgumentIndexCapture>> offsetArgumentIndexTypeAnnotations) {
         typeAnnotations.forEach(typeAnnotation -> {
             switch (typeAnnotation.targetInfo()) {
-                case TypeAnnotation.LocalVarTarget ignored -> localVariableAnnotations.add(Map.entry(typeAnnotation, visible));
+                case TypeAnnotation.LocalVarTarget ignored -> localVariableAnnotations.add(new TypeAnnotationCapture(typeAnnotation, visible));
                 case TypeAnnotation.OffsetTarget value -> offsetTypeAnnotations.merge(labels.computeIfAbsent(value.target(), label -> new org.objectweb.asm.Label()),
-                        Collections.singletonList(Map.entry(typeAnnotation, visible)),
+                        Collections.singletonList(new TypeAnnotationCapture(typeAnnotation, visible)),
+                        (left, right) -> Stream.of(left.stream(), right.stream()).flatMap(Function.identity()).toList());
+                case TypeAnnotation.TypeArgumentTarget value -> offsetArgumentIndexTypeAnnotations.merge(labels.computeIfAbsent(value.target(), label -> new org.objectweb.asm.Label()),
+                        Collections.singletonList(new TypeAnnotationArgumentIndexCapture(typeAnnotation, value.typeArgumentIndex(), visible)),
                         (left, right) -> Stream.of(left.stream(), right.stream()).flatMap(Function.identity()).toList());
                 case TypeAnnotation.CatchTarget value -> appendAnnotationValues(methodVisitor.visitTryCatchAnnotation( // TODO: verify annotation index?
                         TypeReference.newTypeReference(value.targetType().targetTypeValue()).getValue(),
@@ -508,6 +530,19 @@ public class JdkClassReader {
     private record MergedLocalVariableValue(
             String descriptor,
             String signature
+    ) {
+    }
+
+    private record TypeAnnotationCapture(
+            TypeAnnotation typeAnnotation,
+            boolean visible
+    ) {
+    }
+
+    private record TypeAnnotationArgumentIndexCapture(
+            TypeAnnotation typeAnnotation,
+            int index,
+            boolean visible
     ) {
     }
 }
