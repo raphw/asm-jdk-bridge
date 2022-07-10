@@ -234,10 +234,11 @@ class JdkMethodWriter extends MethodVisitor {
     }
 
     @Override
-    public void visitVarInsn(int opcode, int varIndex) { // TODO: No RET, how to parse old class files like JDBC?
+    public void visitVarInsn(int opcode, int varIndex) {
         openCodeBuilder.accept(codeBuilder -> codeBuilder.with(switch (opcode) {
             case Opcodes.ILOAD, Opcodes.LLOAD, Opcodes.FLOAD, Opcodes.DLOAD, Opcodes.ALOAD -> LoadInstruction.of(OPCODES[opcode], varIndex);
             case Opcodes.ISTORE, Opcodes.LSTORE, Opcodes.FSTORE, Opcodes.DSTORE, Opcodes.ASTORE -> StoreInstruction.of(OPCODES[opcode], varIndex);
+            case Opcodes.RET -> throw new UnsupportedOperationException("JSR/RET instructions are not supported by JDK class writer");
             default -> throw new UnsupportedOperationException("Unexpected opcode: " + opcode);
         }));
         current = null;
@@ -271,6 +272,9 @@ class JdkMethodWriter extends MethodVisitor {
 
     @Override
     public void visitJumpInsn(int opcode, Label label) {
+        if (opcode == Opcodes.JSR) {
+            throw new UnsupportedOperationException("JSR/RET instructions are not supported by JDK class writer");
+        }
         openCodeBuilder.accept(codeBuilder -> codeBuilder.branchInstruction(OPCODES[opcode], labels.computeIfAbsent(label, ignored -> codeBuilder.newLabel())));
         current = null;
     }
@@ -333,7 +337,7 @@ class JdkMethodWriter extends MethodVisitor {
 
     @Override
     public void visitFrame(int type, int numLocal, Object[] local, int numStack, Object[] stack) {
-        // TODO: No factory
+        // TODO: Cannot explicitly compute frames
     }
 
     @Override
@@ -401,15 +405,17 @@ class JdkMethodWriter extends MethodVisitor {
     public AnnotationVisitor visitLocalVariableAnnotation(int typeRef, TypePath typePath, Label[] start, Label[] end, int[] indices, String descriptor, boolean visible) {
         return JdkAnnotationExtractor.ofTypeAnnotation(typePath, (components, elements) -> {
             TypeReference typeReference = new TypeReference(typeRef);
-            if (typeReference.getSort() != TypeReference.LOCAL_VARIABLE) {
-                throw new UnsupportedOperationException("Unexpected type reference: " + typeReference.getSort());
-            }
             openCodeBuilder.accept(codeBuilder -> {
-                TypeAnnotation typeAnnotation = TypeAnnotation.of(TypeAnnotation.TargetInfo.ofLocalVariable(IntStream.range(0, indices.length).mapToObj(index -> TypeAnnotation.LocalVarTargetInfo.of(
+                List<TypeAnnotation.LocalVarTargetInfo> localVarTargetInfos = IntStream.range(0, indices.length).mapToObj(index -> TypeAnnotation.LocalVarTargetInfo.of(
                         labels.computeIfAbsent(start[index], ignored -> codeBuilder.newLabel()),
                         labels.computeIfAbsent(end[index], ignored -> codeBuilder.newLabel()),
                         indices[index]
-                )).toList()), components, ClassDesc.ofDescriptor(descriptor), elements);
+                )).toList();
+                TypeAnnotation typeAnnotation = TypeAnnotation.of(switch (typeReference.getSort()) {
+                    case TypeReference.LOCAL_VARIABLE -> TypeAnnotation.TargetInfo.ofLocalVariable(localVarTargetInfos);
+                    case TypeReference.RESOURCE_VARIABLE -> TypeAnnotation.TargetInfo.ofResourceVariable(localVarTargetInfos);
+                    default -> throw new UnsupportedOperationException("Unexpected type reference: " + typeReference.getSort());
+                }, components, ClassDesc.ofDescriptor(descriptor), elements);
                 codeBuilder.with(visible ? RuntimeVisibleTypeAnnotationsAttribute.of(typeAnnotation) : RuntimeInvisibleTypeAnnotationsAttribute.of(typeAnnotation));
             });
         });

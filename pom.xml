@@ -120,6 +120,7 @@
                         --add-exports java.base/jdk.classfile.instruction=ALL-UNNAMED
                         --add-exports java.base/jdk.classfile.jdktypes=ALL-UNNAMED
                     </argLine>
+                    <trimStackTrace>false</trimStackTrace>
                 </configuration>
             </plugin>
         </plugins>
