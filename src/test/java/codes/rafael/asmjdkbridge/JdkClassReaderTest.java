@@ -2,9 +2,6 @@ package codes.rafael.asmjdkbridge;
 
 import codes.rafael.asmjdkbridge.sample.*;
 import jdk.classfile.Classfile;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -24,6 +21,7 @@ import java.util.Collection;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 @RunWith(Parameterized.class)
@@ -51,8 +49,9 @@ public class JdkClassReaderTest {
                 {TypeAnnotationsInCode.class, false, false}, // TODO: why type annotations after DUP and not NEW?
                 {RecordComponents.class, false, true},
                 {NoRecordComponents.class, false, true},
-                // {JsrRet.make(), false, true}, // TODO: How to handle old class files (e.g. JDBC)?
-                {CustomAttribute.make(), false, false} // TODO: How to handle unknown attributes on write in ASM?
+                {JsrRet.make(), false, true}, // TODO: How to handle old class files (e.g. JDBC)?
+                {CustomAttribute.make(), false, false}, // TODO: How to handle unknown attributes on write in ASM?
+                {FrameWithMissingType.make(), false, false} // TODO: Frame generation yields invalid frame
         });
     }
 
@@ -70,6 +69,7 @@ public class JdkClassReaderTest {
 
     @Test
     public void equal_reader_output() throws IOException {
+        assumeFalse(target.getName().equals(JsrRet.class.getPackageName() + ".JmpRetGen"));
         byte[] classFile;
         try (InputStream inputStream = target.getResourceAsStream(target.getName().substring(target.getPackageName().length() + 1) + ".class")) {
             classFile = inputStream.readAllBytes();
@@ -82,6 +82,7 @@ public class JdkClassReaderTest {
 
     @Test
     public void equal_writer_output() throws IOException {
+        assumeFalse(target.getName().equals(JsrRet.class.getPackageName() + ".JmpRetGen"));
         byte[] classFile;
         try (InputStream inputStream = target.getResourceAsStream(target.getName().substring(target.getPackageName().length() + 1) + ".class")) {
             classFile = inputStream.readAllBytes();
