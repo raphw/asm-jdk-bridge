@@ -12,11 +12,11 @@ import java.util.function.Supplier;
 public class TypeAnnotationsInCode {
 
     void i() {
-        Object o = new @A(0) @B(0) Object();
+        Object o = new @A(0) @B(0) ArrayList<>();
     }
 
     void t() {
-        Object o1 = new ArrayList<@A(0) @B(0) Object>();
+        Object o1 = new ArrayList<@A(0) @B(0) Object>(); // TODO: should be CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT
         Object o2 = List.<@A(1) @B(1) Object>of();
     }
 
@@ -37,12 +37,12 @@ public class TypeAnnotationsInCode {
 
     void cr() {
         Supplier<Object> s1 = @A(1) @B(1) Object::new;
-        Supplier<List<Object>> s2 = ArrayList<@A(2) @B(2) Object>::new;
+        Supplier<List<Object>> s2 = ArrayList<@A(2) @B(2) Object>::new; // TODO: should be CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT
     }
 
     <T> void mr() {
         Sample s = null;
-        Supplier<Object> s1 = s::p; // TODO: how do I annotate this reference?
+        Supplier<Object> s1 = s::p; // TODO: Should allow for METHOD_REFERENCE
         Supplier<T> s2 = s::<@A(2) @B(2) T>g;
     }
 
