@@ -36,7 +36,7 @@ class JdkMethodWriter extends MethodVisitor {
     private OpenBuilder.OpenCodeBuilder openCodeBuilder;
     private Map<Label, jdk.classfile.Label> labels;
     private Label current;
-    private jdk.classfile.Label previous;
+    private jdk.classfile.Label previous; // TODO: better way to mark previous instruction when type annotation is visited?
 
     JdkMethodWriter(String descriptor, OpenBuilder.OpenMethodBuilder openMethodBuilder) {
         super(Opcodes.ASM9);

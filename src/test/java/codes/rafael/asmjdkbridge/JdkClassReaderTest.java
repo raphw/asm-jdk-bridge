@@ -43,12 +43,12 @@ public class JdkClassReaderTest {
                 {Annotations.class, false, false, true},
                 {TypeAnnotationsWithoutPath.class, false, false, true},
                 {TypeAnnotationsWithPath.class, false, false, true},
-                {TypeAnnotationsInCode.class, false, true, false}, // TODO: type annotation label must be placed before, not after instruction
+                {TypeAnnotationsInCode.class, false, true, false}, // TODO: glitches because of auto-compute of stack map frames
                 {RecordComponents.class, false, false, true},
                 {NoRecordComponents.class, false, false, true},
                 {JsrRet.make(), false, false, true}, // TODO: How to handle old class files (e.g. JDBC)?
                 {CustomAttribute.make(), false, false, false}, // TODO: How to handle unknown attributes on write in ASM?
-                {FrameWithMissingType.make(), false, false, false} // TODO: should allow for explicit frame writing*/
+                {FrameWithMissingType.make(), false, false, false} // TODO: should allow for explicit frame writing
         });
     }
 
