@@ -23,6 +23,7 @@ public class CustomAttribute {
         MethodVisitor methodVisitor = classWriter.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_ABSTRACT, "f", Type.getMethodType(Type.VOID_TYPE).getDescriptor(), null, null);
         methodVisitor.visitAttribute(new ByteArrayAttribute("CustomAttribute", new byte[]{3}));
         methodVisitor.visitEnd();
+        classWriter.visitEnd();
         byte[] classFile = classWriter.toByteArray();
         try {
             return new ClassLoader(null) {

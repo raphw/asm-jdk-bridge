@@ -1,6 +1,7 @@
 package codes.rafael.asmjdkbridge;
 
 import codes.rafael.asmjdkbridge.sample.*;
+import codes.rafael.asmjdkbridge.sample.ConstantDynamic;
 import jdk.classfile.Classfile;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -36,6 +37,7 @@ public class JdkClassReaderTest {
                 {SyntheticConstructor.Inner.class, false, false, true},
                 {ArrayInstructions.class, false, false, true},
                 {Invokedynamic.class, false, false, true},
+                {ConstantDynamic.class, false, false, true},
                 {BranchesAndStackMapFrames.class, false, false, true},
                 {BranchesAndStackMapFrames.class, true, false, true},
                 {Switches.class, false, false, true},
