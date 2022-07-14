@@ -214,12 +214,10 @@ public class JdkClassWriter extends ClassVisitor {
     @Override
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
         completeAttributes();
-        // TODO: why flags already here? (inconsistent)
         OpenBuilder.OpenMethodBuilder openMethodBuilder = openClassBuilder.withMethod(name,
                 MethodTypeDesc.ofDescriptor(descriptor),
                 access & ~(Opcodes.ACC_DEPRECATED | Opcodes.ACC_SYNTHETIC));
         openMethodBuilder.accept(methodBuilder -> {
-            methodBuilder.withFlags(access & ~(Opcodes.ACC_DEPRECATED | Opcodes.ACC_SYNTHETIC));
             if ((access & Opcodes.ACC_DEPRECATED) != 0) {
                 methodBuilder.with(DeprecatedAttribute.of());
             }
