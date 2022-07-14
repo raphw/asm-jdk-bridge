@@ -31,10 +31,12 @@ class JdkMethodWriter extends MethodVisitor {
     private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
     private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
     private final List<List<Annotation>> visibleParameterAnnotations = new ArrayList<>(), invisibleParameterAnnotations = new ArrayList<>();
+    private final List<TypeAnnotation> visibleCodeTypeAnnotations = new ArrayList<>(), invisibleCodeTypeAnnotations = new ArrayList<>();
 
     private OpenBuilder.OpenCodeBuilder openCodeBuilder;
     private Map<Label, jdk.classfile.Label> labels;
     private Label current;
+    private jdk.classfile.Label previous;
 
     JdkMethodWriter(String descriptor, OpenBuilder.OpenMethodBuilder openMethodBuilder) {
         super(Opcodes.ASM9);
@@ -174,79 +176,92 @@ class JdkMethodWriter extends MethodVisitor {
 
     @Override
     public void visitInsn(int opcode) {
-        openCodeBuilder.accept(codeBuilder -> codeBuilder.with(switch (opcode) {
-            case Opcodes.NOP -> NopInstruction.of();
-            case Opcodes.ACONST_NULL,
-                    Opcodes.ICONST_M1, Opcodes.ICONST_0, Opcodes.ICONST_1, Opcodes.ICONST_2, Opcodes.ICONST_3, Opcodes.ICONST_4, Opcodes.ICONST_5,
-                    Opcodes.LCONST_0, Opcodes.LCONST_1,
-                    Opcodes.FCONST_0, Opcodes.FCONST_1, Opcodes.FCONST_2,
-                    Opcodes.DCONST_0, Opcodes.DCONST_1 -> ConstantInstruction.ofIntrinsic(OPCODES[opcode]);
-            case Opcodes.IALOAD, Opcodes.LALOAD, Opcodes.FALOAD, Opcodes.DALOAD, Opcodes.AALOAD, Opcodes.BALOAD, Opcodes.CALOAD, Opcodes.SALOAD -> ArrayLoadInstruction.of(OPCODES[opcode]);
-            case Opcodes.IASTORE, Opcodes.LASTORE, Opcodes.FASTORE, Opcodes.DASTORE, Opcodes.AASTORE, Opcodes.BASTORE, Opcodes.CASTORE, Opcodes.SASTORE -> ArrayStoreInstruction.of(OPCODES[opcode]);
-            case Opcodes.POP, Opcodes.POP2, Opcodes.DUP, Opcodes.DUP_X1, Opcodes.DUP_X2, Opcodes.DUP2, Opcodes.DUP2_X1, Opcodes.DUP2_X2, Opcodes.SWAP -> StackInstruction.of(OPCODES[opcode]);
-            case Opcodes.IADD, Opcodes.LADD, Opcodes.FADD, Opcodes.DADD,
-                    Opcodes.ISUB, Opcodes.LSUB, Opcodes.FSUB, Opcodes.DSUB,
-                    Opcodes.IMUL, Opcodes.LMUL, Opcodes.FMUL, Opcodes.DMUL,
-                    Opcodes.IDIV, Opcodes.LDIV, Opcodes.FDIV, Opcodes.DDIV,
-                    Opcodes.IREM, Opcodes.LREM, Opcodes.FREM, Opcodes.DREM,
-                    Opcodes.INEG, Opcodes.LNEG, Opcodes.FNEG, Opcodes.DNEG,
-                    Opcodes.ISHL, Opcodes.LSHL, Opcodes.ISHR, Opcodes.LSHR, Opcodes.IUSHR, Opcodes.LUSHR,
-                    Opcodes.IAND, Opcodes.LAND, Opcodes.IOR, Opcodes.LOR, Opcodes.IXOR, Opcodes.LXOR,
-                    Opcodes.LCMP, Opcodes.FCMPL, Opcodes.FCMPG, Opcodes.DCMPL, Opcodes.DCMPG,
-                    Opcodes.ARRAYLENGTH -> OperatorInstruction.of(OPCODES[opcode]);
-            case Opcodes.I2L, Opcodes.I2F, Opcodes.I2D,
-                    Opcodes.L2I, Opcodes.L2F, Opcodes.L2D,
-                    Opcodes.F2I, Opcodes.F2L, Opcodes.F2D,
-                    Opcodes.D2I, Opcodes.D2L, Opcodes.D2F,
-                    Opcodes.I2B, Opcodes.I2C, Opcodes.I2S -> ConvertInstruction.of(OPCODES[opcode]);
-            case Opcodes.IRETURN, Opcodes.LRETURN, Opcodes.FRETURN, Opcodes.DRETURN, Opcodes.ARETURN, Opcodes.RETURN -> ReturnInstruction.of(OPCODES[opcode]);
-            case Opcodes.ATHROW -> ThrowInstruction.of();
-            case Opcodes.MONITORENTER, Opcodes.MONITOREXIT -> MonitorInstruction.of(OPCODES[opcode]);
-            default -> throw new UnsupportedOperationException("Unexpected opcode: " + opcode);
-        }));
+        openCodeBuilder.accept(codeBuilder -> {
+            previous = codeBuilder.newBoundLabel();
+            codeBuilder.with(switch (opcode) {
+                case Opcodes.NOP -> NopInstruction.of();
+                case Opcodes.ACONST_NULL,
+                        Opcodes.ICONST_M1, Opcodes.ICONST_0, Opcodes.ICONST_1, Opcodes.ICONST_2, Opcodes.ICONST_3, Opcodes.ICONST_4, Opcodes.ICONST_5,
+                        Opcodes.LCONST_0, Opcodes.LCONST_1,
+                        Opcodes.FCONST_0, Opcodes.FCONST_1, Opcodes.FCONST_2,
+                        Opcodes.DCONST_0, Opcodes.DCONST_1 -> ConstantInstruction.ofIntrinsic(OPCODES[opcode]);
+                case Opcodes.IALOAD, Opcodes.LALOAD, Opcodes.FALOAD, Opcodes.DALOAD, Opcodes.AALOAD, Opcodes.BALOAD, Opcodes.CALOAD, Opcodes.SALOAD -> ArrayLoadInstruction.of(OPCODES[opcode]);
+                case Opcodes.IASTORE, Opcodes.LASTORE, Opcodes.FASTORE, Opcodes.DASTORE, Opcodes.AASTORE, Opcodes.BASTORE, Opcodes.CASTORE, Opcodes.SASTORE -> ArrayStoreInstruction.of(OPCODES[opcode]);
+                case Opcodes.POP, Opcodes.POP2, Opcodes.DUP, Opcodes.DUP_X1, Opcodes.DUP_X2, Opcodes.DUP2, Opcodes.DUP2_X1, Opcodes.DUP2_X2, Opcodes.SWAP -> StackInstruction.of(OPCODES[opcode]);
+                case Opcodes.IADD, Opcodes.LADD, Opcodes.FADD, Opcodes.DADD,
+                        Opcodes.ISUB, Opcodes.LSUB, Opcodes.FSUB, Opcodes.DSUB,
+                        Opcodes.IMUL, Opcodes.LMUL, Opcodes.FMUL, Opcodes.DMUL,
+                        Opcodes.IDIV, Opcodes.LDIV, Opcodes.FDIV, Opcodes.DDIV,
+                        Opcodes.IREM, Opcodes.LREM, Opcodes.FREM, Opcodes.DREM,
+                        Opcodes.INEG, Opcodes.LNEG, Opcodes.FNEG, Opcodes.DNEG,
+                        Opcodes.ISHL, Opcodes.LSHL, Opcodes.ISHR, Opcodes.LSHR, Opcodes.IUSHR, Opcodes.LUSHR,
+                        Opcodes.IAND, Opcodes.LAND, Opcodes.IOR, Opcodes.LOR, Opcodes.IXOR, Opcodes.LXOR,
+                        Opcodes.LCMP, Opcodes.FCMPL, Opcodes.FCMPG, Opcodes.DCMPL, Opcodes.DCMPG,
+                        Opcodes.ARRAYLENGTH -> OperatorInstruction.of(OPCODES[opcode]);
+                case Opcodes.I2L, Opcodes.I2F, Opcodes.I2D,
+                        Opcodes.L2I, Opcodes.L2F, Opcodes.L2D,
+                        Opcodes.F2I, Opcodes.F2L, Opcodes.F2D,
+                        Opcodes.D2I, Opcodes.D2L, Opcodes.D2F,
+                        Opcodes.I2B, Opcodes.I2C, Opcodes.I2S -> ConvertInstruction.of(OPCODES[opcode]);
+                case Opcodes.IRETURN, Opcodes.LRETURN, Opcodes.FRETURN, Opcodes.DRETURN, Opcodes.ARETURN, Opcodes.RETURN -> ReturnInstruction.of(OPCODES[opcode]);
+                case Opcodes.ATHROW -> ThrowInstruction.of();
+                case Opcodes.MONITORENTER, Opcodes.MONITOREXIT -> MonitorInstruction.of(OPCODES[opcode]);
+                default -> throw new UnsupportedOperationException("Unexpected opcode: " + opcode);
+            });
+        });
         current = null;
     }
 
     @Override
     public void visitIntInsn(int opcode, int operand) {
-        openCodeBuilder.accept(codeBuilder -> codeBuilder.with(switch (opcode) {
-            case Opcodes.BIPUSH, Opcodes.SIPUSH -> ConstantInstruction.ofArgument(OPCODES[opcode], operand);
-            case Opcodes.NEWARRAY -> NewPrimitiveArrayInstruction.of(switch (operand) {
-                case Opcodes.T_BOOLEAN -> TypeKind.BooleanType;
-                case Opcodes.T_BYTE -> TypeKind.ByteType;
-                case Opcodes.T_SHORT -> TypeKind.ShortType;
-                case Opcodes.T_CHAR -> TypeKind.CharType;
-                case Opcodes.T_INT -> TypeKind.IntType;
-                case Opcodes.T_LONG -> TypeKind.LongType;
-                case Opcodes.T_FLOAT -> TypeKind.FloatType;
-                case Opcodes.T_DOUBLE -> TypeKind.DoubleType;
-                default -> throw new UnsupportedOperationException("Unexpected primitive array type: " + operand);
+        openCodeBuilder.accept(codeBuilder -> {
+            previous = codeBuilder.newBoundLabel();
+            codeBuilder.with(switch (opcode) {
+                case Opcodes.BIPUSH, Opcodes.SIPUSH -> ConstantInstruction.ofArgument(OPCODES[opcode], operand);
+                case Opcodes.NEWARRAY -> NewPrimitiveArrayInstruction.of(switch (operand) {
+                    case Opcodes.T_BOOLEAN -> TypeKind.BooleanType;
+                    case Opcodes.T_BYTE -> TypeKind.ByteType;
+                    case Opcodes.T_SHORT -> TypeKind.ShortType;
+                    case Opcodes.T_CHAR -> TypeKind.CharType;
+                    case Opcodes.T_INT -> TypeKind.IntType;
+                    case Opcodes.T_LONG -> TypeKind.LongType;
+                    case Opcodes.T_FLOAT -> TypeKind.FloatType;
+                    case Opcodes.T_DOUBLE -> TypeKind.DoubleType;
+                    default -> throw new UnsupportedOperationException("Unexpected primitive array type: " + operand);
+                });
+                default -> throw new UnsupportedOperationException("Unexpected opcode: " + opcode);
             });
-            default -> throw new UnsupportedOperationException("Unexpected opcode: " + opcode);
-        }));
+        });
         current = null;
     }
 
     @Override
     public void visitIincInsn(int varIndex, int increment) {
-        openCodeBuilder.accept(codeBuilder -> codeBuilder.incrementInstruction(varIndex, increment));
+        openCodeBuilder.accept(codeBuilder -> {
+            previous = codeBuilder.newBoundLabel();
+            codeBuilder.incrementInstruction(varIndex, increment);
+        });
         current = null;
     }
 
     @Override
     public void visitVarInsn(int opcode, int varIndex) {
-        openCodeBuilder.accept(codeBuilder -> codeBuilder.with(switch (opcode) {
-            case Opcodes.ILOAD, Opcodes.LLOAD, Opcodes.FLOAD, Opcodes.DLOAD, Opcodes.ALOAD -> LoadInstruction.of(OPCODES[opcode], varIndex);
-            case Opcodes.ISTORE, Opcodes.LSTORE, Opcodes.FSTORE, Opcodes.DSTORE, Opcodes.ASTORE -> StoreInstruction.of(OPCODES[opcode], varIndex);
-            case Opcodes.RET -> throw new UnsupportedOperationException("JSR/RET instructions are not supported by JDK class writer");
-            default -> throw new UnsupportedOperationException("Unexpected opcode: " + opcode);
-        }));
+        openCodeBuilder.accept(codeBuilder -> {
+            previous = codeBuilder.newBoundLabel();
+            codeBuilder.with(switch (opcode) {
+                case Opcodes.ILOAD, Opcodes.LLOAD, Opcodes.FLOAD, Opcodes.DLOAD, Opcodes.ALOAD -> LoadInstruction.of(OPCODES[opcode], varIndex);
+                case Opcodes.ISTORE, Opcodes.LSTORE, Opcodes.FSTORE, Opcodes.DSTORE, Opcodes.ASTORE -> StoreInstruction.of(OPCODES[opcode], varIndex);
+                case Opcodes.RET -> throw new UnsupportedOperationException("JSR/RET instructions are not supported by JDK class writer");
+                default -> throw new UnsupportedOperationException("Unexpected opcode: " + opcode);
+            });
+        });
         current = null;
     }
 
     @Override
     public void visitTypeInsn(int opcode, String type) {
         openCodeBuilder.accept(codeBuilder -> {
+            previous = codeBuilder.newBoundLabel();
             switch (opcode) {
                 case Opcodes.NEW -> codeBuilder.new_(ClassDesc.ofInternalName(type));
                 case Opcodes.ANEWARRAY -> codeBuilder.anewarray(ClassDesc.ofInternalName(type));
@@ -260,13 +275,19 @@ class JdkMethodWriter extends MethodVisitor {
 
     @Override
     public void visitLdcInsn(Object value) {
-        openCodeBuilder.accept(codeBuilder -> codeBuilder.constantInstruction(JdkClassWriter.toJdkConstant(value)));
+        openCodeBuilder.accept(codeBuilder -> {
+            previous = codeBuilder.newBoundLabel();
+            codeBuilder.constantInstruction(JdkClassWriter.toJdkConstant(value));
+        });
         current = null;
     }
 
     @Override
     public void visitMultiANewArrayInsn(String descriptor, int numDimensions) {
-        openCodeBuilder.accept(codeBuilder -> codeBuilder.multianewarray(ClassDesc.ofDescriptor(descriptor), numDimensions));
+        openCodeBuilder.accept(codeBuilder ->  {
+            previous = codeBuilder.newBoundLabel();
+            codeBuilder.multianewarray(ClassDesc.ofDescriptor(descriptor), numDimensions);
+        });
         current = null;
     }
 
@@ -275,40 +296,53 @@ class JdkMethodWriter extends MethodVisitor {
         if (opcode == Opcodes.JSR) {
             throw new UnsupportedOperationException("JSR/RET instructions are not supported by JDK class writer");
         }
-        openCodeBuilder.accept(codeBuilder -> codeBuilder.branchInstruction(OPCODES[opcode], labels.computeIfAbsent(label, ignored -> codeBuilder.newLabel())));
+        openCodeBuilder.accept(codeBuilder -> {
+            previous = codeBuilder.newBoundLabel();
+            codeBuilder.branchInstruction(OPCODES[opcode], labels.computeIfAbsent(label, ignored -> codeBuilder.newLabel()));
+        });
         current = null;
     }
 
     @Override
     public void visitTableSwitchInsn(int min, int max, Label dflt, Label... labels) {
-        openCodeBuilder.accept(codeBuilder -> codeBuilder.tableswitch(
-                min,
-                max,
-                this.labels.computeIfAbsent(dflt, ignored -> codeBuilder.newLabel()),
-                IntStream.rangeClosed(min, max).mapToObj(index -> SwitchCase.of(index, this.labels.computeIfAbsent(labels[index], ignored -> codeBuilder.newLabel()))).toList()));
+        openCodeBuilder.accept(codeBuilder -> {
+            previous = codeBuilder.newBoundLabel();
+            codeBuilder.tableswitch(
+                    min,
+                    max,
+                    this.labels.computeIfAbsent(dflt, ignored -> codeBuilder.newLabel()),
+                    IntStream.rangeClosed(min, max).mapToObj(index -> SwitchCase.of(index, this.labels.computeIfAbsent(labels[index], ignored -> codeBuilder.newLabel()))).toList());
+        });
         current = null;
     }
 
     @Override
     public void visitLookupSwitchInsn(Label dflt, int[] keys, Label[] labels) {
-        openCodeBuilder.accept(codeBuilder -> codeBuilder.lookupswitch(
-                this.labels.computeIfAbsent(dflt, ignored -> codeBuilder.newLabel()),
-                IntStream.range(0, keys.length).mapToObj(index -> SwitchCase.of(keys[index], this.labels.computeIfAbsent(labels[index], ignored -> codeBuilder.newLabel()))).toList()));
+        openCodeBuilder.accept(codeBuilder -> {
+            previous = codeBuilder.newBoundLabel();
+            codeBuilder.lookupswitch(
+                    this.labels.computeIfAbsent(dflt, ignored -> codeBuilder.newLabel()),
+                    IntStream.range(0, keys.length).mapToObj(index -> SwitchCase.of(keys[index], this.labels.computeIfAbsent(labels[index], ignored -> codeBuilder.newLabel()))).toList());
+        });
         current = null;
     }
 
     @Override
     public void visitFieldInsn(int opcode, String owner, String name, String descriptor) {
-        openCodeBuilder.accept(codeBuilder -> codeBuilder.fieldInstruction(OPCODES[opcode],
-                ClassDesc.ofInternalName(owner),
-                name,
-                ClassDesc.ofDescriptor(descriptor)));
+        openCodeBuilder.accept(codeBuilder -> {
+            previous = codeBuilder.newBoundLabel();
+            codeBuilder.fieldInstruction(OPCODES[opcode],
+                    ClassDesc.ofInternalName(owner),
+                    name,
+                    ClassDesc.ofDescriptor(descriptor));
+        });
         current = null;
     }
 
     @Override
     public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
         openCodeBuilder.accept(codeBuilder -> {
+            previous = codeBuilder.newBoundLabel();
             switch (opcode) {
                 case Opcodes.INVOKEVIRTUAL -> codeBuilder.invokevirtual(ClassDesc.ofInternalName(owner), name, MethodTypeDesc.ofDescriptor(descriptor), isInterface);
                 case Opcodes.INVOKEINTERFACE -> codeBuilder.invokeinterface(ClassDesc.ofInternalName(owner), name, MethodTypeDesc.ofDescriptor(descriptor));
@@ -322,10 +356,13 @@ class JdkMethodWriter extends MethodVisitor {
 
     @Override
     public void visitInvokeDynamicInsn(String name, String descriptor, Handle bootstrapMethodHandle, Object... bootstrapMethodArguments) {
-        openCodeBuilder.accept(codeBuilder -> codeBuilder.invokeDynamicInstruction(DynamicCallSiteDesc.of((DirectMethodHandleDesc) JdkClassWriter.toJdkConstant(bootstrapMethodHandle),
-                name,
-                MethodTypeDesc.ofDescriptor(descriptor),
-                Stream.of(bootstrapMethodArguments).map(JdkClassWriter::toJdkConstant).toArray(ConstantDesc[]::new))));
+        openCodeBuilder.accept(codeBuilder -> {
+            previous = codeBuilder.newBoundLabel();
+            codeBuilder.invokeDynamicInstruction(DynamicCallSiteDesc.of((DirectMethodHandleDesc) JdkClassWriter.toJdkConstant(bootstrapMethodHandle),
+                    name,
+                    MethodTypeDesc.ofDescriptor(descriptor),
+                    Stream.of(bootstrapMethodArguments).map(JdkClassWriter::toJdkConstant).toArray(ConstantDesc[]::new)));
+        });
         current = null;
     }
 
@@ -371,34 +408,35 @@ class JdkMethodWriter extends MethodVisitor {
     public AnnotationVisitor visitInsnAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
         return JdkAnnotationExtractor.ofTypeAnnotation(typePath, (components, elements) -> {
             TypeReference typeReference = new TypeReference(typeRef);
-            openCodeBuilder.accept(codeBuilder -> {
-                jdk.classfile.Label label = current == null ? codeBuilder.newBoundLabel() : labels.get(current);
-                TypeAnnotation typeAnnotation = TypeAnnotation.of(switch (typeReference.getSort()) {
-                    case TypeReference.NEW -> TypeAnnotation.TargetInfo.ofNewExpr(label);
-                    case TypeReference.CAST -> TypeAnnotation.TargetInfo.ofCastExpr(label, typeReference.getTypeArgumentIndex());
-                    case TypeReference.INSTANCEOF -> TypeAnnotation.TargetInfo.ofInstanceofExpr(label);
-                    case TypeReference.CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorInvocationTypeArgument(label, typeReference.getTypeArgumentIndex());
-                    case TypeReference.METHOD_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodInvocationTypeArgument(label, typeReference.getTypeArgumentIndex());
-                    case TypeReference.CONSTRUCTOR_REFERENCE -> TypeAnnotation.TargetInfo.ofConstructorReference(label);
-                    case TypeReference.METHOD_REFERENCE -> TypeAnnotation.TargetInfo.ofMethodReference(label);
-                    case TypeReference.CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorReferenceTypeArgument(label, typeReference.getTypeArgumentIndex());
-                    case TypeReference.METHOD_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodReferenceTypeArgument(label, typeReference.getTypeArgumentIndex());
-                    default -> throw new UnsupportedOperationException("Unexpected type reference: " + typeReference.getSort());
-                }, components, ClassDesc.ofDescriptor(descriptor), elements);
-                codeBuilder.with(visible ? RuntimeVisibleTypeAnnotationsAttribute.of(typeAnnotation) : RuntimeInvisibleTypeAnnotationsAttribute.of(typeAnnotation));
-            });
+            TypeAnnotation typeAnnotation = TypeAnnotation.of(switch (typeReference.getSort()) {
+                case TypeReference.NEW -> TypeAnnotation.TargetInfo.ofNewExpr(previous);
+                case TypeReference.CAST -> TypeAnnotation.TargetInfo.ofCastExpr(previous, typeReference.getTypeArgumentIndex());
+                case TypeReference.INSTANCEOF -> TypeAnnotation.TargetInfo.ofInstanceofExpr(previous);
+                case TypeReference.CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorInvocationTypeArgument(previous, typeReference.getTypeArgumentIndex());
+                case TypeReference.METHOD_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodInvocationTypeArgument(previous, typeReference.getTypeArgumentIndex());
+                case TypeReference.CONSTRUCTOR_REFERENCE -> TypeAnnotation.TargetInfo.ofConstructorReference(previous);
+                case TypeReference.METHOD_REFERENCE -> TypeAnnotation.TargetInfo.ofMethodReference(previous);
+                case TypeReference.CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorReferenceTypeArgument(previous, typeReference.getTypeArgumentIndex());
+                case TypeReference.METHOD_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodReferenceTypeArgument(previous, typeReference.getTypeArgumentIndex());
+                default -> throw new UnsupportedOperationException("Unexpected type reference: " + typeReference.getSort());
+            }, components, ClassDesc.ofDescriptor(descriptor), elements);
+            if (visible) {
+                visibleCodeTypeAnnotations.add(typeAnnotation);
+            } else {
+                invisibleCodeTypeAnnotations.add(typeAnnotation);
+            }
         });
     }
 
     @Override
     public AnnotationVisitor visitTryCatchAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-        return JdkAnnotationExtractor.ofTypeAnnotation(typeRef, typePath, descriptor, typeAnnotation -> openCodeBuilder.accept(codeBuilder -> {
+        return JdkAnnotationExtractor.ofTypeAnnotation(typeRef, typePath, descriptor, typeAnnotation -> {
             if (visible) {
-                codeBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(typeAnnotation));
+                visibleCodeTypeAnnotations.add(typeAnnotation);
             } else {
-                codeBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(typeAnnotation));
+                invisibleCodeTypeAnnotations.add(typeAnnotation);
             }
-        }));
+        });
     }
 
     @Override
@@ -416,7 +454,11 @@ class JdkMethodWriter extends MethodVisitor {
                     case TypeReference.RESOURCE_VARIABLE -> TypeAnnotation.TargetInfo.ofResourceVariable(localVarTargetInfos);
                     default -> throw new UnsupportedOperationException("Unexpected type reference: " + typeReference.getSort());
                 }, components, ClassDesc.ofDescriptor(descriptor), elements);
-                codeBuilder.with(visible ? RuntimeVisibleTypeAnnotationsAttribute.of(typeAnnotation) : RuntimeInvisibleTypeAnnotationsAttribute.of(typeAnnotation));
+                if (visible) {
+                    visibleCodeTypeAnnotations.add(typeAnnotation);
+                } else {
+                    invisibleCodeTypeAnnotations.add(typeAnnotation);
+                }
             });
         });
     }
@@ -424,6 +466,14 @@ class JdkMethodWriter extends MethodVisitor {
     @Override
     public void visitMaxs(int maxStack, int maxLocals) {
         // TODO: retain maximum values as an option?
+        openCodeBuilder.accept(codeBuilder -> {
+            if (!visibleCodeTypeAnnotations.isEmpty()) {
+                codeBuilder.accept(RuntimeVisibleTypeAnnotationsAttribute.of(visibleCodeTypeAnnotations));
+            }
+            if (!invisibleCodeTypeAnnotations.isEmpty()) {
+                codeBuilder.accept(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleCodeTypeAnnotations));
+            }
+        });
         openCodeBuilder.close();
     }
 
