@@ -48,7 +48,7 @@ public class JdkClassReaderTest {
                 {NoRecordComponents.class, false, false, true},
                 {JsrRet.make(), false, false, true}, // TODO: How to handle old class files (e.g. JDBC)?
                 {CustomAttribute.make(), false, false, false}, // TODO: How to handle unknown attributes on write in ASM?
-                {FrameWithMissingType.make(), false, false, false} // TODO: Frame generation yields invalid frame*/
+                {FrameWithMissingType.make(), false, false, false} // TODO: should allow for explicit frame writing
         });
     }
 
@@ -78,10 +78,9 @@ public class JdkClassReaderTest {
         nonValidatingClassReader(classFile).accept(toVisitor(asm, clearUnusedLabels), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
         new JdkClassReader(Classfile.parse(classFile)).accept(toVisitor(jdk, clearUnusedLabels), expandFrames);
         assertEquals(asm.toString(), jdk.toString());
-        System.out.println(asm.toString());
     }
 
-    //@Test
+    @Test
     public void equal_writer_output() throws IOException {
         assumeFalse(target.getName().equals(JsrRet.class.getPackageName() + ".JmpRetGen"));
         byte[] classFile;
