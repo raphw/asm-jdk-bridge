@@ -14,7 +14,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 public class JdkClassWriter extends ClassVisitor {
 
@@ -35,18 +34,18 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-        thisClass = ClassDesc.of(name.replace('/', '.'));
+        thisClass = ClassDesc.ofInternalName(name);
         classConsumer = classConsumer.andThen(classBuilder -> {
             classBuilder.withVersion(version & 0xFF, (version >> 8) & 0xFF);
             classBuilder.withFlags(access);
             if (signature != null) {
                 classBuilder.with(SignatureAttribute.of(Signature.parseFrom(signature)));
             }
-            classBuilder.withSuperclass(ClassDesc.of(superName.replace('/', '.')));
+            classBuilder.withSuperclass(ClassDesc.ofInternalName(superName));
             if (interfaces != null) {
                 ClassDesc[] entries = new ClassDesc[interfaces.length];
                 for (int index = 0; index < interfaces.length; index++) {
-                    entries[index] = ClassDesc.of(interfaces[index].replace('/', '.'));
+                    entries[index] = ClassDesc.ofInternalName(interfaces[index]);
                 }
                 classBuilder.withInterfaceSymbols(entries);
             }
@@ -72,7 +71,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitNestHost(String nestHost) {
-        classConsumer = classConsumer.andThen(classBuilder -> classBuilder.with(NestHostAttribute.of(ClassDesc.of(nestHost.replace('/', '.')))));
+        classConsumer = classConsumer.andThen(classBuilder -> classBuilder.with(NestHostAttribute.of(ClassDesc.ofInternalName(nestHost))));
     }
 
     @Override
@@ -298,7 +297,7 @@ public class JdkClassWriter extends ClassVisitor {
                             case Opcodes.PUTSTATIC -> Opcode.PUTSTATIC;
                             default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                         },
-                        ClassDesc.of(owner.replace('/', '.')),
+                        ClassDesc.ofInternalName(owner),
                         name,
                         ClassDesc.ofDescriptor(descriptor)));
             }
@@ -313,7 +312,7 @@ public class JdkClassWriter extends ClassVisitor {
                             case Opcodes.INVOKESTATIC -> Opcode.INVOKESTATIC;
                             default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                         },
-                        ClassDesc.of(owner.replace('/', '.')),
+                        ClassDesc.ofInternalName(owner),
                         name,
                         MethodTypeDesc.ofDescriptor(descriptor),
                         isInterface));
@@ -385,7 +384,7 @@ public class JdkClassWriter extends ClassVisitor {
                     for (int index = 0; index < labels.length; index++) {
                         switchCases[index] = SwitchCase.of(min + index, this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel()));
                     }
-                    codeBuilder.tableswitch(
+                    codeBuilder.tableSwitchInstruction(
                             min,
                             max,
                             this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()),
@@ -400,10 +399,22 @@ public class JdkClassWriter extends ClassVisitor {
                     for (int index = 0; index < labels.length; index++) {
                         switchCases[index] = SwitchCase.of(keys[index], this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel()));
                     }
-                    codeBuilder.tableswitch(
+                    codeBuilder.lookupSwitchInstruction(
                             this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()),
                             List.of(switchCases));
                 });
+            }
+
+            @Override
+            public void visitTypeInsn(int opcode, String type) {
+                Consumer<CodeBuilder> codeConsumer = switch (opcode) {
+                    case Opcodes.NEW -> codeBuilder -> codeBuilder.new_(ClassDesc.ofInternalName(type));
+                    case Opcodes.ANEWARRAY -> codeBuilder -> codeBuilder.anewarray(ClassDesc.ofInternalName(type));
+                    case Opcodes.CHECKCAST -> codeBuilder -> codeBuilder.checkcast(ClassDesc.ofInternalName(type));
+                    case Opcodes.INSTANCEOF -> codeBuilder -> codeBuilder.instanceof_(ClassDesc.ofInternalName(type));
+                    default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
+                };
+                this.codeConsumer = this.codeConsumer.andThen(codeConsumer);
             }
 
             @Override
@@ -451,7 +462,7 @@ public class JdkClassWriter extends ClassVisitor {
                     if (exceptions != null) {
                         ClassDesc[] entries = new ClassDesc[exceptions.length];
                         for (int index = 0; index < exceptions.length; index++) {
-                            entries[index] = ClassDesc.of(exceptions[index].replace('/', '.'));
+                            entries[index] = ClassDesc.ofInternalName(exceptions[index]);
                         }
                         methodBuilder.with(ExceptionsAttribute.ofSymbols(entries));
                     }
