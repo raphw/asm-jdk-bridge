@@ -1,28 +1,37 @@
 package codes.rafael.asmjdkbridge;
 
-import org.objectweb.asm.*;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.*;
 
 import java.lang.classfile.*;
 import java.lang.classfile.attribute.*;
-import java.lang.classfile.constantpool.ClassEntry;
-import java.lang.classfile.instruction.ExceptionCatch;
 import java.lang.classfile.instruction.SwitchCase;
 import java.lang.constant.*;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Consumer;
 
 public class JdkClassWriter extends ClassVisitor {
 
     private final ClassFile classFile;
 
+    private final List<ClassDesc> nestMembers = new ArrayList<>();
+    private final List<InnerClassInfo> innerClasses = new ArrayList<>();
+    private final List<ClassDesc> permittedSubclasses = new ArrayList<>();
+
     private ClassDesc thisClass;
-    private Consumer<ClassBuilder> classConsumer = _ -> { };
+    private Consumer<ClassBuilder> classConsumer = classBuilder -> {
+        if (!nestMembers.isEmpty()) {
+            classBuilder.with(NestMembersAttribute.ofSymbols(nestMembers));
+        }
+        if (!innerClasses.isEmpty()) {
+            classBuilder.with(InnerClassesAttribute.of(innerClasses));
+        }
+        if (!permittedSubclasses.isEmpty()) {
+            classBuilder.with(PermittedSubclassesAttribute.ofSymbols(permittedSubclasses));
+        }
+    };
     private byte[] bytes;
 
     public JdkClassWriter() {
@@ -71,7 +80,94 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public ModuleVisitor visitModule(String name, int access, String version) {
-        return super.visitModule(name, access, version);
+        return new ModuleVisitor(Opcodes.ASM9) {
+
+            private String mainClass;
+            private List<PackageDesc> packages = new ArrayList<>();
+
+            private Consumer<ModuleAttribute.ModuleAttributeBuilder> moduleAttributeConsumer = moduleAttributeBuilder -> {
+                moduleAttributeBuilder.moduleFlags(access & ~Opcodes.ACC_DEPRECATED);
+                if (version != null) {
+                    moduleAttributeBuilder.moduleVersion(version);
+                }
+            };
+
+            @Override
+            public void visitMainClass(String mainClass) {
+                this.mainClass = mainClass;
+            }
+
+            @Override
+            public void visitPackage(String packaze) {
+                packages.add(PackageDesc.ofInternalName(packaze));
+            }
+
+            @Override
+            public void visitRequire(String module, int access, String version) {
+                moduleAttributeConsumer = moduleAttributeConsumer.andThen(moduleAttributeBuilder -> moduleAttributeBuilder.requires(
+                        ModuleDesc.of(module),
+                        access,
+                        version));
+            }
+
+            @Override
+            public void visitExport(String packaze, int access, String... modules) {
+                moduleAttributeConsumer = moduleAttributeConsumer.andThen(moduleAttributeBuilder -> {
+                    ModuleDesc[] descriptions = new ModuleDesc[modules.length];
+                    for (int index = 0; index < modules.length; index++) {
+                        descriptions[index] = ModuleDesc.of(modules[index]);
+                    }
+                    moduleAttributeBuilder.exports(PackageDesc.ofInternalName(packaze),
+                            access,
+                            descriptions);
+                });
+            }
+
+            @Override
+            public void visitOpen(String packaze, int access, String... modules) {
+                moduleAttributeConsumer = moduleAttributeConsumer.andThen(moduleAttributeBuilder -> {
+                    ModuleDesc[] descriptions = new ModuleDesc[modules.length];
+                    for (int index = 0; index < modules.length; index++) {
+                        descriptions[index] = ModuleDesc.of(modules[index]);
+                    }
+                    moduleAttributeBuilder.opens(PackageDesc.ofInternalName(packaze),
+                            access,
+                            descriptions);
+                });
+            }
+
+            @Override
+            public void visitUse(String service) {
+                moduleAttributeConsumer = moduleAttributeConsumer.andThen(moduleAttributeBuilder ->
+                        moduleAttributeBuilder.uses(ClassDesc.ofInternalName(service)));
+            }
+
+            @Override
+            public void visitProvide(String service, String... providers) {
+                moduleAttributeConsumer = moduleAttributeConsumer.andThen(moduleAttributeBuilder -> {
+                    ClassDesc[] descriptions = new ClassDesc[providers.length];
+                    for (int index = 0; index < providers.length; index++) {
+                        descriptions[index] = ClassDesc.of(providers[index]);
+                    }
+                    moduleAttributeBuilder.provides(ClassDesc.ofInternalName(service), descriptions);
+                });
+            }
+
+            @Override
+            public void visitEnd() {
+                classConsumer = classConsumer.andThen(classBuilder -> {
+                    classBuilder.with(ModuleAttribute.of(
+                            ModuleDesc.of(name),
+                            moduleAttributeConsumer));
+                    if (mainClass != null) {
+                        classBuilder.with(ModuleMainClassAttribute.of(ClassDesc.ofInternalName(mainClass)));
+                    }
+                    if (!packages.isEmpty()) {
+                        classBuilder.with(ModulePackagesAttribute.ofNames(packages));
+                    }
+                });
+            }
+        };
     }
 
     @Override
@@ -81,7 +177,10 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitOuterClass(String owner, String name, String descriptor) {
-        super.visitOuterClass(owner, name, descriptor);
+        classConsumer = classConsumer.andThen(classBuilder -> classBuilder.with(EnclosingMethodAttribute.of(
+                ClassDesc.ofInternalName(owner),
+                Optional.ofNullable(name),
+                Optional.ofNullable(descriptor).map(MethodTypeDesc::ofDescriptor))));
     }
 
     @Override
@@ -101,17 +200,20 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitNestMember(String nestMember) {
-        super.visitNestMember(nestMember);
+        nestMembers.add(ClassDesc.ofInternalName(nestMember));
     }
 
     @Override
     public void visitPermittedSubclass(String permittedSubclass) {
-        super.visitPermittedSubclass(permittedSubclass);
+        permittedSubclasses.add(ClassDesc.ofInternalName(permittedSubclass));
     }
 
     @Override
     public void visitInnerClass(String name, String outerName, String innerName, int access) {
-        super.visitInnerClass(name, outerName, innerName, access);
+        innerClasses.add(InnerClassInfo.of(ClassDesc.ofInternalName(name),
+                Optional.ofNullable(outerName).map(ClassDesc::ofInternalName),
+                Optional.ofNullable(innerName),
+                access));
     }
 
     @Override
