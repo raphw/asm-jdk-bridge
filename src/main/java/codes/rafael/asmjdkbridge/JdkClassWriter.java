@@ -352,6 +352,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             private Consumer<CodeBuilder> codeConsumer;
 
+            private AnnotationValue defaultValue;
             private final List<MethodParameterInfo> methodParameters = new ArrayList<>();
             private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
             private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
@@ -401,6 +402,29 @@ public class JdkClassWriter extends ClassVisitor {
                 return WritingAnnotationVisitor.of(
                         descriptor,
                         (visible ? visibleParameterAnnotations : invisibleParameterAnnotations).computeIfAbsent(parameter, _ -> new ArrayList<>())::add);
+            }
+
+            @Override
+            public AnnotationVisitor visitTryCatchAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+                return WritingAnnotationVisitor.ofTypeAnnotation(
+                        descriptor,
+                        typeRef,
+                        typePath,
+                        (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
+            }
+
+            @Override
+            public AnnotationVisitor visitInsnAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+                return WritingAnnotationVisitor.ofTypeAnnotation(
+                        descriptor,
+                        typeRef,
+                        typePath,
+                        (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
+            }
+
+            @Override
+            public AnnotationVisitor visitAnnotationDefault() {
+                return WritingAnnotationVisitor.ofValue(value -> defaultValue = value);
             }
 
             @Override
@@ -750,6 +774,9 @@ public class JdkClassWriter extends ClassVisitor {
                         }
                         methodBuilder.with(ExceptionsAttribute.ofSymbols(entries));
                     }
+                    if (defaultValue != null) {
+                        methodBuilder.with(AnnotationDefaultAttribute.of(defaultValue));
+                    }
                     if (!visibleAnnotations.isEmpty()) {
                         methodBuilder.with(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
                     }
@@ -853,13 +880,80 @@ public class JdkClassWriter extends ClassVisitor {
                     () -> consumer.accept(Annotation.of(ClassDesc.ofDescriptor(descriptor), elements)));
         }
 
+        static AnnotationVisitor ofValue(Consumer<AnnotationValue> consumer) {
+            return new WritingAnnotationVisitor(
+                    (name, value) -> consumer.accept(value),
+                    () -> { });
+        }
+
         static AnnotationVisitor ofTypeAnnotation(String descriptor, int typeRef, TypePath typePath, Consumer<TypeAnnotation> consumer) {
             List<AnnotationElement> elements = new ArrayList<>();
+            TypeReference reference = new TypeReference(typeRef);
+            List<TypeAnnotation.TypePathComponent> components = new ArrayList<>(typePath.getLength());
+            for (int index = 0; index < typePath.getLength(); index++) {
+                components.add(switch (typePath.getStep(index)) {
+                    case TypePath.ARRAY_ELEMENT -> TypeAnnotation.TypePathComponent.ARRAY;
+                    case TypePath.INNER_TYPE -> TypeAnnotation.TypePathComponent.INNER_TYPE;
+                    case TypePath.WILDCARD_BOUND -> TypeAnnotation.TypePathComponent.WILDCARD;
+                    case TypePath.TYPE_ARGUMENT -> TypeAnnotation.TypePathComponent.of(TypeAnnotation.TypePathComponent.Kind.TYPE_ARGUMENT, typePath.getStepArgument(index));
+                    default -> throw new IllegalArgumentException("Unkniwn type path type: " + typePath.getStep(index));
+                });
+            }
             return new WritingAnnotationVisitor(
                     (name, value) -> elements.add(AnnotationElement.of(name, value)),
                     () -> consumer.accept(TypeAnnotation.of(
-                            TypeAnnotation.TargetInfo.ofField(),
-                            List.of(), // TODO: type path
+                            switch (reference.getSort()) {
+                                case TypeReference.CLASS_TYPE_PARAMETER -> TypeAnnotation.TargetInfo.ofClassTypeParameter(
+                                        reference.getTypeParameterIndex());
+                                case TypeReference.METHOD_TYPE_PARAMETER -> TypeAnnotation.TargetInfo.ofMethodTypeParameter(
+                                        reference.getTypeParameterIndex());
+                                case TypeReference.CLASS_EXTENDS -> TypeAnnotation.TargetInfo.ofClassExtends(
+                                        reference.getSuperTypeIndex());
+                                case TypeReference.CLASS_TYPE_PARAMETER_BOUND -> TypeAnnotation.TargetInfo.ofClassTypeParameterBound(
+                                        reference.getTypeParameterIndex(),
+                                        reference.getTypeParameterBoundIndex());
+                                case TypeReference.METHOD_TYPE_PARAMETER_BOUND -> TypeAnnotation.TargetInfo.ofMethodTypeParameterBound(
+                                        reference.getTypeParameterIndex(),
+                                        reference.getTypeParameterBoundIndex());
+                                case TypeReference.FIELD -> TypeAnnotation.TargetInfo.ofField();
+                                case TypeReference.METHOD_RETURN -> TypeAnnotation.TargetInfo.ofMethodReturn();
+                                case TypeReference.METHOD_RECEIVER -> TypeAnnotation.TargetInfo.ofMethodReceiver();
+                                case TypeReference.METHOD_FORMAL_PARAMETER -> TypeAnnotation.TargetInfo.ofMethodFormalParameter(
+                                        reference.getFormalParameterIndex());
+                                case TypeReference.THROWS -> TypeAnnotation.TargetInfo.ofThrows(
+                                        reference.getExceptionIndex());
+                                case TypeReference.LOCAL_VARIABLE -> TypeAnnotation.TargetInfo.ofLocalVariable(
+                                        List.of()); // TODO
+                                case TypeReference.RESOURCE_VARIABLE -> TypeAnnotation.TargetInfo.ofResourceVariable(
+                                        List.of()); // TODO
+                                case TypeReference.EXCEPTION_PARAMETER -> TypeAnnotation.TargetInfo.ofExceptionParameter(
+                                        reference.getExceptionIndex());
+                                case TypeReference.INSTANCEOF -> TypeAnnotation.TargetInfo.ofInstanceofExpr(
+                                        null); // TODO
+                                case TypeReference.NEW -> TypeAnnotation.TargetInfo.ofNewExpr(
+                                        null); // TODO
+                                case TypeReference.CONSTRUCTOR_REFERENCE -> TypeAnnotation.TargetInfo.ofConstructorReference(
+                                        null);
+                                case TypeReference.METHOD_REFERENCE -> TypeAnnotation.TargetInfo.ofMethodReference(
+                                        null);
+                                case TypeReference.CAST -> TypeAnnotation.TargetInfo.ofCastExpr(
+                                        null,
+                                        reference.getTypeArgumentIndex());
+                                case TypeReference.CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorInvocationTypeArgument(
+                                        null,
+                                        reference.getTypeArgumentIndex());
+                                case TypeReference.METHOD_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodInvocationTypeArgument(
+                                        null,
+                                        reference.getTypeArgumentIndex());
+                                case TypeReference.CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorReferenceTypeArgument(
+                                        null,
+                                        reference.getTypeArgumentIndex());
+                                case TypeReference.METHOD_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodReferenceTypeArgument(
+                                        null,
+                                        reference.getTypeArgumentIndex());
+                                default -> throw new IllegalArgumentException("Unknown reference sort: " + reference.getSort());
+                            },
+                            components,
                             ClassDesc.ofDescriptor(descriptor),
                             elements)));
         }
