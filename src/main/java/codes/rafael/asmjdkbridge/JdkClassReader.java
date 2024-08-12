@@ -154,7 +154,7 @@ public class JdkClassReader {
                     List<Map.Entry<TypeAnnotation, Boolean>> localVariableAnnotations = new ArrayList<>();
                     methodVisitor.visitCode();
                     org.objectweb.asm.Label currentPositionLabel = null;
-                    Iterator<CodeElement> it = code.iterator();
+                    PushbackIterator<CodeElement> it = new PushbackIterator<>(code.iterator());
                     while (it.hasNext()) {
                         CodeElement element = it.next();
                         switch (element) {
@@ -247,7 +247,14 @@ public class JdkClassReader {
                                 methodVisitor.visitLabel(currentPositionLabel);
                                 StackMapFrameInfo frame = frames.get(value.label());
                                 if (frame != null) {
-                                    if (it.hasNext())
+                                    if (it.hasNext()) { // Assure same ordering of ASM and JDK class reader with respect to line numbers and frames.
+                                        CodeElement next = it.next();
+                                        if (next instanceof LineNumber line) {
+                                            methodVisitor.visitLineNumber(line.line(), currentPositionLabel);
+                                        } else {
+                                            it.push(next);
+                                        }
+                                    }
                                     if (expandFrames) {
                                         methodVisitor.visitFrame(Opcodes.F_NEW,
                                                 frame.locals().size(),
@@ -508,5 +515,32 @@ public class JdkClassReader {
             String descriptor,
             String signature
     ) {
+    }
+
+    private static class PushbackIterator<T> implements Iterator<T> {
+
+        private final Iterator<T> it;
+        private T value;
+
+        private PushbackIterator(Iterator<T> it) {
+            this.it = it;
+        }
+
+        private void push(T value) {
+            if (this.value != null) {
+                throw new IllegalStateException();
+            }
+            this.value = value;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return value != null || it.hasNext();
+        }
+
+        @Override
+        public T next() {
+            return value == null ? it.next() : value;
+        }
     }
 }
