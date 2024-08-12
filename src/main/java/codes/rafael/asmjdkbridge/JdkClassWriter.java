@@ -889,15 +889,20 @@ public class JdkClassWriter extends ClassVisitor {
         static AnnotationVisitor ofTypeAnnotation(String descriptor, int typeRef, TypePath typePath, Consumer<TypeAnnotation> consumer) {
             List<AnnotationElement> elements = new ArrayList<>();
             TypeReference reference = new TypeReference(typeRef);
-            List<TypeAnnotation.TypePathComponent> components = new ArrayList<>(typePath.getLength());
-            for (int index = 0; index < typePath.getLength(); index++) {
-                components.add(switch (typePath.getStep(index)) {
-                    case TypePath.ARRAY_ELEMENT -> TypeAnnotation.TypePathComponent.ARRAY;
-                    case TypePath.INNER_TYPE -> TypeAnnotation.TypePathComponent.INNER_TYPE;
-                    case TypePath.WILDCARD_BOUND -> TypeAnnotation.TypePathComponent.WILDCARD;
-                    case TypePath.TYPE_ARGUMENT -> TypeAnnotation.TypePathComponent.of(TypeAnnotation.TypePathComponent.Kind.TYPE_ARGUMENT, typePath.getStepArgument(index));
-                    default -> throw new IllegalArgumentException("Unkniwn type path type: " + typePath.getStep(index));
-                });
+            List<TypeAnnotation.TypePathComponent> components;
+            if (typePath == null) {
+                components = List.of();
+            } else {
+                components = new ArrayList<>(typePath.getLength());
+                for (int index = 0; index < typePath.getLength(); index++) {
+                    components.add(switch (typePath.getStep(index)) {
+                        case TypePath.ARRAY_ELEMENT -> TypeAnnotation.TypePathComponent.ARRAY;
+                        case TypePath.INNER_TYPE -> TypeAnnotation.TypePathComponent.INNER_TYPE;
+                        case TypePath.WILDCARD_BOUND -> TypeAnnotation.TypePathComponent.WILDCARD;
+                        case TypePath.TYPE_ARGUMENT -> TypeAnnotation.TypePathComponent.of(TypeAnnotation.TypePathComponent.Kind.TYPE_ARGUMENT, typePath.getStepArgument(index));
+                        default -> throw new IllegalArgumentException("Unkniwn type path type: " + typePath.getStep(index));
+                    });
+                }
             }
             return new WritingAnnotationVisitor(
                     (name, value) -> elements.add(AnnotationElement.of(name, value)),
