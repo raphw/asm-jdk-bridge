@@ -148,12 +148,6 @@ public class JdkClassReader {
                     Map<Label, StackMapFrameInfo> frames = code.findAttribute(Attributes.STACK_MAP_TABLE)
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapFrameInfo::target, Function.identity())))
                             .orElse(Collections.emptyMap());
-                    Set<Label> offsets = frames.values().stream()
-                            .flatMap(stackMapFrame -> Stream.concat(stackMapFrame.stack().stream(), stackMapFrame.locals().stream()))
-                            .filter(verificationTypeInfo -> verificationTypeInfo instanceof StackMapFrameInfo.UninitializedVerificationTypeInfo)
-                            .map(StackMapFrameInfo.UninitializedVerificationTypeInfo.class::cast)
-                            .map(StackMapFrameInfo.UninitializedVerificationTypeInfo::newTarget)
-                            .collect(Collectors.toSet());
                     Map<Integer, org.objectweb.asm.Label> offsetLabels = new HashMap<>();
                     Map<MergedLocalVariableKey, MergedLocalVariableValue> localVariables = new LinkedHashMap<>();
                     Map<org.objectweb.asm.Label, List<Map.Entry<TypeAnnotation, Boolean>>> offsetTypeAnnotations = new HashMap<>();
@@ -163,42 +157,30 @@ public class JdkClassReader {
                     org.objectweb.asm.Label currentPositionLabel = null;
                     for (CodeElement element : code) {
                         if (element instanceof Instruction) {
-                            if (offsets.contains(offset)) {
-                                org.objectweb.asm.Label label = offsetLabels.get(offset);
-                                if (label != null) {
-                                    methodVisitor.visitLabel(label);
-                                } else if (currentPositionLabel != null) {
-                                    offsetLabels.put(offset, currentPositionLabel);
-                                } else {
-                                    currentPositionLabel = new org.objectweb.asm.Label();
-                                    methodVisitor.visitLabel(currentPositionLabel);
-                                    offsetLabels.put(offset, currentPositionLabel);
-                                }
-                            }
                             StackMapFrameInfo frame = frames.get(offset);
                             if (frame != null) {
                                 if (expandFrames) {
                                     methodVisitor.visitFrame(Opcodes.F_NEW,
                                             frame.locals().size(),
                                             frame.locals().isEmpty() ? null : frame.locals().stream()
-                                                    .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels))
+                                                    .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels))
                                                     .toArray(),
                                             frame.stack().size(),
                                             frame.stack().isEmpty() ? null : frame.stack().stream()
-                                                    .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels))
+                                                    .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels))
                                                     .toArray());
                                 } else if (frame.frameType() < 64) {
                                     methodVisitor.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
                                 } else if (frame.frameType() < 128) {
                                     methodVisitor.visitFrame(Opcodes.F_SAME1,
                                             0, null,
-                                            1, new Object[]{toAsmFrameValue(frame.stack().get(0), offsetLabels)});
+                                            1, new Object[]{toAsmFrameValue(frame.stack().get(0), labels)});
                                 } else if (frame.frameType() < SAME_LOCALS_1_STACK_ITEM_EXTENDED) {
                                     throw new IllegalArgumentException("Invalid stackmap frame type: " + frame.frameType());
                                 } else if (frame.frameType() == SAME_LOCALS_1_STACK_ITEM_EXTENDED) {
                                     methodVisitor.visitFrame(Opcodes.F_SAME1,
                                             0, null,
-                                            1, new Object[]{toAsmFrameValue(frame.stack().get(0), offsetLabels)});
+                                            1, new Object[]{toAsmFrameValue(frame.stack().get(0), labels)});
                                 } else if (frame.frameType() < SAME_EXTENDED) {
                                     methodVisitor.visitFrame(Opcodes.F_CHOP,
                                             chop.choppedLocals().size(), null,
@@ -207,12 +189,12 @@ public class JdkClassReader {
                                     methodVisitor.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
                                 } else if (frame.frameType() < SAME_EXTENDED + 4) {
                                     methodVisitor.visitFrame(Opcodes.F_APPEND,
-                                            append.declaredLocals().size(), append.declaredLocals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels)).toArray(),
+                                            append.declaredLocals().size(), append.declaredLocals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels)).toArray(),
                                             0, null);
                                 } else {
                                     methodVisitor.visitFrame(Opcodes.F_FULL,
-                                            frame.locals().size(), frame.locals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels)).toArray(),
-                                          frame.stack().size(), frame.stack().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels)).toArray());
+                                            frame.locals().size(), frame.locals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels)).toArray(),
+                                          frame.stack().size(), frame.stack().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels)).toArray());
                                 }
                             }
                         }
