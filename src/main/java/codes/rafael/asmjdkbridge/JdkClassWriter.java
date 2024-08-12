@@ -464,10 +464,18 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitTryCatchBlock(Label start, Label end, Label handler, String type) {
-                codeConsumer = codeConsumer.andThen(codeBuilder -> codeBuilder.with(ExceptionCatch.of(labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
-                        labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()),
-                        labels.computeIfAbsent(handler, _ -> codeBuilder.newLabel()),
-                        type == null ? Optional.empty() : null))); // TODO: exception type
+                codeConsumer = codeConsumer.andThen(codeBuilder -> {
+                    if (type == null) {
+                        codeBuilder.exceptionCatchAll(labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
+                                labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()),
+                                labels.computeIfAbsent(handler, _ -> codeBuilder.newLabel()));
+                    } else {
+                        codeBuilder.exceptionCatch(labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
+                                labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()),
+                                labels.computeIfAbsent(handler, _ -> codeBuilder.newLabel()),
+                                ClassDesc.ofInternalName(type));
+                    }
+                });
 
             }
 
