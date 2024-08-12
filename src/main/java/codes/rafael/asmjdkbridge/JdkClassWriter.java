@@ -421,6 +421,28 @@ public class JdkClassWriter extends ClassVisitor {
             }
 
             @Override
+            public void visitLocalVariable(String name, String descriptor, String signature, Label start, Label end, int index) {
+                codeConsumer = codeConsumer.andThen(codeBuilder -> {
+                    if (descriptor != null) {
+                        codeBuilder.localVariable(
+                                index,
+                                name,
+                                ClassDesc.ofDescriptor(descriptor),
+                                labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
+                                labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()));
+                    }
+                    if (signature != null) {
+                        codeBuilder.localVariableType(
+                                index,
+                                name,
+                                Signature.parseFrom(descriptor),
+                                labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
+                                labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()));
+                    }
+                });
+            }
+
+            @Override
             public void visitEnd() {
                 classConsumer = classConsumer.andThen(classBuilder -> classBuilder.withMethod(name, MethodTypeDesc.ofDescriptor(descriptor), access, methodBuilder -> {
                     if (signature != null) {
