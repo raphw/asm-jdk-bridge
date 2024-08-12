@@ -144,20 +144,17 @@ public class JdkClassReader {
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
                 acceptAttributes(methodModel, methodVisitor::visitAttribute);
                 methodModel.code().ifPresent(code -> {
-                    // TODO: Stack map frames should use labels rather then offsets in the API?
                     Map<Label, StackMapFrameInfo> frames = code.findAttribute(Attributes.STACK_MAP_TABLE)
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapFrameInfo::target, Function.identity())))
                             .orElse(Collections.emptyMap());
-                    Map<Integer, org.objectweb.asm.Label> offsetLabels = new HashMap<>();
                     Map<MergedLocalVariableKey, MergedLocalVariableValue> localVariables = new LinkedHashMap<>();
                     Map<org.objectweb.asm.Label, List<Map.Entry<TypeAnnotation, Boolean>>> offsetTypeAnnotations = new HashMap<>();
                     List<Map.Entry<TypeAnnotation, Boolean>> localVariableAnnotations = new ArrayList<>();
                     methodVisitor.visitCode();
-                    int offset = 0;
                     org.objectweb.asm.Label currentPositionLabel = null;
                     for (CodeElement element : code) {
-                        if (element instanceof Instruction) {
-                            StackMapFrameInfo frame = frames.get(offset);
+                        if (element instanceof LabelTarget target) {
+                            StackMapFrameInfo frame = frames.get(target.label());
                             if (frame != null) {
                                 if (expandFrames) {
                                     methodVisitor.visitFrame(Opcodes.F_NEW,
@@ -194,7 +191,7 @@ public class JdkClassReader {
                                 } else {
                                     methodVisitor.visitFrame(Opcodes.F_FULL,
                                             frame.locals().size(), frame.locals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels)).toArray(),
-                                          frame.stack().size(), frame.stack().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels)).toArray());
+                                            frame.stack().size(), frame.stack().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels)).toArray());
                                 }
                             }
                         }
