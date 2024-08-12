@@ -448,7 +448,6 @@ public class JdkClassReader {
                     value.constantType().descriptorString(),
                     (Handle) toAsmConstant(value.bootstrapMethod()),
                     value.bootstrapArgsList().stream().map(JdkClassReader::toAsmConstant).toArray());
-            default -> throw new UnsupportedOperationException("Unknown constant: " + constant);
         };
     }
 
