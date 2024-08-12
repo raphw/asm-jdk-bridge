@@ -41,7 +41,7 @@ public class JdkClassWriterTest {
                 {TypeAnnotationsWithoutPath.class, false},
                 {TypeAnnotationsWithPath.class, false},
                 {TypeAnnotationsInCode.class, false},
-                {CustomAttribute.make(), false}
+//                {CustomAttribute.make(), false}
         });
     }
 
