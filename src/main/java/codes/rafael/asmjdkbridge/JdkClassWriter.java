@@ -840,7 +840,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visit(String name, Object asm) {
-            AnnotationValue annotation; // TODO: array types!
+            AnnotationValue annotation;
             if (asm instanceof Boolean value) {
                 annotation = AnnotationValue.ofBoolean(value);
             } else if (asm instanceof Byte value) {
@@ -859,6 +859,60 @@ public class JdkClassWriter extends ClassVisitor {
                 annotation = AnnotationValue.ofDouble(value);
             } else if (asm instanceof String value) {
                 annotation = AnnotationValue.ofString(value);
+            } else if (asm instanceof boolean[] array) {
+                AnnotationValue[] values = new AnnotationValue[array.length];
+                for (int index = 0; index < array.length; index++) {
+                    values[index] = AnnotationValue.ofBoolean(array[index]);
+                }
+                annotation = AnnotationValue.ofArray(values);
+            } else if (asm instanceof byte[] array) {
+                AnnotationValue[] values = new AnnotationValue[array.length];
+                for (int index = 0; index < array.length; index++) {
+                    values[index] = AnnotationValue.ofByte(array[index]);
+                }
+                annotation = AnnotationValue.ofArray(values);
+            } else if (asm instanceof short[] array) {
+                AnnotationValue[] values = new AnnotationValue[array.length];
+                for (int index = 0; index < array.length; index++) {
+                    values[index] = AnnotationValue.ofShort(array[index]);
+                }
+                annotation = AnnotationValue.ofArray(values);
+            } else if (asm instanceof char[] array) {
+                AnnotationValue[] values = new AnnotationValue[array.length];
+                for (int index = 0; index < array.length; index++) {
+                    values[index] = AnnotationValue.ofChar(array[index]);
+                }
+                annotation = AnnotationValue.ofArray(values);
+            } else if (asm instanceof int[] array) {
+                AnnotationValue[] values = new AnnotationValue[array.length];
+                for (int index = 0; index < array.length; index++) {
+                    values[index] = AnnotationValue.ofInt(array[index]);
+                }
+                annotation = AnnotationValue.ofArray(values);
+            } else if (asm instanceof long[] array) {
+                AnnotationValue[] values = new AnnotationValue[array.length];
+                for (int index = 0; index < array.length; index++) {
+                    values[index] = AnnotationValue.ofLong(array[index]);
+                }
+                annotation = AnnotationValue.ofArray(values);
+            } else if (asm instanceof float[] array) {
+                AnnotationValue[] values = new AnnotationValue[array.length];
+                for (int index = 0; index < array.length; index++) {
+                    values[index] = AnnotationValue.ofFloat(array[index]);
+                }
+                annotation = AnnotationValue.ofArray(values);
+            } else if (asm instanceof double[] array) {
+                AnnotationValue[] values = new AnnotationValue[array.length];
+                for (int index = 0; index < array.length; index++) {
+                    values[index] = AnnotationValue.ofDouble(array[index]);
+                }
+                annotation = AnnotationValue.ofArray(values);
+            } else if (asm instanceof String[] array) {
+                AnnotationValue[] values = new AnnotationValue[array.length];
+                for (int index = 0; index < array.length; index++) {
+                    values[index] = AnnotationValue.ofString(array[index]);
+                }
+                annotation = AnnotationValue.ofArray(values);
             } else {
                 throw new IllegalArgumentException("Unknown annotation value: " + asm);
             }
