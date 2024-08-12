@@ -426,11 +426,12 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public AnnotationVisitor visitLocalVariableAnnotation(int typeRef, TypePath typePath, Label[] start, Label[] end, int[] index, String descriptor, boolean visible) {
-                return WritingAnnotationVisitor.ofTypeAnnotation(
-                        descriptor,
-                        typeRef,
-                        typePath,
-                        (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add); // TODO: labels
+                return null;
+//                return WritingAnnotationVisitor.ofTypeAnnotation(
+//                        descriptor,
+//                        typeRef,
+//                        typePath,
+//                        ); // TODO: labels
             }
 
             @Override
