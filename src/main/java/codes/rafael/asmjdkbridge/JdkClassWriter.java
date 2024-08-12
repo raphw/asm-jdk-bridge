@@ -6,12 +6,15 @@ import org.objectweb.asm.Label;
 
 import java.lang.classfile.*;
 import java.lang.classfile.attribute.*;
+import java.lang.classfile.constantpool.ClassEntry;
+import java.lang.classfile.instruction.ExceptionCatch;
 import java.lang.classfile.instruction.SwitchCase;
 import java.lang.constant.*;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 public class JdkClassWriter extends ClassVisitor {
@@ -457,6 +460,15 @@ public class JdkClassWriter extends ClassVisitor {
                                 labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()));
                     }
                 });
+            }
+
+            @Override
+            public void visitTryCatchBlock(Label start, Label end, Label handler, String type) {
+                codeConsumer = codeConsumer.andThen(codeBuilder -> codeBuilder.with(ExceptionCatch.of(labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
+                        labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()),
+                        labels.computeIfAbsent(handler, _ -> codeBuilder.newLabel()),
+                        type == null ? Optional.empty() : null))); // TODO: exception type
+
             }
 
             @Override
