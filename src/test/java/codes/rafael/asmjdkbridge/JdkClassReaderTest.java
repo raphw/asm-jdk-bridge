@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.classfile.ClassFile;
 import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collection;
@@ -66,7 +67,7 @@ public class JdkClassReaderTest {
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
         nonValidatingClassReader(classFile).accept(toVisitor(asm), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
-        new JdkClassReader(Classfile.parse(classFile)).accept(toVisitor(jdk), expandFrames);
+        new JdkClassReader(ClassFile.parse(classFile)).accept(toVisitor(jdk), expandFrames);
         assertEquals(asm.toString(), jdk.toString());
     }
 

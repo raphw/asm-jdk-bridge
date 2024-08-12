@@ -1,11 +1,11 @@
 package codes.rafael.asmjdkbridge;
 
-import jdk.classfile.Label;
-import jdk.classfile.*;
-import jdk.classfile.attribute.*;
-import jdk.classfile.constantpool.ClassEntry;
-import jdk.classfile.constantpool.Utf8Entry;
-import jdk.classfile.instruction.*;
+import java.lang.classfile.Label;
+import java.lang.classfile.*;
+import java.lang.classfile.attribute.*;
+import java.lang.classfile.constantpool.ClassEntry;
+import java.lang.classfile.constantpool.Utf8Entry;
+import java.lang.classfile.instruction.*;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.*;
 
@@ -18,6 +18,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class JdkClassReader {
+
+    private static final int
+            SAME_LOCALS_1_STACK_ITEM_EXTENDED = 247,
+            SAME_EXTENDED = 251;
 
     private final ClassModel classModel; // TODO: Would be more desirable if a ClassWriter could be handled similarly, prototype with sharing.
 
@@ -141,14 +145,14 @@ public class JdkClassReader {
                 acceptAttributes(methodModel, methodVisitor::visitAttribute);
                 methodModel.code().ifPresent(code -> {
                     // TODO: Stack map frames should use labels rather then offsets in the API?
-                    Map<Integer, StackMapTableAttribute.StackMapFrame> frames = code.findAttribute(Attributes.STACK_MAP_TABLE)
-                            .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapTableAttribute.StackMapFrame::absoluteOffset, Function.identity())))
+                    Map<Label, StackMapFrameInfo> frames = code.findAttribute(Attributes.STACK_MAP_TABLE)
+                            .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapFrameInfo::target, Function.identity())))
                             .orElse(Collections.emptyMap());
-                    Set<Integer> offsets = frames.values().stream()
-                            .flatMap(stackMapFrame -> Stream.concat(stackMapFrame.effectiveStack().stream(), stackMapFrame.effectiveLocals().stream()))
-                            .filter(verificationTypeInfo -> verificationTypeInfo instanceof StackMapTableAttribute.UninitializedVerificationTypeInfo)
-                            .map(StackMapTableAttribute.UninitializedVerificationTypeInfo.class::cast)
-                            .map(StackMapTableAttribute.UninitializedVerificationTypeInfo::offset)
+                    Set<Label> offsets = frames.values().stream()
+                            .flatMap(stackMapFrame -> Stream.concat(stackMapFrame.stack().stream(), stackMapFrame.locals().stream()))
+                            .filter(verificationTypeInfo -> verificationTypeInfo instanceof StackMapFrameInfo.UninitializedVerificationTypeInfo)
+                            .map(StackMapFrameInfo.UninitializedVerificationTypeInfo.class::cast)
+                            .map(StackMapFrameInfo.UninitializedVerificationTypeInfo::newTarget)
                             .collect(Collectors.toSet());
                     Map<Integer, org.objectweb.asm.Label> offsetLabels = new HashMap<>();
                     Map<MergedLocalVariableKey, MergedLocalVariableValue> localVariables = new LinkedHashMap<>();
@@ -171,41 +175,50 @@ public class JdkClassReader {
                                     offsetLabels.put(offset, currentPositionLabel);
                                 }
                             }
-                            StackMapTableAttribute.StackMapFrame frame = frames.get(offset);
+                            StackMapFrameInfo frame = frames.get(offset);
                             if (frame != null) {
                                 if (expandFrames) {
                                     methodVisitor.visitFrame(Opcodes.F_NEW,
-                                            frame.effectiveLocals().size(),
-                                            frame.effectiveLocals().isEmpty() ? null : frame.effectiveLocals().stream()
+                                            frame.locals().size(),
+                                            frame.locals().isEmpty() ? null : frame.locals().stream()
                                                     .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels))
                                                     .toArray(),
-                                            frame.effectiveStack().size(),
-                                            frame.effectiveStack().isEmpty() ? null : frame.effectiveStack().stream()
+                                            frame.stack().size(),
+                                            frame.stack().isEmpty() ? null : frame.stack().stream()
                                                     .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels))
                                                     .toArray());
+                                } else if (frame.frameType() < 64) {
+                                    methodVisitor.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+                                } else if (frame.frameType() < 128) {
+                                    methodVisitor.visitFrame(Opcodes.F_SAME1,
+                                            0, null,
+                                            1, new Object[]{toAsmFrameValue(frame.stack().get(0), offsetLabels)});
+                                } else if (frame.frameType() < SAME_LOCALS_1_STACK_ITEM_EXTENDED) {
+                                    throw new IllegalArgumentException("Invalid stackmap frame type: " + frame.frameType());
+                                } else if (frame.frameType() == SAME_LOCALS_1_STACK_ITEM_EXTENDED) {
+                                    methodVisitor.visitFrame(Opcodes.F_SAME1,
+                                            0, null,
+                                            1, new Object[]{toAsmFrameValue(frame.stack().get(0), offsetLabels)});
+                                } else if (frame.frameType() < SAME_EXTENDED) {
+                                    methodVisitor.visitFrame(Opcodes.F_CHOP,
+                                            chop.choppedLocals().size(), null,
+                                            0, null);
+                                } else if (frame.frameType() == SAME_EXTENDED) {
+                                    methodVisitor.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+                                } else if (frame.frameType() < SAME_EXTENDED + 4) {
+                                    methodVisitor.visitFrame(Opcodes.F_APPEND,
+                                            append.declaredLocals().size(), append.declaredLocals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels)).toArray(),
+                                            0, null);
                                 } else {
-                                    switch (frame) {
-                                        case StackMapTableAttribute.StackMapFrame.Same ignored -> methodVisitor.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
-                                        case StackMapTableAttribute.StackMapFrame.Same1 same1 -> methodVisitor.visitFrame(Opcodes.F_SAME1,
-                                                0, null,
-                                                1, new Object[] {toAsmFrameValue(same1.declaredStack(), offsetLabels)});
-                                        case StackMapTableAttribute.StackMapFrame.Append append -> methodVisitor.visitFrame(Opcodes.F_APPEND,
-                                                append.declaredLocals().size(), append.declaredLocals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels)).toArray(),
-                                                0, null);
-                                        case StackMapTableAttribute.StackMapFrame.Chop chop -> methodVisitor.visitFrame(Opcodes.F_CHOP,
-                                                chop.choppedLocals().size(), null,
-                                                0, null);
-                                        case StackMapTableAttribute.StackMapFrame.Full full -> methodVisitor.visitFrame(Opcodes.F_FULL,
-                                                full.declaredLocals().size(), full.declaredLocals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels)).toArray(),
-                                                full.declaredStack().size(), full.declaredStack().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels)).toArray());
-                                        default -> throw new UnsupportedOperationException("Unknown frame type: " + frame);
-                                    }
+                                    methodVisitor.visitFrame(Opcodes.F_FULL,
+                                            frame.locals().size(), frame.locals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels)).toArray(),
+                                          frame.stack().size(), frame.stack().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, offsetLabels)).toArray());
                                 }
                             }
                         }
                         switch (element) { // TODO: Add toString methods to all "impl"?
                             case MonitorInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
-                            case TypeCheckInstruction value -> methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.type().asInternalName());
+                            case TypeCheckInstruction value -> methodVisitor.visitTypeInsn(value.opcode().bytecode(), value.type().asInternalName());
                             case LoadInstruction value -> methodVisitor.visitVarInsn(switch (value.typeKind()) {
                                 case BooleanType, ByteType, CharType, ShortType, IntType -> Opcodes.ILOAD;
                                 case LongType -> Opcodes.LLOAD;
@@ -216,13 +229,13 @@ public class JdkClassReader {
                             }, value.slot());
                             case OperatorInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case ReturnInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
-                            case InvokeInstruction value -> methodVisitor.visitMethodInsn(element.opcode().bytecode(),
+                            case InvokeInstruction value -> methodVisitor.visitMethodInsn(value.opcode().bytecode(),
                                     value.owner().asInternalName(),
                                     value.name().stringValue(),
                                     value.type().stringValue(),
                                     value.isInterface());
                             case IncrementInstruction value -> methodVisitor.visitIincInsn(value.slot(), value.constant());
-                            case FieldInstruction value -> methodVisitor.visitFieldInsn(element.opcode().bytecode(),
+                            case FieldInstruction value -> methodVisitor.visitFieldInsn(value.opcode().bytecode(),
                                     value.owner().asInternalName(),
                                     value.name().stringValue(),
                                     value.type().stringValue());
@@ -241,7 +254,7 @@ public class JdkClassReader {
                                 case ReferenceType -> Opcodes.ASTORE;
                                 default -> throw new IllegalStateException("Unexpected type: " + value.typeKind());
                             }, value.slot());
-                            case NewReferenceArrayInstruction value -> methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.componentType().asInternalName());
+                            case NewReferenceArrayInstruction value -> methodVisitor.visitTypeInsn(value.opcode().bytecode(), value.componentType().asInternalName());
                             case LookupSwitchInstruction value -> methodVisitor.visitLookupSwitchInsn(labels.computeIfAbsent(value.defaultTarget(), label -> new org.objectweb.asm.Label()),
                                     value.cases().stream().mapToInt(SwitchCase::caseValue).toArray(),
                                     value.cases().stream().map(aCase -> labels.computeIfAbsent(aCase.target(), label -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
@@ -261,7 +274,7 @@ public class JdkClassReader {
                             case StackInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case NopInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case ThrowInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
-                            case NewObjectInstruction value -> methodVisitor.visitTypeInsn(element.opcode().bytecode(), value.className().asInternalName());
+                            case NewObjectInstruction value -> methodVisitor.visitTypeInsn(value.opcode().bytecode(), value.className().asInternalName());
                             case ConvertInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case NewMultiArrayInstruction value -> methodVisitor.visitMultiANewArrayInsn(value.arrayType().asInternalName(), value.dimensions());
                             case NewPrimitiveArrayInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
@@ -300,15 +313,15 @@ public class JdkClassReader {
                             case RuntimeInvisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), false, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
                             default -> throw new UnsupportedOperationException("Unknown value: " + element);
                         }
-                        if (element instanceof Instruction) {
+                        if (element instanceof Instruction instruction) {
                             offsetTypeAnnotations.getOrDefault(currentPositionLabel, Collections.emptyList()).forEach(entry -> appendAnnotationValues(methodVisitor.visitInsnAnnotation(
                                     TypeReference.newTypeReference(entry.getKey().targetInfo().targetType().targetTypeValue()).getValue(),
                                     toTypePath(entry.getKey().targetPath()),
                                     entry.getKey().className().stringValue(),
                                     entry.getValue()), entry.getKey().elements()));
                             currentPositionLabel = null;
+                            offset += instruction.sizeInBytes();
                         }
-                        offset += element.sizeInBytes();
                     }
                     localVariables.forEach((key, value) -> methodVisitor.visitLocalVariable(key.name(),
                             value.descriptor(),
@@ -479,11 +492,11 @@ public class JdkClassReader {
         }).collect(Collectors.joining()));
     }
 
-    private static Object toAsmFrameValue(StackMapTableAttribute.VerificationTypeInfo verificationTypeInfo, Map<Integer, org.objectweb.asm.Label> labels) {
+    private static Object toAsmFrameValue(StackMapFrameInfo.VerificationTypeInfo verificationTypeInfo, Map<Label, org.objectweb.asm.Label> labels) {
         return switch (verificationTypeInfo) {
-            case StackMapTableAttribute.SimpleVerificationTypeInfo value -> value.type().tag();
-            case StackMapTableAttribute.ObjectVerificationTypeInfo value -> value.className().asInternalName();
-            case StackMapTableAttribute.UninitializedVerificationTypeInfo value -> labels.computeIfAbsent(value.offset(), ignored -> new org.objectweb.asm.Label());
+            case StackMapFrameInfo.SimpleVerificationTypeInfo value -> value.tag();
+            case StackMapFrameInfo.ObjectVerificationTypeInfo value -> value.className().asInternalName();
+            case StackMapFrameInfo.UninitializedVerificationTypeInfo value -> labels.computeIfAbsent(value.newTarget(), ignored -> new org.objectweb.asm.Label());
             default -> throw new UnsupportedOperationException("Unknown verification type info: " + verificationTypeInfo);
         };
     }
