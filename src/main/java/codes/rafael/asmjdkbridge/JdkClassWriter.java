@@ -1,9 +1,11 @@
 package codes.rafael.asmjdkbridge;
 
+import org.objectweb.asm.Attribute;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.*;
 
 import java.lang.classfile.*;
+import java.lang.classfile.ClassReader;
 import java.lang.classfile.attribute.*;
 import java.lang.classfile.instruction.SwitchCase;
 import java.lang.constant.*;
@@ -16,17 +18,22 @@ import java.util.function.Function;
 public class JdkClassWriter extends ClassVisitor {
 
     private final ClassFile classFile;
+    private final Function<Attribute, byte[]> extractor;
 
     private final List<ClassDesc> nestMembers = new ArrayList<>();
     private final List<InnerClassInfo> innerClasses = new ArrayList<>();
     private final List<ClassDesc> permittedSubclasses = new ArrayList<>();
     private final List<RecordComponentInfo> recordComponents = new ArrayList<>();
+    private final List<JdkByteArrayAttribute> attributes = new ArrayList<>();
     private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
     private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
 
     private ClassDesc thisClass;
     private boolean isRecord;
     private Consumer<ClassBuilder> classConsumer = classBuilder -> {
+        for (JdkByteArrayAttribute attribute : attributes) {
+            classBuilder.with(attribute);
+        }
         if (!visibleAnnotations.isEmpty()) {
             classBuilder.with(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
         }
@@ -55,12 +62,25 @@ public class JdkClassWriter extends ClassVisitor {
     private byte[] bytes;
 
     public JdkClassWriter() {
-        this(ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE));
+        this(attribute -> {
+            throw new UnsupportedOperationException("Unknown attribute: " + attribute);
+        });
     }
 
     public JdkClassWriter(ClassFile classFile) {
+        this(classFile, attribute -> {
+            throw new UnsupportedOperationException("Unknown attribute: " + attribute);
+        });
+    }
+
+    public JdkClassWriter(Function<Attribute, byte[]> extractor) {
+        this(ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE), extractor);
+    }
+
+    public JdkClassWriter(ClassFile classFile, Function<Attribute, byte[]> extractor) {
         super(Opcodes.ASM9);
         this.classFile = classFile;
+        this.extractor = extractor;
     }
 
     @Override
@@ -212,6 +232,11 @@ public class JdkClassWriter extends ClassVisitor {
     }
 
     @Override
+    public void visitAttribute(Attribute attribute) {
+        attributes.add(new JdkByteArrayAttribute(attribute.type, extractor.apply(attribute)));
+    }
+
+    @Override
     public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
         return WritingAnnotationVisitor.ofTypeAnnotation(
                 descriptor,
@@ -242,8 +267,14 @@ public class JdkClassWriter extends ClassVisitor {
     public RecordComponentVisitor visitRecordComponent(String name, String descriptor, String signature) {
         return new RecordComponentVisitor(Opcodes.ASM9) {
 
+            private final List<JdkByteArrayAttribute> attributes = new ArrayList<>();
             private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
             private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
+
+            @Override
+            public void visitAttribute(Attribute attribute) {
+                attributes.add(new JdkByteArrayAttribute(attribute.type, extractor.apply(attribute)));
+            }
 
             @Override
             public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
@@ -263,7 +294,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitEnd() {
-                List<java.lang.classfile.Attribute<?>> attributes = new ArrayList<>();
+                List<java.lang.classfile.Attribute<?>> attributes = new ArrayList<>(this.attributes);
                 if (!visibleAnnotations.isEmpty()) {
                     attributes.add(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
                 }
@@ -285,8 +316,14 @@ public class JdkClassWriter extends ClassVisitor {
     public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
         return new FieldVisitor(Opcodes.ASM9) {
 
+            private final List<JdkByteArrayAttribute> attributes = new ArrayList<>();
             private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
             private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
+
+            @Override
+            public void visitAttribute(Attribute attribute) {
+                attributes.add(new JdkByteArrayAttribute(attribute.type, extractor.apply(attribute)));
+            }
 
             @Override
             public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
@@ -314,6 +351,9 @@ public class JdkClassWriter extends ClassVisitor {
                     if (signature != null) {
                         fieldBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
                     }
+                    for (JdkByteArrayAttribute attribute : attributes) {
+                        fieldBuilder.with(attribute);
+                    }
                     if (!visibleAnnotations.isEmpty()) {
                         fieldBuilder.with(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
                     }
@@ -337,6 +377,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             private Consumer<CodeBuilder> codeConsumer;
 
+            private final List<JdkByteArrayAttribute> attributes = new ArrayList<>();
             private AnnotationValue defaultValue;
             private int catchCount = -1;
             private final List<MethodParameterInfo> methodParameters = new ArrayList<>();
@@ -351,6 +392,11 @@ public class JdkClassWriter extends ClassVisitor {
             @Override
             public void visitCode() {
                 codeConsumer  = _ -> { };
+            }
+
+            @Override
+            public void visitAttribute(Attribute attribute) {
+                attributes.add(new JdkByteArrayAttribute(attribute.type, extractor.apply(attribute)));
             }
 
             @Override
@@ -791,6 +837,9 @@ public class JdkClassWriter extends ClassVisitor {
                         }
                         methodBuilder.with(ExceptionsAttribute.ofSymbols(entries));
                     }
+                    for (JdkByteArrayAttribute attribute : attributes) {
+                        methodBuilder.with(attribute);
+                    }
                     if (defaultValue != null) {
                         methodBuilder.with(AnnotationDefaultAttribute.of(defaultValue));
                     }
@@ -899,7 +948,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         private static AnnotationVisitor ofValue(Consumer<AnnotationValue> consumer) {
             return new WritingAnnotationVisitor(
-                    (name, value) -> consumer.accept(value),
+                    (_, value) -> consumer.accept(value),
                     () -> { });
         }
 
@@ -1088,6 +1137,36 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public void visitEnd() {
             onEnd.run();
+        }
+    }
+
+    private static class JdkByteArrayAttribute extends CustomAttribute<JdkByteArrayAttribute> {
+
+        private final byte[] bytes;
+
+        private JdkByteArrayAttribute(String name, byte[] bytes) {
+            super(new AttributeMapper<>() {
+                @Override
+                public String name() {
+                    return name;
+                }
+
+                @Override
+                public JdkByteArrayAttribute readAttribute(AttributedElement enclosing, ClassReader cf, int pos) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void writeAttribute(BufWriter buf, JdkByteArrayAttribute attr) {
+                    buf.writeBytes(attr.bytes);
+                }
+
+                @Override
+                public AttributeStability stability() {
+                    return AttributeStability.UNKNOWN;
+                }
+            });
+            this.bytes = bytes;
         }
     }
 }
