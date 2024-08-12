@@ -352,9 +352,11 @@ public class JdkClassWriter extends ClassVisitor {
 
             private Consumer<CodeBuilder> codeConsumer;
 
+            private final List<MethodParameterInfo> methodParameters = new ArrayList<>();
             private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
             private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
             private final Map<Integer, List<Annotation>> visibleParameterAnnotations = new HashMap<>(), invisibleParameterAnnotations = new HashMap<>();
+            private int visibleParameterAnnotationsCount, invisibleParameterAnnotationsCount;
             private final Map<Label, java.lang.classfile.Label> labels = new HashMap<>();
 
             private Label currentLocation;
@@ -378,6 +380,20 @@ public class JdkClassWriter extends ClassVisitor {
                         typeRef,
                         typePath,
                         (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
+            }
+
+            @Override
+            public void visitParameter(String name, int access) {
+                methodParameters.add(MethodParameterInfo.ofParameter(Optional.ofNullable(name), access));
+            }
+
+            @Override
+            public void visitAnnotableParameterCount(int parameterCount, boolean visible) {
+                if (visible) {
+                    visibleParameterAnnotationsCount = parameterCount;
+                } else {
+                    invisibleParameterAnnotationsCount = parameterCount;
+                }
             }
 
             @Override
@@ -746,7 +762,23 @@ public class JdkClassWriter extends ClassVisitor {
                     if (!invisibleTypeAnnotations.isEmpty()) {
                         methodBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations));
                     }
-                    // TODO: parameters
+                    if (!methodParameters.isEmpty()) {
+                        methodBuilder.with(MethodParametersAttribute.of(methodParameters));
+                    }
+                    if (!visibleParameterAnnotations.isEmpty()) {
+                        List<List<Annotation>> annotations = new ArrayList<>();
+                        for (int index = 0; index < Math.max(visibleParameterAnnotationsCount, visibleParameterAnnotations.size()); index++) {
+                            annotations.add(visibleParameterAnnotations.getOrDefault(index, List.of()));
+                        }
+                        methodBuilder.with(RuntimeVisibleParameterAnnotationsAttribute.of(annotations));
+                    }
+                    if (!invisibleParameterAnnotations.isEmpty()) {
+                        List<List<Annotation>> annotations = new ArrayList<>();
+                        for (int index = 0; index < Math.max(invisibleParameterAnnotationsCount, invisibleParameterAnnotations.size()); index++) {
+                            annotations.add(invisibleParameterAnnotations.getOrDefault(index, List.of()));
+                        }
+                        methodBuilder.with(RuntimeInvisibleParameterAnnotationsAttribute.of(annotations));
+                    }
                     if (codeConsumer != null) {
                         methodBuilder.withCode(codeConsumer);
                     }
