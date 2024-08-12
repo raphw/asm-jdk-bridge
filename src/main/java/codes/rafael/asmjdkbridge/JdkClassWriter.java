@@ -7,8 +7,7 @@ import org.objectweb.asm.Label;
 import java.lang.classfile.*;
 import java.lang.classfile.attribute.*;
 import java.lang.classfile.instruction.SwitchCase;
-import java.lang.constant.ClassDesc;
-import java.lang.constant.MethodTypeDesc;
+import java.lang.constant.*;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
@@ -37,9 +36,12 @@ public class JdkClassWriter extends ClassVisitor {
         thisClass = ClassDesc.ofInternalName(name);
         classConsumer = classConsumer.andThen(classBuilder -> {
             classBuilder.withVersion(version & 0xFF, (version >> 8) & 0xFF);
-            classBuilder.withFlags(access);
+            classBuilder.withFlags(access & ~Opcodes.ACC_DEPRECATED);
+            if ((access & Opcodes.ACC_DEPRECATED) != 0) {
+                classBuilder.with(DeprecatedAttribute.of());
+            }
             if (signature != null) {
-                classBuilder.with(SignatureAttribute.of(Signature.parseFrom(signature)));
+                classBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
             }
             classBuilder.withSuperclass(ClassDesc.ofInternalName(superName));
             if (interfaces != null) {
@@ -121,9 +123,12 @@ public class JdkClassWriter extends ClassVisitor {
             @Override
             public void visitEnd() {
                 classConsumer = classConsumer.andThen(classBuilder -> classBuilder.withField(name, ClassDesc.ofDescriptor(descriptor), fieldBuilder -> {
-                    fieldBuilder.withFlags(access);
+                    fieldBuilder.withFlags(access & ~Opcodes.ACC_DEPRECATED);
+                    if ((access & Opcodes.ACC_DEPRECATED) != 0) {
+                        classBuilder.with(DeprecatedAttribute.of());
+                    }
                     if (signature != null) {
-                        fieldBuilder.with(SignatureAttribute.of(Signature.parseFrom(signature)));
+                        fieldBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
                     }
                 }));
             }
@@ -320,7 +325,19 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitInvokeDynamicInsn(String name, String descriptor, Handle bootstrapMethodHandle, Object... bootstrapMethodArguments) {
-                super.visitInvokeDynamicInsn(name, descriptor, bootstrapMethodHandle, bootstrapMethodArguments);
+                ConstantDesc[] constants = new ConstantDesc[bootstrapMethodArguments.length];
+                for (int index = 0; index < bootstrapMethodArguments.length; index++) {
+                    constants[index] = toConstantDesc(bootstrapMethodArguments[index]);
+                }
+                this.codeConsumer = this.codeConsumer.andThen(codeBuilder -> codeBuilder.invokeDynamicInstruction(DynamicCallSiteDesc.of(
+                        MethodHandleDesc.of(
+                                DirectMethodHandleDesc.Kind.valueOf(bootstrapMethodHandle.getTag()),
+                                ClassDesc.ofInternalName(bootstrapMethodHandle.getOwner()),
+                                    bootstrapMethodHandle.getName(),
+                                    bootstrapMethodHandle.getDesc()),
+                        name,
+                        MethodTypeDesc.ofDescriptor(descriptor),
+                        constants)));
             }
 
             @Override
@@ -351,19 +368,8 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitLdcInsn(Object value) {
-                if (value instanceof Integer) {
-                    codeConsumer = codeConsumer.andThen(codeBuilder -> codeBuilder.ldc((Integer) value));
-                } else if (value instanceof Long) {
-                    codeConsumer = codeConsumer.andThen(codeBuilder -> codeBuilder.ldc((Long) value));
-                } else if (value instanceof Float) {
-                    codeConsumer = codeConsumer.andThen(codeBuilder -> codeBuilder.ldc((Float) value));
-                } else if (value instanceof Double) {
-                    codeConsumer = codeConsumer.andThen(codeBuilder -> codeBuilder.ldc((Double) value));
-                } else if (value instanceof String) {
-                    codeConsumer = codeConsumer.andThen(codeBuilder -> codeBuilder.ldc((String) value));
-                } else {
-                    throw new IllegalArgumentException("Unexpected constant: " + value);
-                }
+                ConstantDesc constant = toConstantDesc(value);
+                codeConsumer = codeConsumer.andThen(codeBuilder -> codeBuilder.ldc(constant));
             }
 
             @Override
@@ -455,9 +461,12 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitEnd() {
-                classConsumer = classConsumer.andThen(classBuilder -> classBuilder.withMethod(name, MethodTypeDesc.ofDescriptor(descriptor), access, methodBuilder -> {
+                classConsumer = classConsumer.andThen(classBuilder -> classBuilder.withMethod(name, MethodTypeDesc.ofDescriptor(descriptor), access & ~Opcodes.ACC_DEPRECATED, methodBuilder -> {
+                    if ((access & Opcodes.ACC_DEPRECATED) != 0) {
+                        classBuilder.with(DeprecatedAttribute.of());
+                    }
                     if (signature != null) {
-                        methodBuilder.with(SignatureAttribute.of(Signature.parseFrom(signature)));
+                        methodBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
                     }
                     if (exceptions != null) {
                         ClassDesc[] entries = new ClassDesc[exceptions.length];
@@ -477,6 +486,48 @@ public class JdkClassWriter extends ClassVisitor {
     @Override
     public void visitEnd() {
         bytes = classFile.build(thisClass, classConsumer);
+    }
+
+    private ConstantDesc toConstantDesc(Object asm) {
+        if (asm instanceof Integer value) {
+            return value;
+        } else if (asm instanceof Long value) {
+            return value;
+        } else if (asm instanceof Float value) {
+            return value;
+        } else if (asm instanceof Double value) {
+            return value;
+        } else if (asm instanceof String value) {
+            return value;
+        } else if (asm instanceof Type value) {
+            return switch (value.getSort()) {
+                case Type.OBJECT, Type.ARRAY -> ClassDesc.ofDescriptor(value.getDescriptor());
+                case Type.METHOD -> MethodTypeDesc.ofDescriptor(value.getDescriptor());
+                default -> throw new IllegalArgumentException("Unexpected type sort: " + value.getSort());
+            };
+        } else if (asm instanceof Handle value) {
+            return MethodHandleDesc.of(
+                    DirectMethodHandleDesc.Kind.valueOf(value.getTag()),
+                    ClassDesc.ofInternalName(value.getOwner()),
+                    value.getName(),
+                    value.getDesc());
+        } else if (asm instanceof ConstantDynamic value) {
+            ConstantDesc[] constants = new ConstantDesc[value.getBootstrapMethodArgumentCount()];
+            for (int index = 0; index < value.getBootstrapMethodArgumentCount(); index++) {
+                constants[index] = toConstantDesc(value.getBootstrapMethodArgument(index));
+            }
+            return DynamicConstantDesc.ofNamed(
+                    MethodHandleDesc.of(
+                            DirectMethodHandleDesc.Kind.valueOf(value.getBootstrapMethod().getTag()),
+                            ClassDesc.ofInternalName(value.getBootstrapMethod().getOwner()),
+                            value.getBootstrapMethod().getName(),
+                            value.getBootstrapMethod().getDesc()),
+                    value.getName(),
+                    ClassDesc.ofDescriptor(value.getDescriptor()),
+                    constants);
+        } else {
+            throw new IllegalArgumentException("Unexpected constant: " + asm);
+        }
     }
 
     public byte[] toBytes() {
