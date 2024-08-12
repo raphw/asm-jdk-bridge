@@ -455,7 +455,7 @@ public class JdkClassWriter extends ClassVisitor {
                         codeBuilder.localVariableType(
                                 index,
                                 name,
-                                Signature.parseFrom(descriptor),
+                                Signature.parseFrom(signature),
                                 labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
                                 labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()));
                     }
