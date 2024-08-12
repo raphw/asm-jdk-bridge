@@ -1,7 +1,6 @@
 package codes.rafael.asmjdkbridge;
 
 import codes.rafael.asmjdkbridge.sample.*;
-import jdk.classfile.Classfile;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -67,7 +66,7 @@ public class JdkClassReaderTest {
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
         nonValidatingClassReader(classFile).accept(toVisitor(asm), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
-        new JdkClassReader(ClassFile.parse(classFile)).accept(toVisitor(jdk), expandFrames);
+        new JdkClassReader(ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE).parse(classFile)).accept(toVisitor(jdk), expandFrames);
         assertEquals(asm.toString(), jdk.toString());
     }
 
