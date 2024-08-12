@@ -13,7 +13,7 @@ public class TryThrowCatch {
     }
 
     int t2() {
-        Object o = null;
+        Object o = new Object();
         try {
             throw new RuntimeException();
         } catch (Exception e) {
@@ -24,7 +24,7 @@ public class TryThrowCatch {
     }
 
     int t3() {
-        Object o = null;
+        Object o = new Object();
         try {
             throw new RuntimeException();
         } finally {
