@@ -10,6 +10,7 @@ import org.objectweb.asm.Attribute;
 import org.objectweb.asm.*;
 
 import java.lang.constant.*;
+import java.lang.reflect.AccessFlag;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
@@ -23,7 +24,7 @@ public class JdkClassReader {
             SAME_LOCALS_1_STACK_ITEM_EXTENDED = 247,
             SAME_EXTENDED = 251;
 
-    private final ClassModel classModel; // TODO: Would be more desirable if a ClassWriter could be handled similarly, prototype with sharing.
+    private final ClassModel classModel;
 
     public JdkClassReader(ClassModel classModel) {
         this.classModel = classModel;
@@ -144,6 +145,7 @@ public class JdkClassReader {
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
                 acceptAttributes(methodModel, methodVisitor::visitAttribute);
                 methodModel.code().ifPresent(code -> {
+                    int localVariablesSize = Type.getMethodType(methodModel.methodType().stringValue()).getArgumentTypes().length + (methodModel.flags().has(AccessFlag.STATIC) ? 0 : 1);
                     Map<Label, StackMapFrameInfo> frames = code.findAttribute(Attributes.STACK_MAP_TABLE)
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapFrameInfo::target, Function.identity())))
                             .orElse(Collections.emptyMap());
@@ -153,49 +155,7 @@ public class JdkClassReader {
                     methodVisitor.visitCode();
                     org.objectweb.asm.Label currentPositionLabel = null;
                     for (CodeElement element : code) {
-                        if (element instanceof LabelTarget target) {
-                            StackMapFrameInfo frame = frames.get(target.label());
-                            if (frame != null) {
-                                if (expandFrames) {
-                                    methodVisitor.visitFrame(Opcodes.F_NEW,
-                                            frame.locals().size(),
-                                            frame.locals().isEmpty() ? null : frame.locals().stream()
-                                                    .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels))
-                                                    .toArray(),
-                                            frame.stack().size(),
-                                            frame.stack().isEmpty() ? null : frame.stack().stream()
-                                                    .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels))
-                                                    .toArray());
-                                } else if (frame.frameType() < 64) {
-                                    methodVisitor.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
-                                } else if (frame.frameType() < 128) {
-                                    methodVisitor.visitFrame(Opcodes.F_SAME1,
-                                            0, null,
-                                            1, new Object[]{toAsmFrameValue(frame.stack().get(0), labels)});
-                                } else if (frame.frameType() < SAME_LOCALS_1_STACK_ITEM_EXTENDED) {
-                                    throw new IllegalArgumentException("Invalid stackmap frame type: " + frame.frameType());
-                                } else if (frame.frameType() == SAME_LOCALS_1_STACK_ITEM_EXTENDED) {
-                                    methodVisitor.visitFrame(Opcodes.F_SAME1,
-                                            0, null,
-                                            1, new Object[]{toAsmFrameValue(frame.stack().get(0), labels)});
-                                } else if (frame.frameType() < SAME_EXTENDED) {
-                                    methodVisitor.visitFrame(Opcodes.F_CHOP,
-                                            chop.choppedLocals().size(), null,
-                                            0, null);
-                                } else if (frame.frameType() == SAME_EXTENDED) {
-                                    methodVisitor.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
-                                } else if (frame.frameType() < SAME_EXTENDED + 4) {
-                                    methodVisitor.visitFrame(Opcodes.F_APPEND,
-                                            append.declaredLocals().size(), append.declaredLocals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels)).toArray(),
-                                            0, null);
-                                } else {
-                                    methodVisitor.visitFrame(Opcodes.F_FULL,
-                                            frame.locals().size(), frame.locals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels)).toArray(),
-                                            frame.stack().size(), frame.stack().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels)).toArray());
-                                }
-                            }
-                        }
-                        switch (element) { // TODO: Add toString methods to all "impl"?
+                        switch (element) {
                             case MonitorInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case TypeCheckInstruction value -> methodVisitor.visitTypeInsn(value.opcode().bytecode(), value.type().asInternalName());
                             case LoadInstruction value -> methodVisitor.visitVarInsn(switch (value.typeKind()) {
@@ -272,7 +232,7 @@ public class JdkClassReader {
                                     labels.computeIfAbsent(value.endScope(), label -> new org.objectweb.asm.Label()),
                                     value.name().stringValue(),
                                     value.slot()
-                            ), (key, values) -> new MergedLocalVariableValue(value.typeSymbol().descriptorString(), values == null ? null : values.signature));
+                            ), (_, values) -> new MergedLocalVariableValue(value.typeSymbol().descriptorString(), values == null ? null : values.signature));
                             case LineNumber value -> {
                                 if (currentPositionLabel == null) {
                                     currentPositionLabel = new org.objectweb.asm.Label();
@@ -281,8 +241,53 @@ public class JdkClassReader {
                                 methodVisitor.visitLineNumber(value.line(), currentPositionLabel);
                             }
                             case LabelTarget value -> {
-                                currentPositionLabel = labels.computeIfAbsent(value.label(), label -> new org.objectweb.asm.Label());
+                                currentPositionLabel = labels.computeIfAbsent(value.label(), _ -> new org.objectweb.asm.Label());
                                 methodVisitor.visitLabel(currentPositionLabel);
+                                StackMapFrameInfo frame = frames.get(value.label());
+                                if (frame != null) {
+                                    if (expandFrames) {
+                                        methodVisitor.visitFrame(Opcodes.F_NEW,
+                                                frame.locals().size(),
+                                                frame.locals().isEmpty() ? null : frame.locals().stream()
+                                                        .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels))
+                                                        .toArray(),
+                                                frame.stack().size(),
+                                                frame.stack().isEmpty() ? null : frame.stack().stream()
+                                                        .map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels))
+                                                        .toArray());
+                                    } else if (frame.frameType() < 64) {
+                                        methodVisitor.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+                                    } else if (frame.frameType() < 128) {
+                                        methodVisitor.visitFrame(Opcodes.F_SAME1,
+                                                0, null,
+                                                1, new Object[]{toAsmFrameValue(frame.stack().get(0), labels)});
+                                    } else if (frame.frameType() < SAME_LOCALS_1_STACK_ITEM_EXTENDED) {
+                                        throw new IllegalArgumentException("Invalid stackmap frame type: " + frame.frameType());
+                                    } else if (frame.frameType() == SAME_LOCALS_1_STACK_ITEM_EXTENDED) {
+                                        methodVisitor.visitFrame(Opcodes.F_SAME1,
+                                                0, null,
+                                                1, new Object[]{toAsmFrameValue(frame.stack().get(0), labels)});
+                                    } else if (frame.frameType() < SAME_EXTENDED) {
+                                        methodVisitor.visitFrame(Opcodes.F_CHOP,
+                                                localVariablesSize - frame.locals().size(), null,
+                                                0, null);
+                                        localVariablesSize = frame.locals().size();
+                                    } else if (frame.frameType() == SAME_EXTENDED) {
+                                        methodVisitor.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+                                    } else if (frame.frameType() < SAME_EXTENDED + 4) {
+                                        int appended = frame.locals().size() - localVariablesSize;
+                                        methodVisitor.visitFrame(Opcodes.F_APPEND,
+                                                appended, frame.locals().stream().skip(localVariablesSize).map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels)).toArray(),
+                                                0, null);
+                                        localVariablesSize = frame.locals().size();
+                                    } else {
+                                        methodVisitor.visitFrame(Opcodes.F_FULL,
+                                                frame.locals().size(), frame.locals().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels)).toArray(),
+                                                frame.stack().size(), frame.stack().stream().map(verificationTypeInfo -> toAsmFrameValue(verificationTypeInfo, labels)).toArray());
+                                        localVariablesSize = frame.locals().size();
+                                    }
+                                }
+
                             }
                             case CharacterRange ignored -> {
                                 // TODO: Is there an easier way to deconstruct to byte array then by knowing spec?
@@ -292,14 +297,13 @@ public class JdkClassReader {
                             case RuntimeInvisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), false, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
                             default -> throw new UnsupportedOperationException("Unknown value: " + element);
                         }
-                        if (element instanceof Instruction instruction) {
+                        if (element instanceof Instruction) {
                             offsetTypeAnnotations.getOrDefault(currentPositionLabel, Collections.emptyList()).forEach(entry -> appendAnnotationValues(methodVisitor.visitInsnAnnotation(
                                     TypeReference.newTypeReference(entry.getKey().targetInfo().targetType().targetTypeValue()).getValue(),
                                     toTypePath(entry.getKey().targetPath()),
                                     entry.getKey().className().stringValue(),
                                     entry.getValue()), entry.getKey().elements()));
                             currentPositionLabel = null;
-                            offset += instruction.sizeInBytes();
                         }
                     }
                     localVariables.forEach((key, value) -> methodVisitor.visitLocalVariable(key.name(),
