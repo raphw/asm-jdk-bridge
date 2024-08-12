@@ -154,7 +154,9 @@ public class JdkClassReader {
                     List<Map.Entry<TypeAnnotation, Boolean>> localVariableAnnotations = new ArrayList<>();
                     methodVisitor.visitCode();
                     org.objectweb.asm.Label currentPositionLabel = null;
-                    for (CodeElement element : code) {
+                    Iterator<CodeElement> it = code.iterator();
+                    while (it.hasNext()) {
+                        CodeElement element = it.next();
                         switch (element) {
                             case MonitorInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case TypeCheckInstruction value -> methodVisitor.visitTypeInsn(value.opcode().bytecode(), value.type().asInternalName());
@@ -184,7 +186,7 @@ public class JdkClassReader {
                                     value.bootstrapArgs().stream().map(JdkClassReader::toAsmConstant).toArray());
                             case BranchInstruction value -> methodVisitor.visitJumpInsn(
                                     value.opcode() == Opcode.GOTO_W ? Opcodes.GOTO : value.opcode().bytecode(),
-                                    labels.computeIfAbsent(value.target(), label -> new org.objectweb.asm.Label()));
+                                    labels.computeIfAbsent(value.target(), _ -> new org.objectweb.asm.Label()));
                             case StoreInstruction value -> methodVisitor.visitVarInsn(switch (value.typeKind()) {
                                 case BooleanType, ByteType, CharType, ShortType, IntType -> Opcodes.ISTORE;
                                 case LongType -> Opcodes.LSTORE;
@@ -194,13 +196,13 @@ public class JdkClassReader {
                                 default -> throw new IllegalStateException("Unexpected type: " + value.typeKind());
                             }, value.slot());
                             case NewReferenceArrayInstruction value -> methodVisitor.visitTypeInsn(value.opcode().bytecode(), value.componentType().asInternalName());
-                            case LookupSwitchInstruction value -> methodVisitor.visitLookupSwitchInsn(labels.computeIfAbsent(value.defaultTarget(), label -> new org.objectweb.asm.Label()),
+                            case LookupSwitchInstruction value -> methodVisitor.visitLookupSwitchInsn(labels.computeIfAbsent(value.defaultTarget(), _ -> new org.objectweb.asm.Label()),
                                     value.cases().stream().mapToInt(SwitchCase::caseValue).toArray(),
-                                    value.cases().stream().map(aCase -> labels.computeIfAbsent(aCase.target(), label -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
+                                    value.cases().stream().map(aCase -> labels.computeIfAbsent(aCase.target(), _ -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
                             case TableSwitchInstruction value -> methodVisitor.visitTableSwitchInsn(value.lowValue(),
                                     value.highValue(),
-                                    labels.computeIfAbsent(value.defaultTarget(), label -> new org.objectweb.asm.Label()),
-                                    value.cases().stream().map(aCase -> labels.computeIfAbsent(aCase.target(), label -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
+                                    labels.computeIfAbsent(value.defaultTarget(), _ -> new org.objectweb.asm.Label()),
+                                    value.cases().stream().map(aCase -> labels.computeIfAbsent(aCase.target(), _ -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
                             case ArrayStoreInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case ArrayLoadInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case ConstantInstruction value -> {
@@ -218,18 +220,18 @@ public class JdkClassReader {
                             case NewMultiArrayInstruction value -> methodVisitor.visitMultiANewArrayInsn(value.arrayType().asInternalName(), value.dimensions());
                             case NewPrimitiveArrayInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case LocalVariableType value -> localVariables.compute(new MergedLocalVariableKey(
-                                    labels.computeIfAbsent(value.startScope(), label -> new org.objectweb.asm.Label()),
-                                    labels.computeIfAbsent(value.endScope(), label -> new org.objectweb.asm.Label()),
+                                    labels.computeIfAbsent(value.startScope(), _ -> new org.objectweb.asm.Label()),
+                                    labels.computeIfAbsent(value.endScope(), _ -> new org.objectweb.asm.Label()),
                                     value.name().stringValue(),
                                     value.slot()
-                            ), (key, values) -> new MergedLocalVariableValue(values == null ? null : values.descriptor, value.signature().stringValue()));
-                            case ExceptionCatch value -> methodVisitor.visitTryCatchBlock(labels.computeIfAbsent(value.tryStart(), label -> new org.objectweb.asm.Label()),
-                                    labels.computeIfAbsent(value.tryEnd(), label -> new org.objectweb.asm.Label()),
-                                    labels.computeIfAbsent(value.handler(), label -> new org.objectweb.asm.Label()),
+                            ), (_, values) -> new MergedLocalVariableValue(values == null ? null : values.descriptor, value.signature().stringValue()));
+                            case ExceptionCatch value -> methodVisitor.visitTryCatchBlock(labels.computeIfAbsent(value.tryStart(), _ -> new org.objectweb.asm.Label()),
+                                    labels.computeIfAbsent(value.tryEnd(), _ -> new org.objectweb.asm.Label()),
+                                    labels.computeIfAbsent(value.handler(), _ -> new org.objectweb.asm.Label()),
                                     value.catchType().map(ClassEntry::asInternalName).orElse(null));
                             case LocalVariable value -> localVariables.compute(new MergedLocalVariableKey(
-                                    labels.computeIfAbsent(value.startScope(), label -> new org.objectweb.asm.Label()),
-                                    labels.computeIfAbsent(value.endScope(), label -> new org.objectweb.asm.Label()),
+                                    labels.computeIfAbsent(value.startScope(), _ -> new org.objectweb.asm.Label()),
+                                    labels.computeIfAbsent(value.endScope(), _ -> new org.objectweb.asm.Label()),
                                     value.name().stringValue(),
                                     value.slot()
                             ), (_, values) -> new MergedLocalVariableValue(value.typeSymbol().descriptorString(), values == null ? null : values.signature));
@@ -245,6 +247,7 @@ public class JdkClassReader {
                                 methodVisitor.visitLabel(currentPositionLabel);
                                 StackMapFrameInfo frame = frames.get(value.label());
                                 if (frame != null) {
+                                    if (it.hasNext())
                                     if (expandFrames) {
                                         methodVisitor.visitFrame(Opcodes.F_NEW,
                                                 frame.locals().size(),
@@ -287,7 +290,6 @@ public class JdkClassReader {
                                         localVariablesSize = frame.locals().size();
                                     }
                                 }
-
                             }
                             case CharacterRange ignored -> {
                                 // TODO: Is there an easier way to deconstruct to byte array then by knowing spec?
@@ -407,7 +409,7 @@ public class JdkClassReader {
         typeAnnotations.forEach(typeAnnotation -> {
             switch (typeAnnotation.targetInfo()) {
                 case TypeAnnotation.LocalVarTarget ignored -> localVariableAnnotations.add(Map.entry(typeAnnotation, visible));
-                case TypeAnnotation.OffsetTarget value -> offsetTypeAnnotations.merge(labels.computeIfAbsent(value.target(), label -> new org.objectweb.asm.Label()),
+                case TypeAnnotation.OffsetTarget value -> offsetTypeAnnotations.merge(labels.computeIfAbsent(value.target(), _ -> new org.objectweb.asm.Label()),
                         Collections.singletonList(Map.entry(typeAnnotation, visible)),
                         (left, right) -> Stream.of(left.stream(), right.stream()).flatMap(Function.identity()).collect(Collectors.toList()));
                 case TypeAnnotation.CatchTarget value -> appendAnnotationValues(methodVisitor.visitTryCatchAnnotation( // TODO: verify annotation index?
