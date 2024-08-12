@@ -10,6 +10,7 @@ import java.lang.classfile.instruction.SwitchCase;
 import java.lang.constant.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class JdkClassWriter extends ClassVisitor {
@@ -19,9 +20,25 @@ public class JdkClassWriter extends ClassVisitor {
     private final List<ClassDesc> nestMembers = new ArrayList<>();
     private final List<InnerClassInfo> innerClasses = new ArrayList<>();
     private final List<ClassDesc> permittedSubclasses = new ArrayList<>();
+    private final List<RecordComponentInfo> recordComponents = new ArrayList<>();
+    private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
+    private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
 
     private ClassDesc thisClass;
+    private boolean isRecord;
     private Consumer<ClassBuilder> classConsumer = classBuilder -> {
+        if (!visibleAnnotations.isEmpty()) {
+            classBuilder.with(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
+        }
+        if (!invisibleAnnotations.isEmpty()) {
+            classBuilder.with(RuntimeInvisibleAnnotationsAttribute.of(invisibleAnnotations));
+        }
+        if (!visibleTypeAnnotations.isEmpty()) {
+            classBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations));
+        }
+        if (!invisibleTypeAnnotations.isEmpty()) {
+            classBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations));
+        }
         if (!nestMembers.isEmpty()) {
             classBuilder.with(NestMembersAttribute.ofSymbols(nestMembers));
         }
@@ -30,6 +47,9 @@ public class JdkClassWriter extends ClassVisitor {
         }
         if (!permittedSubclasses.isEmpty()) {
             classBuilder.with(PermittedSubclassesAttribute.ofSymbols(permittedSubclasses));
+        }
+        if (isRecord || !recordComponents.isEmpty()) {
+            classBuilder.with(RecordAttribute.of(recordComponents));
         }
     };
     private byte[] bytes;
@@ -46,9 +66,10 @@ public class JdkClassWriter extends ClassVisitor {
     @Override
     public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
         thisClass = ClassDesc.ofInternalName(name);
+        isRecord = (access & Opcodes.ACC_RECORD) != 0;
         classConsumer = classConsumer.andThen(classBuilder -> {
             classBuilder.withVersion(version & 0xFF, (version >> 8) & 0xFF);
-            classBuilder.withFlags(access & ~Opcodes.ACC_DEPRECATED);
+            classBuilder.withFlags(access & ~(Opcodes.ACC_DEPRECATED | Opcodes.ACC_RECORD));
             if ((access & Opcodes.ACC_DEPRECATED) != 0) {
                 classBuilder.with(DeprecatedAttribute.of());
             }
@@ -185,12 +206,18 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-        return super.visitAnnotation(descriptor, visible);
+        return WritingAnnotationVisitor.of(
+                descriptor,
+                (visible ? visibleAnnotations : invisibleAnnotations)::add);
     }
 
     @Override
     public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-        return super.visitTypeAnnotation(typeRef, typePath, descriptor, visible);
+        return WritingAnnotationVisitor.ofTypeAnnotation(
+                descriptor,
+                typeRef,
+                typePath,
+                (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
     }
 
     @Override
@@ -218,22 +245,101 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public RecordComponentVisitor visitRecordComponent(String name, String descriptor, String signature) {
-        return super.visitRecordComponent(name, descriptor, signature);
+        return new RecordComponentVisitor(Opcodes.ASM9) {
+
+            private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
+            private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
+
+            @Override
+            public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+                return WritingAnnotationVisitor.of(
+                        descriptor,
+                        (visible ? visibleAnnotations : invisibleAnnotations)::add);
+            }
+
+            @Override
+            public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+                return WritingAnnotationVisitor.ofTypeAnnotation(
+                        descriptor,
+                        typeRef,
+                        typePath,
+                        (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
+            }
+
+            @Override
+            public void visitAttribute(Attribute attribute) {
+                super.visitAttribute(attribute);
+            }
+
+            @Override
+            public void visitEnd() {
+                List<java.lang.classfile.Attribute<?>> attributes = new ArrayList<>();
+                if (!visibleAnnotations.isEmpty()) {
+                    attributes.add(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
+                }
+                if (!invisibleAnnotations.isEmpty()) {
+                    attributes.add(RuntimeInvisibleAnnotationsAttribute.of(invisibleAnnotations));
+                }
+                if (!visibleTypeAnnotations.isEmpty()) {
+                    attributes.add(RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations));
+                }
+                if (!invisibleTypeAnnotations.isEmpty()) {
+                    attributes.add(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations));
+                }
+                recordComponents.add(RecordComponentInfo.of(name, ClassDesc.ofDescriptor(descriptor), attributes));
+            }
+        };
     }
 
     @Override
     public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
         return new FieldVisitor(Opcodes.ASM9) {
 
+            private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
+            private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
+
+            @Override
+            public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+                return WritingAnnotationVisitor.of(
+                        descriptor,
+                        (visible ? visibleAnnotations : invisibleAnnotations)::add);
+            }
+
+            @Override
+            public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+                return WritingAnnotationVisitor.ofTypeAnnotation(
+                        descriptor,
+                        typeRef,
+                        typePath,
+                        (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
+            }
+
+            @Override
+            public void visitAttribute(Attribute attribute) {
+                super.visitAttribute(attribute);
+            }
+
             @Override
             public void visitEnd() {
                 classConsumer = classConsumer.andThen(classBuilder -> classBuilder.withField(name, ClassDesc.ofDescriptor(descriptor), fieldBuilder -> {
                     fieldBuilder.withFlags(access & ~Opcodes.ACC_DEPRECATED);
                     if ((access & Opcodes.ACC_DEPRECATED) != 0) {
-                        classBuilder.with(DeprecatedAttribute.of());
+                        fieldBuilder.with(DeprecatedAttribute.of());
                     }
                     if (signature != null) {
                         fieldBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
+                    }
+                    if (!visibleAnnotations.isEmpty()) {
+                        fieldBuilder.with(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
+                    }
+                    if (!invisibleAnnotations.isEmpty()) {
+                        fieldBuilder.with(RuntimeInvisibleAnnotationsAttribute.of(invisibleAnnotations));
+                    }
+                    if (!visibleTypeAnnotations.isEmpty()) {
+                        fieldBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations));
+                    }
+                    if (!invisibleTypeAnnotations.isEmpty()) {
+                        fieldBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations));
                     }
                 }));
             }
@@ -246,6 +352,9 @@ public class JdkClassWriter extends ClassVisitor {
 
             private Consumer<CodeBuilder> codeConsumer;
 
+            private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
+            private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
+            private final Map<Integer, List<Annotation>> visibleParameterAnnotations = new HashMap<>(), invisibleParameterAnnotations = new HashMap<>();
             private final Map<Label, java.lang.classfile.Label> labels = new HashMap<>();
 
             private Label currentLocation;
@@ -253,6 +362,34 @@ public class JdkClassWriter extends ClassVisitor {
             @Override
             public void visitCode() {
                 codeConsumer  = _ -> { };
+            }
+
+            @Override
+            public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+                return WritingAnnotationVisitor.of(
+                        descriptor,
+                        (visible ? visibleAnnotations : invisibleAnnotations)::add);
+            }
+
+            @Override
+            public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+                return WritingAnnotationVisitor.ofTypeAnnotation(
+                        descriptor,
+                        typeRef,
+                        typePath,
+                        (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
+            }
+
+            @Override
+            public AnnotationVisitor visitParameterAnnotation(int parameter, String descriptor, boolean visible) {
+                return WritingAnnotationVisitor.of(
+                        descriptor,
+                        (visible ? visibleParameterAnnotations : invisibleParameterAnnotations).computeIfAbsent(parameter, _ -> new ArrayList<>())::add);
+            }
+
+            @Override
+            public void visitAttribute(Attribute attribute) {
+                super.visitAttribute(attribute);
             }
 
             @Override
@@ -585,7 +722,7 @@ public class JdkClassWriter extends ClassVisitor {
             public void visitEnd() {
                 classConsumer = classConsumer.andThen(classBuilder -> classBuilder.withMethod(name, MethodTypeDesc.ofDescriptor(descriptor), access & ~Opcodes.ACC_DEPRECATED, methodBuilder -> {
                     if ((access & Opcodes.ACC_DEPRECATED) != 0) {
-                        classBuilder.with(DeprecatedAttribute.of());
+                        methodBuilder.with(DeprecatedAttribute.of());
                     }
                     if (signature != null) {
                         methodBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
@@ -597,6 +734,19 @@ public class JdkClassWriter extends ClassVisitor {
                         }
                         methodBuilder.with(ExceptionsAttribute.ofSymbols(entries));
                     }
+                    if (!visibleAnnotations.isEmpty()) {
+                        methodBuilder.with(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
+                    }
+                    if (!invisibleAnnotations.isEmpty()) {
+                        methodBuilder.with(RuntimeInvisibleAnnotationsAttribute.of(invisibleAnnotations));
+                    }
+                    if (!visibleTypeAnnotations.isEmpty()) {
+                        methodBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations));
+                    }
+                    if (!invisibleTypeAnnotations.isEmpty()) {
+                        methodBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations));
+                    }
+                    // TODO: parameters
                     if (codeConsumer != null) {
                         methodBuilder.withCode(codeConsumer);
                     }
@@ -657,5 +807,89 @@ public class JdkClassWriter extends ClassVisitor {
             throw new IllegalStateException();
         }
         return bytes;
+    }
+
+    private static class WritingAnnotationVisitor extends AnnotationVisitor {
+
+        private final BiConsumer<String, AnnotationValue> consumer;
+        private final Runnable onEnd;
+
+        static AnnotationVisitor of(String descriptor, Consumer<Annotation> consumer) {
+            List<AnnotationElement> elements = new ArrayList<>();
+            return new WritingAnnotationVisitor(
+                    (name, value) -> elements.add(AnnotationElement.of(name, value)),
+                    () -> consumer.accept(Annotation.of(ClassDesc.ofDescriptor(descriptor), elements)));
+        }
+
+        static AnnotationVisitor ofTypeAnnotation(String descriptor, int typeRef, TypePath typePath, Consumer<TypeAnnotation> consumer) {
+            List<AnnotationElement> elements = new ArrayList<>();
+            return new WritingAnnotationVisitor(
+                    (name, value) -> elements.add(AnnotationElement.of(name, value)),
+                    () -> consumer.accept(TypeAnnotation.of(
+                            TypeAnnotation.TargetInfo.ofField(),
+                            List.of(), // TODO: type path
+                            ClassDesc.ofDescriptor(descriptor),
+                            elements)));
+        }
+
+        private WritingAnnotationVisitor(BiConsumer<String, AnnotationValue> consumer, Runnable onEnd) {
+            super(Opcodes.ASM9);
+            this.consumer = consumer;
+            this.onEnd = onEnd;
+        }
+
+        @Override
+        public void visit(String name, Object asm) {
+            AnnotationValue annotation; // TODO: array types!
+            if (asm instanceof Boolean value) {
+                annotation = AnnotationValue.ofBoolean(value);
+            } else if (asm instanceof Byte value) {
+                annotation = AnnotationValue.ofByte(value);
+            } else if (asm instanceof Short value) {
+                annotation = AnnotationValue.ofShort(value);
+            } else if (asm instanceof Character value) {
+                annotation = AnnotationValue.ofChar(value);
+            } else if (asm instanceof Integer value) {
+                annotation = AnnotationValue.ofInt(value);
+            } else if (asm instanceof Long value) {
+                annotation = AnnotationValue.ofLong(value);
+            } else if (asm instanceof Float value) {
+                annotation = AnnotationValue.ofFloat(value);
+            } else if (asm instanceof Double value) {
+                annotation = AnnotationValue.ofDouble(value);
+            } else if (asm instanceof String value) {
+                annotation = AnnotationValue.ofString(value);
+            } else {
+                throw new IllegalArgumentException("Unknown annotation value: " + asm);
+            }
+            consumer.accept(name, annotation);
+        }
+
+        @Override
+        public void visitEnum(String name, String descriptor, String value) {
+            consumer.accept(name, AnnotationValue.ofEnum(
+                    ClassDesc.ofDescriptor(descriptor),
+                    value));
+        }
+
+        @Override
+        public AnnotationVisitor visitAnnotation(String name, String descriptor) {
+            return WritingAnnotationVisitor.of(descriptor, annotation -> consumer.accept(
+                    name,
+                    AnnotationValue.ofAnnotation(annotation)));
+        }
+
+        @Override
+        public AnnotationVisitor visitArray(String name) {
+            List<AnnotationValue> values = new ArrayList<>();
+            return new WritingAnnotationVisitor(
+                    (_, value) -> values.add(value),
+                    () -> consumer.accept(name, AnnotationValue.ofArray(values)));
+        }
+
+        @Override
+        public void visitEnd() {
+            onEnd.run();
+        }
     }
 }
