@@ -556,7 +556,7 @@ public class JdkClassWriter extends ClassVisitor {
                             throw new IllegalArgumentException("Unsupported type: " + type);
                     }
                     stackMapFrames.add(StackMapFrameInfo.of(codeBuilder.newBoundLabel(),
-                            locals,
+                            new ArrayList<>(locals),
                             stacks));
                 });
             }
