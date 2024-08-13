@@ -17,6 +17,7 @@ import java.util.function.Function;
 
 public class JdkClassWriter extends ClassVisitor {
 
+    private final int flags;
     private final ClassFile classFile;
     private final Function<Attribute, byte[]> extractor;
 
@@ -59,28 +60,33 @@ public class JdkClassWriter extends ClassVisitor {
             classBuilder.with(RecordAttribute.of(recordComponents));
         }
     }));
+
     private byte[] bytes;
 
-    public JdkClassWriter() {
-        this(attribute -> {
+    public JdkClassWriter(int flags) {
+        this(flags, attribute -> {
             throw new UnsupportedOperationException("Unknown attribute: " + attribute);
         });
     }
 
-    public JdkClassWriter(ClassFile classFile) {
-        this(classFile, attribute -> {
+    public JdkClassWriter(int flags, ClassFile classFile) {
+        this(flags, classFile, attribute -> {
             throw new UnsupportedOperationException("Unknown attribute: " + attribute);
         });
     }
 
-    public JdkClassWriter(Function<Attribute, byte[]> extractor) {
-        this(ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE), extractor);
+    public JdkClassWriter(int flags, Function<Attribute, byte[]> extractor) {
+        this(flags, ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE), extractor);
     }
 
-    public JdkClassWriter(ClassFile classFile, Function<Attribute, byte[]> extractor) {
+    public JdkClassWriter(int flags, ClassFile classFile, Function<Attribute, byte[]> extractor) {
         super(Opcodes.ASM9);
+        this.flags = flags;
         this.classFile = classFile;
         this.extractor = extractor;
+        if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
+            classFile.withOptions(ClassFile.StackMapsOption.DROP_STACK_MAPS);
+        }
     }
 
     @Override
@@ -385,6 +391,8 @@ public class JdkClassWriter extends ClassVisitor {
             private final List<RawAttribute> attributes = new ArrayList<>();
             private AnnotationValue defaultValue;
             private int catchCount = -1;
+            private final List<StackMapFrameInfo> stackMapFrames = new ArrayList<>();
+            private final List<StackMapFrameInfo.VerificationTypeInfo> locals = new ArrayList<>();
             private final List<MethodParameterInfo> methodParameters = new ArrayList<>();
             private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
             private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
@@ -397,6 +405,23 @@ public class JdkClassWriter extends ClassVisitor {
             @Override
             public void visitCode() {
                 codeConsumers = new ArrayList<>();
+                if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
+                    if ((access & Opcodes.ACC_STATIC) != 0) {
+                        locals.add(name.equals("<init>")
+                            ? StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_UNINITIALIZED_THIS
+                            : StackMapFrameInfo.ObjectVerificationTypeInfo.of(ClassDesc.ofInternalName(name)));
+                    }
+                    Type type = Type.getMethodType(descriptor);
+                    for (Type argumentType : type.getArgumentTypes()) {
+                        locals.add(switch (argumentType.getSort()) {
+                            case Type.BOOLEAN, Type.BYTE, Type.SHORT, Type.CHAR, Type.INT -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_INTEGER;
+                            case Type.LONG -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_LONG;
+                            case Type.FLOAT -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_FLOAT;
+                            case Type.DOUBLE -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_DOUBLE;
+                            default -> StackMapFrameInfo.ObjectVerificationTypeInfo.of(ClassDesc.ofDescriptor(argumentType.getDescriptor()));
+                        });
+                    }
+                }
             }
 
             @Override
@@ -497,6 +522,69 @@ public class JdkClassWriter extends ClassVisitor {
                                     : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
 
                         }));
+            }
+
+            @Override
+            public void visitFrame(int type, int numLocal, Object[] local, int numStack, Object[] stack) {
+                if ((flags & ClassWriter.COMPUTE_FRAMES) != 0) {
+                    return;
+                }
+                codeConsumers.add(codeBuilder -> {
+                    List<StackMapFrameInfo.VerificationTypeInfo> stacks = new ArrayList<>(numStack);
+                    for (int index = 0; index < numStack; index++) {
+                        stacks.add(toVerificationTypeInfo(stack[index], label -> labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
+                    }
+                    switch (type) {
+                        case Opcodes.F_SAME:
+                            break;
+                        case Opcodes.F_SAME1:
+                            break;
+                        case Opcodes.F_APPEND:
+                            for (int index = 0; index < numLocal; index++) {
+                                locals.add(toVerificationTypeInfo(local[index], label -> labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
+                            }
+                            break;
+                        case Opcodes.F_CHOP:
+                            locals.subList(locals.size() - numLocal, locals.size()).clear();
+                            break;
+                        case Opcodes.F_FULL:
+                        case Opcodes.F_NEW:
+                            locals.clear();
+                            for (int index = 0; index < numLocal; index++) {
+                                locals.add(toVerificationTypeInfo(local[index], label -> labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
+                            }
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unsupported type: " + type);
+                    }
+                    stackMapFrames.add(StackMapFrameInfo.of(codeBuilder.newBoundLabel(),
+                            locals,
+                            stacks));
+                });
+            }
+
+            private static StackMapFrameInfo.VerificationTypeInfo toVerificationTypeInfo(Object value, Function<Label, java.lang.classfile.Label> labels) {
+                if (value == Opcodes.TOP) {
+                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_TOP;
+                } else if (value == Opcodes.INTEGER) {
+                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_INTEGER;
+                } else if (value == Opcodes.LONG) {
+                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_LONG;
+                } else if (value == Opcodes.FLOAT) {
+                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_FLOAT;
+                } else if (value == Opcodes.DOUBLE) {
+                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_DOUBLE;
+                } else if (value == Opcodes.NULL) {
+                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_NULL;
+                } else if (value == Opcodes.UNINITIALIZED_THIS) {
+                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_UNINITIALIZED_THIS;
+                } else if (value instanceof Label label) {
+                    return StackMapFrameInfo.UninitializedVerificationTypeInfo.of(labels.apply(label));
+                } else if (value instanceof String name) {
+                    return StackMapFrameInfo.ObjectVerificationTypeInfo.of(ClassDesc.ofInternalName(name));
+                } else {
+                    throw new IllegalArgumentException("Unsupported type: " + value);
+                }
             }
 
             @Override
@@ -885,7 +973,12 @@ public class JdkClassWriter extends ClassVisitor {
                         methodBuilder.with(RuntimeInvisibleParameterAnnotationsAttribute.of(annotations));
                     }
                     if (codeConsumers != null) {
-                        methodBuilder.withCode(codeBuilder -> codeConsumers.forEach(codeConsumer -> codeConsumer.accept(codeBuilder)));
+                        methodBuilder.withCode(codeBuilder -> {
+                            codeConsumers.forEach(codeConsumer -> codeConsumer.accept(codeBuilder));
+                            if (!stackMapFrames.isEmpty()) {
+                                codeBuilder.with(StackMapTableAttribute.of(stackMapFrames));
+                            }
+                        });
                     }
                 }));
             }

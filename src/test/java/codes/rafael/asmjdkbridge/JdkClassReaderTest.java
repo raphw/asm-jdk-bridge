@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.lang.classfile.ClassFile;
 import java.util.Arrays;
 import java.util.Collection;
 

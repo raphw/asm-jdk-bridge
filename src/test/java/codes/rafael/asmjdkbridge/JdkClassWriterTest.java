@@ -65,7 +65,7 @@ public class JdkClassWriterTest {
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
         new ClassReader(classFile).accept(toVisitor(asm), flags);
-        JdkClassWriter writer = new JdkClassWriter(attribute -> {
+        JdkClassWriter writer = new JdkClassWriter(0, attribute -> {
             if (attribute instanceof TestAttribute testAttribute) {
                 return testAttribute.content;
             } else {
