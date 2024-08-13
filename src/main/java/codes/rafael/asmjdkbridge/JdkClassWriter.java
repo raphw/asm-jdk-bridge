@@ -30,7 +30,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     private ClassDesc thisClass;
     private boolean isRecord;
-    private Consumer<ClassBuilder> classConsumer = classBuilder -> {
+    private List<Consumer<ClassBuilder>> classConsumers = new ArrayList<>(List.of(classBuilder -> {
         for (RawAttribute attribute : attributes) {
             classBuilder.with(attribute);
         }
@@ -58,7 +58,7 @@ public class JdkClassWriter extends ClassVisitor {
         if (isRecord || !recordComponents.isEmpty()) {
             classBuilder.with(RecordAttribute.of(recordComponents));
         }
-    };
+    }));
     private byte[] bytes;
 
     public JdkClassWriter() {
@@ -87,7 +87,7 @@ public class JdkClassWriter extends ClassVisitor {
     public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
         thisClass = ClassDesc.ofInternalName(name);
         isRecord = (access & Opcodes.ACC_RECORD) != 0;
-        classConsumer = classConsumer.andThen(classBuilder -> {
+        classConsumers.add(classBuilder -> {
             classBuilder.withVersion(version & 0xFF, (version >> 8) & 0xFF);
             classBuilder.withFlags(access & ~(Opcodes.ACC_DEPRECATED | Opcodes.ACC_RECORD));
             if ((access & Opcodes.ACC_DEPRECATED) != 0) {
@@ -109,7 +109,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitSource(String source, String debug) {
-        classConsumer = classConsumer.andThen(classBuilder -> {
+        classConsumers.add(classBuilder -> {
             if (source != null) {
                 classBuilder.with(SourceFileAttribute.of(source));
             }
@@ -126,12 +126,12 @@ public class JdkClassWriter extends ClassVisitor {
             private String mainClass;
             private List<PackageDesc> packages = new ArrayList<>();
 
-            private Consumer<ModuleAttribute.ModuleAttributeBuilder> moduleAttributeConsumer = moduleAttributeBuilder -> {
+            private List<Consumer<ModuleAttribute.ModuleAttributeBuilder>> moduleAttributeConsumers = new ArrayList<>(List.of(moduleAttributeBuilder -> {
                 moduleAttributeBuilder.moduleFlags(access & ~Opcodes.ACC_DEPRECATED);
                 if (version != null) {
                     moduleAttributeBuilder.moduleVersion(version);
                 }
-            };
+            }));
 
             @Override
             public void visitMainClass(String mainClass) {
@@ -145,7 +145,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitRequire(String module, int access, String version) {
-                moduleAttributeConsumer = moduleAttributeConsumer.andThen(moduleAttributeBuilder -> moduleAttributeBuilder.requires(
+                moduleAttributeConsumers.add(moduleAttributeBuilder -> moduleAttributeBuilder.requires(
                         ModuleDesc.of(module),
                         access,
                         version));
@@ -153,7 +153,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitExport(String packaze, int access, String... modules) {
-                moduleAttributeConsumer = moduleAttributeConsumer.andThen(moduleAttributeBuilder -> {
+                moduleAttributeConsumers.add(moduleAttributeBuilder -> {
                     ModuleDesc[] descriptions = new ModuleDesc[modules.length];
                     for (int index = 0; index < modules.length; index++) {
                         descriptions[index] = ModuleDesc.of(modules[index]);
@@ -166,7 +166,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitOpen(String packaze, int access, String... modules) {
-                moduleAttributeConsumer = moduleAttributeConsumer.andThen(moduleAttributeBuilder -> {
+                moduleAttributeConsumers.add(moduleAttributeBuilder -> {
                     ModuleDesc[] descriptions = new ModuleDesc[modules.length];
                     for (int index = 0; index < modules.length; index++) {
                         descriptions[index] = ModuleDesc.of(modules[index]);
@@ -179,13 +179,13 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitUse(String service) {
-                moduleAttributeConsumer = moduleAttributeConsumer.andThen(moduleAttributeBuilder ->
+                moduleAttributeConsumers.add(moduleAttributeBuilder ->
                         moduleAttributeBuilder.uses(ClassDesc.ofInternalName(service)));
             }
 
             @Override
             public void visitProvide(String service, String... providers) {
-                moduleAttributeConsumer = moduleAttributeConsumer.andThen(moduleAttributeBuilder -> {
+                moduleAttributeConsumers.add(moduleAttributeBuilder -> {
                     ClassDesc[] descriptions = new ClassDesc[providers.length];
                     for (int index = 0; index < providers.length; index++) {
                         descriptions[index] = ClassDesc.of(providers[index]);
@@ -196,10 +196,10 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitEnd() {
-                classConsumer = classConsumer.andThen(classBuilder -> {
+                classConsumers.add(classBuilder -> {
                     classBuilder.with(ModuleAttribute.of(
                             ModuleDesc.of(name),
-                            moduleAttributeConsumer));
+                            moduleAttributeBuilder -> moduleAttributeConsumers.forEach(moduleAttributeConsumer -> moduleAttributeConsumer.accept(moduleAttributeBuilder))));
                     if (mainClass != null) {
                         classBuilder.with(ModuleMainClassAttribute.of(ClassDesc.ofInternalName(mainClass)));
                     }
@@ -213,12 +213,12 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitNestHost(String nestHost) {
-        classConsumer = classConsumer.andThen(classBuilder -> classBuilder.with(NestHostAttribute.of(ClassDesc.ofInternalName(nestHost))));
+        classConsumers.add(classBuilder -> classBuilder.with(NestHostAttribute.of(ClassDesc.ofInternalName(nestHost))));
     }
 
     @Override
     public void visitOuterClass(String owner, String name, String descriptor) {
-        classConsumer = classConsumer.andThen(classBuilder -> classBuilder.with(EnclosingMethodAttribute.of(
+        classConsumers.add(classBuilder -> classBuilder.with(EnclosingMethodAttribute.of(
                 ClassDesc.ofInternalName(owner),
                 Optional.ofNullable(name),
                 Optional.ofNullable(descriptor).map(MethodTypeDesc::ofDescriptor))));
@@ -343,7 +343,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitEnd() {
-                classConsumer = classConsumer.andThen(classBuilder -> classBuilder.withField(name, ClassDesc.ofDescriptor(descriptor), fieldBuilder -> {
+                classConsumers.add(classBuilder -> classBuilder.withField(name, ClassDesc.ofDescriptor(descriptor), fieldBuilder -> {
                     fieldBuilder.withFlags(access & ~Opcodes.ACC_DEPRECATED);
                     if ((access & Opcodes.ACC_DEPRECATED) != 0) {
                         fieldBuilder.with(DeprecatedAttribute.of());
@@ -375,7 +375,7 @@ public class JdkClassWriter extends ClassVisitor {
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
         return new MethodVisitor(Opcodes.ASM9) {
 
-            private Consumer<CodeBuilder> codeConsumer;
+            private List<Consumer<CodeBuilder>> codeConsumers;
 
             private final List<RawAttribute> attributes = new ArrayList<>();
             private AnnotationValue defaultValue;
@@ -391,7 +391,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitCode() {
-                codeConsumer  = _ -> { };
+                codeConsumers = new ArrayList<>();
             }
 
             @Override
@@ -443,7 +443,7 @@ public class JdkClassWriter extends ClassVisitor {
                         descriptor,
                         typeRef,
                         typePath,
-                        function -> codeConsumer = codeConsumer.andThen(codeBuilder -> {
+                        function -> codeConsumers.add(codeBuilder -> {
                             TypeAnnotation annotation = function.apply(catchCount);
                             codeBuilder.with(visible
                                     ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation)
@@ -458,7 +458,7 @@ public class JdkClassWriter extends ClassVisitor {
                         descriptor,
                         typeRef,
                         typePath,
-                        function -> codeConsumer = codeConsumer.andThen(codeBuilder -> {
+                        function -> codeConsumers.add(codeBuilder -> {
                             TypeAnnotation annotation = function.apply(codeBuilder.newBoundLabel());
                             codeBuilder.with(visible
                                     ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation)
@@ -478,7 +478,7 @@ public class JdkClassWriter extends ClassVisitor {
                         descriptor,
                         typeRef,
                         typePath,
-                        function -> codeConsumer = codeConsumer.andThen(codeBuilder -> {
+                        function -> codeConsumers.add(codeBuilder -> {
                             List<TypeAnnotation.LocalVarTargetInfo> targets = new ArrayList<>();
                             for (int index = 0; index < start.length; index++) {
                                 targets.add(TypeAnnotation.LocalVarTargetInfo.of(
@@ -603,7 +603,7 @@ public class JdkClassWriter extends ClassVisitor {
                     case Opcodes.MONITOREXIT -> CodeBuilder::monitorexit;
                     default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                 };
-                this.codeConsumer = this.codeConsumer.andThen(codeConsumer);
+                codeConsumers.add(codeConsumer);
             }
 
             @Override
@@ -614,7 +614,7 @@ public class JdkClassWriter extends ClassVisitor {
                     case Opcodes.NEWARRAY -> codeBuilder -> codeBuilder.newarray(TypeKind.fromNewArrayCode(operand));
                     default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                 };
-                this.codeConsumer = this.codeConsumer.andThen(codeConsumer);
+                codeConsumers.add(codeConsumer);
             }
 
             @Override
@@ -633,12 +633,12 @@ public class JdkClassWriter extends ClassVisitor {
                     case Opcodes.RET -> throw new IllegalStateException("Unsupported opcode: " + opcode);
                     default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                 };
-                this.codeConsumer = this.codeConsumer.andThen(codeConsumer);
+                codeConsumers.add(codeConsumer);
             }
 
             @Override
             public void visitFieldInsn(int opcode, String owner, String name, String descriptor) {
-                this.codeConsumer = this.codeConsumer.andThen(codeBuilder -> codeBuilder.fieldInstruction(
+                codeConsumers.add(codeBuilder -> codeBuilder.fieldInstruction(
                         switch (opcode) {
                             case Opcodes.GETFIELD -> Opcode.GETFIELD;
                             case Opcodes.PUTFIELD -> Opcode.PUTFIELD;
@@ -653,7 +653,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
-                this.codeConsumer = this.codeConsumer.andThen(codeBuilder -> codeBuilder.invokeInstruction(
+                codeConsumers.add(codeBuilder -> codeBuilder.invokeInstruction(
                         switch (opcode) {
                             case Opcodes.INVOKEVIRTUAL -> Opcode.INVOKEVIRTUAL;
                             case Opcodes.INVOKEINTERFACE -> Opcode.INVOKEINTERFACE;
@@ -673,7 +673,7 @@ public class JdkClassWriter extends ClassVisitor {
                 for (int index = 0; index < bootstrapMethodArguments.length; index++) {
                     constants[index] = toConstantDesc(bootstrapMethodArguments[index]);
                 }
-                this.codeConsumer = this.codeConsumer.andThen(codeBuilder -> codeBuilder.invokeDynamicInstruction(DynamicCallSiteDesc.of(
+                codeConsumers.add(codeBuilder -> codeBuilder.invokeDynamicInstruction(DynamicCallSiteDesc.of(
                         MethodHandleDesc.of(
                                 DirectMethodHandleDesc.Kind.valueOf(bootstrapMethodHandle.getTag()),
                                 ClassDesc.ofInternalName(bootstrapMethodHandle.getOwner()),
@@ -707,29 +707,29 @@ public class JdkClassWriter extends ClassVisitor {
                     case Opcodes.JSR -> throw new IllegalStateException("Unsupported opcode: " + opcode);
                     default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                 };
-                this.codeConsumer = this.codeConsumer.andThen(codeConsumer);
+                codeConsumers.add(codeConsumer);
             }
 
             @Override
             public void visitLdcInsn(Object value) {
                 ConstantDesc constant = toConstantDesc(value);
-                codeConsumer = codeConsumer.andThen(codeBuilder -> codeBuilder.ldc(constant));
+                codeConsumers.add(codeBuilder -> codeBuilder.ldc(constant));
             }
 
             @Override
             public void visitIincInsn(int varIndex, int increment) {
-                codeConsumer = codeConsumer.andThen(codeBuilder -> codeBuilder.iinc(varIndex, increment));
+                codeConsumers.add(codeBuilder -> codeBuilder.iinc(varIndex, increment));
             }
 
             @Override
             public void visitLabel(Label label) {
                 currentLocation = label;
-                codeConsumer = codeConsumer.andThen(codeBuilder -> codeBuilder.labelBinding(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
+                codeConsumers.add(codeBuilder -> codeBuilder.labelBinding(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
             }
 
             @Override
             public void visitTableSwitchInsn(int min, int max, Label dflt, Label... labels) {
-                codeConsumer = codeConsumer.andThen(codeBuilder -> {
+                codeConsumers.add(codeBuilder -> {
                     SwitchCase[] switchCases = new SwitchCase[labels.length];
                     for (int index = 0; index < labels.length; index++) {
                         switchCases[index] = SwitchCase.of(min + index, this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel()));
@@ -744,7 +744,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitLookupSwitchInsn(Label dflt, int[] keys, Label[] labels) {
-                codeConsumer = codeConsumer.andThen(codeBuilder -> {
+                codeConsumers.add(codeBuilder -> {
                     SwitchCase[] switchCases = new SwitchCase[labels.length];
                     for (int index = 0; index < labels.length; index++) {
                         switchCases[index] = SwitchCase.of(keys[index], this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel()));
@@ -764,12 +764,12 @@ public class JdkClassWriter extends ClassVisitor {
                     case Opcodes.INSTANCEOF -> codeBuilder -> codeBuilder.instanceof_(ClassDesc.ofInternalName(type));
                     default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                 };
-                this.codeConsumer = this.codeConsumer.andThen(codeConsumer);
+                codeConsumers.add(codeConsumer);
             }
 
             @Override
             public void visitMultiANewArrayInsn(String descriptor, int numDimensions) {
-                codeConsumer = codeConsumer.andThen(codeBuilder -> codeBuilder.multianewarray(ClassDesc.ofDescriptor(descriptor), numDimensions));
+                codeConsumers.add(codeBuilder -> codeBuilder.multianewarray(ClassDesc.ofDescriptor(descriptor), numDimensions));
             }
 
             @Override
@@ -777,13 +777,13 @@ public class JdkClassWriter extends ClassVisitor {
                 if (currentLocation != start) {
                     throw new IllegalStateException("JDK class writer requires to visit line numbers at current location");
                 }
-                codeConsumer = codeConsumer.andThen(codeBuilder -> codeBuilder.lineNumber(line));
+                codeConsumers.add(codeBuilder -> codeBuilder.lineNumber(line));
                 super.visitLineNumber(line, start);
             }
 
             @Override
             public void visitLocalVariable(String name, String descriptor, String signature, Label start, Label end, int index) {
-                codeConsumer = codeConsumer.andThen(codeBuilder -> {
+                codeConsumers.add(codeBuilder -> {
                     if (descriptor != null) {
                         codeBuilder.localVariable(
                                 index,
@@ -806,7 +806,7 @@ public class JdkClassWriter extends ClassVisitor {
             @Override
             public void visitTryCatchBlock(Label start, Label end, Label handler, String type) {
                 catchCount += 1;
-                codeConsumer = codeConsumer.andThen(codeBuilder -> {
+                codeConsumers.add(codeBuilder -> {
                     if (type == null) {
                         codeBuilder.exceptionCatchAll(labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
                                 labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()),
@@ -823,7 +823,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitEnd() {
-                classConsumer = classConsumer.andThen(classBuilder -> classBuilder.withMethod(name, MethodTypeDesc.ofDescriptor(descriptor), access & ~Opcodes.ACC_DEPRECATED, methodBuilder -> {
+                classConsumers.add(classBuilder -> classBuilder.withMethod(name, MethodTypeDesc.ofDescriptor(descriptor), access & ~Opcodes.ACC_DEPRECATED, methodBuilder -> {
                     if ((access & Opcodes.ACC_DEPRECATED) != 0) {
                         methodBuilder.with(DeprecatedAttribute.of());
                     }
@@ -872,8 +872,8 @@ public class JdkClassWriter extends ClassVisitor {
                         }
                         methodBuilder.with(RuntimeInvisibleParameterAnnotationsAttribute.of(annotations));
                     }
-                    if (codeConsumer != null) {
-                        methodBuilder.withCode(codeConsumer);
+                    if (codeConsumers != null) {
+                        methodBuilder.withCode(codeBuilder -> codeConsumers.forEach(codeConsumer -> codeConsumer.accept(codeBuilder)));
                     }
                 }));
             }
@@ -882,7 +882,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitEnd() {
-        bytes = classFile.build(thisClass, classConsumer);
+        bytes = classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
     }
 
     private ConstantDesc toConstantDesc(Object asm) {
