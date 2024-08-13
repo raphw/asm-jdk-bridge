@@ -219,7 +219,7 @@ public class JdkClassReader {
                             case NewObjectInstruction value -> methodVisitor.visitTypeInsn(value.opcode().bytecode(), value.className().asInternalName());
                             case ConvertInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case NewMultiArrayInstruction value -> methodVisitor.visitMultiANewArrayInsn(value.arrayType().asInternalName(), value.dimensions());
-                            case NewPrimitiveArrayInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
+                            case NewPrimitiveArrayInstruction value -> methodVisitor.visitIntInsn(value.opcode().bytecode(), value.typeKind().newarraycode());
                             case LocalVariableType value -> localVariables.compute(new MergedLocalVariableKey(
                                     labels.computeIfAbsent(value.startScope(), _ -> new org.objectweb.asm.Label()),
                                     labels.computeIfAbsent(value.endScope(), _ -> new org.objectweb.asm.Label()),
@@ -390,6 +390,14 @@ public class JdkClassReader {
 
     private static void appendAnnotationValue(AnnotationVisitor annotationVisitor, String name, AnnotationValue annotationValue) {
         switch (annotationValue) {
+            case AnnotationValue.OfConstant.OfBoolean value -> annotationVisitor.visit(name, value.booleanValue());
+            case AnnotationValue.OfConstant.OfByte value -> annotationVisitor.visit(name, value.byteValue());
+            case AnnotationValue.OfConstant.OfShort value -> annotationVisitor.visit(name, value.shortValue());
+            case AnnotationValue.OfConstant.OfCharacter value -> annotationVisitor.visit(name, value.charValue());
+            case AnnotationValue.OfConstant.OfInteger value -> annotationVisitor.visit(name, value.intValue());
+            case AnnotationValue.OfConstant.OfLong value -> annotationVisitor.visit(name, value.longValue());
+            case AnnotationValue.OfConstant.OfFloat value -> annotationVisitor.visit(name, value.floatValue());
+            case AnnotationValue.OfConstant.OfDouble value -> annotationVisitor.visit(name, value.doubleValue());
             case AnnotationValue.OfConstant value -> annotationVisitor.visit(name, toAsmConstant(value.constantValue()));
             case AnnotationValue.OfClass value -> annotationVisitor.visit(name, Type.getType(value.className().stringValue()));
             case AnnotationValue.OfAnnotation value -> appendAnnotationValues(annotationVisitor.visitAnnotation(name, value.annotation().className().stringValue()), value.annotation().elements());
@@ -537,7 +545,13 @@ public class JdkClassReader {
 
         @Override
         public T next() {
-            return value == null ? it.next() : value;
+            if (value == null) {
+                return it.next();
+            } else {
+                T next = value;
+                value = null;
+                return next;
+            }
         }
     }
 }
