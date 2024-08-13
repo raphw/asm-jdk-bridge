@@ -12,7 +12,6 @@ import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.classfile.ClassFile;
-import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -43,7 +42,10 @@ public class JdkClassReaderTest {
                 {TypeAnnotationsWithoutPath.class, false},
                 {TypeAnnotationsWithPath.class, false},
                 {TypeAnnotationsInCode.class, false},
-                {CustomAttribute.make(), false}
+                {CustomAttribute.make(), false},
+                {String.class, false},
+                {Integer.class, false},
+                {System.class, false}
         });
     }
 
