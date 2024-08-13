@@ -1158,6 +1158,8 @@ public class JdkClassWriter extends ClassVisitor {
 
                 @Override
                 public void writeAttribute(BufWriter buf, JdkByteArrayAttribute attr) {
+                    buf.writeIndex(buf.constantPool().utf8Entry(name));
+                    buf.writeInt(attr.bytes.length);
                     buf.writeBytes(attr.bytes);
                 }
 
