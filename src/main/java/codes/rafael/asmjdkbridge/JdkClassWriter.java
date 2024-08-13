@@ -96,7 +96,9 @@ public class JdkClassWriter extends ClassVisitor {
             if (signature != null) {
                 classBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
             }
-            classBuilder.withSuperclass(ClassDesc.ofInternalName(superName));
+            if (superName != null) {
+                classBuilder.withSuperclass(ClassDesc.ofInternalName(superName));
+            }
             if (interfaces != null) {
                 ClassDesc[] entries = new ClassDesc[interfaces.length];
                 for (int index = 0; index < interfaces.length; index++) {
@@ -581,6 +583,7 @@ public class JdkClassWriter extends ClassVisitor {
                     case Opcodes.I2D -> CodeBuilder::i2d;
                     case Opcodes.L2I -> CodeBuilder::l2i;
                     case Opcodes.L2F -> CodeBuilder::l2f;
+                    case Opcodes.L2D -> CodeBuilder::l2d;
                     case Opcodes.F2I -> CodeBuilder::f2i;
                     case Opcodes.F2L -> CodeBuilder::f2l;
                     case Opcodes.F2D -> CodeBuilder::f2d;
@@ -763,13 +766,14 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitTypeInsn(int opcode, String type) {
+                ClassDesc description = type.startsWith("[")
+                        ? ClassDesc.ofDescriptor(type)
+                        : ClassDesc.ofInternalName(type);
                 Consumer<CodeBuilder> codeConsumer = switch (opcode) {
-                    case Opcodes.NEW -> codeBuilder -> codeBuilder.new_(ClassDesc.ofInternalName(type));
-                    case Opcodes.ANEWARRAY -> codeBuilder -> codeBuilder.anewarray(ClassDesc.ofInternalName(type));
-                    case Opcodes.CHECKCAST -> codeBuilder -> codeBuilder.checkcast(type.startsWith("[")
-                            ? ClassDesc.ofDescriptor(type)
-                            : ClassDesc.ofInternalName(type));
-                    case Opcodes.INSTANCEOF -> codeBuilder -> codeBuilder.instanceof_(ClassDesc.ofInternalName(type));
+                    case Opcodes.NEW -> codeBuilder -> codeBuilder.new_(description);
+                    case Opcodes.ANEWARRAY -> codeBuilder -> codeBuilder.anewarray(description);
+                    case Opcodes.CHECKCAST -> codeBuilder -> codeBuilder.checkcast(description);
+                    case Opcodes.INSTANCEOF -> codeBuilder -> codeBuilder.instanceof_(description);
                     default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                 };
                 codeConsumers.add(codeConsumer);
@@ -782,9 +786,9 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitLineNumber(int line, Label start) {
-                if (currentLocation != start) {
-                    throw new IllegalStateException("JDK class writer requires to visit line numbers at current location");
-                }
+//                if (currentLocation != start) {
+//                    throw new IllegalStateException("JDK class writer requires to visit line numbers at current location");
+//                }
                 codeConsumers.add(codeBuilder -> codeBuilder.lineNumber(line));
                 super.visitLineNumber(line, start);
             }
@@ -1114,6 +1118,8 @@ public class JdkClassWriter extends ClassVisitor {
                     values[index] = AnnotationValue.ofString(array[index]);
                 }
                 annotation = AnnotationValue.ofArray(values);
+            } else if (asm instanceof Type type) {
+                annotation = AnnotationValue.ofClass(ClassDesc.ofDescriptor(type.getDescriptor()));
             } else {
                 throw new IllegalArgumentException("Unknown annotation value: " + asm);
             }
