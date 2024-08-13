@@ -66,7 +66,7 @@ public class JdkClassReaderTest {
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
         new ClassReader(classFile).accept(toVisitor(asm), flags);
-        new JdkClassReader(ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE).parse(classFile)).accept(toVisitor(jdk), flags);
+        new JdkClassReader(classFile).accept(toVisitor(jdk), flags);
         assertEquals(asm.toString(), jdk.toString());
     }
 
