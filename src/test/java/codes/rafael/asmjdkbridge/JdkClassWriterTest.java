@@ -70,7 +70,7 @@ public class JdkClassWriterTest {
             }
         });
         new ClassReader(classFile).accept(writer, new Attribute[]{ new TestAttribute() }, expandFrames ? ClassReader.EXPAND_FRAMES : 0);
-        new ClassReader(writer.toBytes()).accept(toVisitor(jdk), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
+        new ClassReader(writer.toByteArray()).accept(toVisitor(jdk), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
         assertEquals(asm.toString(), jdk.toString());
     }
 

@@ -927,7 +927,7 @@ public class JdkClassWriter extends ClassVisitor {
         }
     }
 
-    public byte[] toBytes() {
+    public byte[] toByteArray() {
         if (bytes == null) {
             throw new IllegalStateException();
         }
