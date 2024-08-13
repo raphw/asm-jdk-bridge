@@ -24,38 +24,38 @@ public class JdkClassReaderTest {
     @Parameterized.Parameters(name = "{0} (expandFrames={1})")
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][]{
-                {Trivial.class, false},
-                {LoadStoreAndReturn.class, false},
-                {FieldConstructorAndMethod.class, false},
-                {Operations.class, false},
-                {DeprecatedClass.class, false},
-                {SyntheticConstructor.Inner.class, false},
-                {ArrayInstructions.class, false},
-                {Invokedynamic.class, false},
-                {BranchesAndStackMapFrames.class, false},
-                {BranchesAndStackMapFrames.class, true},
-                {Switches.class, false},
-                {TryThrowCatch.class, false},
-                {RecordComponents.class, false},
-                {NoRecordComponents.class, false},
-                {Annotations.class, false},
-                {TypeAnnotationsWithoutPath.class, false},
-                {TypeAnnotationsWithPath.class, false},
-                {TypeAnnotationsInCode.class, false},
-                {CustomAttribute.make(), false},
-                {String.class, false},
-                {Integer.class, false},
-                {Math.class, false}
+                {Trivial.class, 0},
+                {LoadStoreAndReturn.class, 0},
+                {FieldConstructorAndMethod.class, 0},
+                {Operations.class, 0},
+                {DeprecatedClass.class, 0},
+                {SyntheticConstructor.Inner.class, 0},
+                {ArrayInstructions.class, 0},
+                {Invokedynamic.class, 0},
+                {BranchesAndStackMapFrames.class, 0},
+                {BranchesAndStackMapFrames.class, ClassReader.EXPAND_FRAMES},
+                {Switches.class, 0},
+                {TryThrowCatch.class, 0},
+                {RecordComponents.class, 0},
+                {NoRecordComponents.class, 0},
+                {Annotations.class, 0},
+                {TypeAnnotationsWithoutPath.class, 0},
+                {TypeAnnotationsWithPath.class, 0},
+                {TypeAnnotationsInCode.class, 0},
+                {CustomAttribute.make(), 0},
+                {String.class, 0},
+                {Integer.class, 0},
+                {Math.class, 0}
         });
     }
 
     private final Class<?> target;
 
-    private final boolean expandFrames;
+    private final int flags;
 
-    public JdkClassReaderTest(Class<?> target, boolean expandFrames) {
+    public JdkClassReaderTest(Class<?> target, int flags) {
         this.target = target;
-        this.expandFrames = expandFrames;
+        this.flags = flags;
     }
 
     @Test
@@ -65,8 +65,8 @@ public class JdkClassReaderTest {
             classFile = inputStream.readAllBytes();
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
-        new ClassReader(classFile).accept(toVisitor(asm), expandFrames ? ClassReader.EXPAND_FRAMES : 0);
-        new JdkClassReader(ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE).parse(classFile)).accept(toVisitor(jdk), expandFrames);
+        new ClassReader(classFile).accept(toVisitor(asm), flags);
+        new JdkClassReader(ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE).parse(classFile)).accept(toVisitor(jdk), flags);
         assertEquals(asm.toString(), jdk.toString());
     }
 
