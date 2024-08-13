@@ -366,6 +366,9 @@ public class JdkClassWriter extends ClassVisitor {
                     if (!invisibleTypeAnnotations.isEmpty()) {
                         fieldBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations));
                     }
+                    if (value != null) {
+                        fieldBuilder.with(ConstantValueAttribute.of(toConstantDesc(value)));
+                    }
                 }));
             }
         };
@@ -661,7 +664,9 @@ public class JdkClassWriter extends ClassVisitor {
                             case Opcodes.INVOKESTATIC -> Opcode.INVOKESTATIC;
                             default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                         },
-                        ClassDesc.ofInternalName(owner),
+                        owner.startsWith("[")
+                            ? ClassDesc.ofDescriptor(owner)
+                            : ClassDesc.ofInternalName(owner),
                         name,
                         MethodTypeDesc.ofDescriptor(descriptor),
                         isInterface));
@@ -760,7 +765,9 @@ public class JdkClassWriter extends ClassVisitor {
                 Consumer<CodeBuilder> codeConsumer = switch (opcode) {
                     case Opcodes.NEW -> codeBuilder -> codeBuilder.new_(ClassDesc.ofInternalName(type));
                     case Opcodes.ANEWARRAY -> codeBuilder -> codeBuilder.anewarray(ClassDesc.ofInternalName(type));
-                    case Opcodes.CHECKCAST -> codeBuilder -> codeBuilder.checkcast(ClassDesc.ofInternalName(type));
+                    case Opcodes.CHECKCAST -> codeBuilder -> codeBuilder.checkcast(type.startsWith("[")
+                            ? ClassDesc.ofDescriptor(type)
+                            : ClassDesc.ofInternalName(type));
                     case Opcodes.INSTANCEOF -> codeBuilder -> codeBuilder.instanceof_(ClassDesc.ofInternalName(type));
                     default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                 };
