@@ -78,8 +78,7 @@ public class JdkClassWriterTest {
     }
 
     private static ClassVisitor toVisitor(StringWriter writer) {
-        return new ClassVisitor(Opcodes.ASM9, new TraceClassVisitor(new PrintWriter(writer))) {
-        };
+        return new TraceClassVisitor(new PrintWriter(writer));
     }
 
     public static class TestAttribute extends Attribute {
