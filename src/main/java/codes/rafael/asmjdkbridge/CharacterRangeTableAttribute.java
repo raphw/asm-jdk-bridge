@@ -43,4 +43,9 @@ public class CharacterRangeTableAttribute extends Attribute {
     public boolean isUnknown() {
         return false;
     }
+
+    @Override
+    protected Label[] getLabels() {
+        return null;
+    }
 }
