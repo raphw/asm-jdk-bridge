@@ -376,9 +376,9 @@ public class JdkClassReader {
 
     private static void acceptAttributes(AttributedElement element, Consumer<Attribute> consumer) {
         element.attributes().stream()
-                .filter(attribute -> attribute instanceof UnknownAttribute)
-                .map(UnknownAttribute.class::cast)
-                .forEach(unknownAttribute -> consumer.accept(new ByteArrayAttribute(unknownAttribute.attributeName(), unknownAttribute.contents())));
+                .filter(attribute -> attribute instanceof java.lang.classfile.attribute.UnknownAttribute)
+                .map(java.lang.classfile.attribute.UnknownAttribute.class::cast)
+                .forEach(unknownAttribute -> consumer.accept(new UnknownAttribute(unknownAttribute.attributeName(), unknownAttribute.contents())));
     }
 
     private static void appendAnnotationValues(AnnotationVisitor annotationVisitor, List<AnnotationElement> elements) {

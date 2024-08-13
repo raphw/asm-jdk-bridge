@@ -1,6 +1,6 @@
 package codes.rafael.asmjdkbridge.sample;
 
-import codes.rafael.asmjdkbridge.ByteArrayAttribute;
+import codes.rafael.asmjdkbridge.UnknownAttribute;
 import org.objectweb.asm.*;
 
 import java.io.ByteArrayInputStream;
@@ -17,12 +17,12 @@ public class CustomAttribute {
                 null,
                 Type.getInternalName(Object.class),
                 null);
-        classWriter.visitAttribute(new ByteArrayAttribute("CustomAttribute", new byte[]{1}));
+        classWriter.visitAttribute(new UnknownAttribute("CustomAttribute", new byte[]{1}));
         FieldVisitor fieldVisitor = classWriter.visitField(Opcodes.ACC_PUBLIC, "f", Type.getDescriptor(Object.class), null, null);
-        fieldVisitor.visitAttribute(new ByteArrayAttribute("CustomAttribute", new byte[]{2}));
+        fieldVisitor.visitAttribute(new UnknownAttribute("CustomAttribute", new byte[]{2}));
         classWriter.visitEnd();
         MethodVisitor methodVisitor = classWriter.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_ABSTRACT, "f", Type.getMethodType(Type.VOID_TYPE).getDescriptor(), null, null);
-        methodVisitor.visitAttribute(new ByteArrayAttribute("CustomAttribute", new byte[]{3}));
+        methodVisitor.visitAttribute(new UnknownAttribute("CustomAttribute", new byte[]{3}));
         methodVisitor.visitEnd();
         byte[] classFile = classWriter.toByteArray();
         try {

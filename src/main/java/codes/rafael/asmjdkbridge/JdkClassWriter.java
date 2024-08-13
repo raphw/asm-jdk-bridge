@@ -24,14 +24,14 @@ public class JdkClassWriter extends ClassVisitor {
     private final List<InnerClassInfo> innerClasses = new ArrayList<>();
     private final List<ClassDesc> permittedSubclasses = new ArrayList<>();
     private final List<RecordComponentInfo> recordComponents = new ArrayList<>();
-    private final List<JdkByteArrayAttribute> attributes = new ArrayList<>();
+    private final List<RawAttribute> attributes = new ArrayList<>();
     private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
     private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
 
     private ClassDesc thisClass;
     private boolean isRecord;
     private Consumer<ClassBuilder> classConsumer = classBuilder -> {
-        for (JdkByteArrayAttribute attribute : attributes) {
+        for (RawAttribute attribute : attributes) {
             classBuilder.with(attribute);
         }
         if (!visibleAnnotations.isEmpty()) {
@@ -233,7 +233,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitAttribute(Attribute attribute) {
-        attributes.add(new JdkByteArrayAttribute(attribute.type, extractor.apply(attribute)));
+        attributes.add(new RawAttribute(attribute.type, extractor.apply(attribute)));
     }
 
     @Override
@@ -267,13 +267,13 @@ public class JdkClassWriter extends ClassVisitor {
     public RecordComponentVisitor visitRecordComponent(String name, String descriptor, String signature) {
         return new RecordComponentVisitor(Opcodes.ASM9) {
 
-            private final List<JdkByteArrayAttribute> attributes = new ArrayList<>();
+            private final List<RawAttribute> attributes = new ArrayList<>();
             private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
             private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
 
             @Override
             public void visitAttribute(Attribute attribute) {
-                attributes.add(new JdkByteArrayAttribute(attribute.type, extractor.apply(attribute)));
+                attributes.add(new RawAttribute(attribute.type, extractor.apply(attribute)));
             }
 
             @Override
@@ -316,13 +316,13 @@ public class JdkClassWriter extends ClassVisitor {
     public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
         return new FieldVisitor(Opcodes.ASM9) {
 
-            private final List<JdkByteArrayAttribute> attributes = new ArrayList<>();
+            private final List<RawAttribute> attributes = new ArrayList<>();
             private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
             private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
 
             @Override
             public void visitAttribute(Attribute attribute) {
-                attributes.add(new JdkByteArrayAttribute(attribute.type, extractor.apply(attribute)));
+                attributes.add(new RawAttribute(attribute.type, extractor.apply(attribute)));
             }
 
             @Override
@@ -351,7 +351,7 @@ public class JdkClassWriter extends ClassVisitor {
                     if (signature != null) {
                         fieldBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
                     }
-                    for (JdkByteArrayAttribute attribute : attributes) {
+                    for (RawAttribute attribute : attributes) {
                         fieldBuilder.with(attribute);
                     }
                     if (!visibleAnnotations.isEmpty()) {
@@ -377,7 +377,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             private Consumer<CodeBuilder> codeConsumer;
 
-            private final List<JdkByteArrayAttribute> attributes = new ArrayList<>();
+            private final List<RawAttribute> attributes = new ArrayList<>();
             private AnnotationValue defaultValue;
             private int catchCount = -1;
             private final List<MethodParameterInfo> methodParameters = new ArrayList<>();
@@ -396,7 +396,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitAttribute(Attribute attribute) {
-                attributes.add(new JdkByteArrayAttribute(attribute.type, extractor.apply(attribute)));
+                attributes.add(new RawAttribute(attribute.type, extractor.apply(attribute)));
             }
 
             @Override
@@ -837,7 +837,7 @@ public class JdkClassWriter extends ClassVisitor {
                         }
                         methodBuilder.with(ExceptionsAttribute.ofSymbols(entries));
                     }
-                    for (JdkByteArrayAttribute attribute : attributes) {
+                    for (RawAttribute attribute : attributes) {
                         methodBuilder.with(attribute);
                     }
                     if (defaultValue != null) {
@@ -1140,11 +1140,11 @@ public class JdkClassWriter extends ClassVisitor {
         }
     }
 
-    private static class JdkByteArrayAttribute extends CustomAttribute<JdkByteArrayAttribute> {
+    private static class RawAttribute extends CustomAttribute<RawAttribute> {
 
         private final byte[] bytes;
 
-        private JdkByteArrayAttribute(String name, byte[] bytes) {
+        private RawAttribute(String name, byte[] bytes) {
             super(new AttributeMapper<>() {
                 @Override
                 public String name() {
@@ -1152,12 +1152,12 @@ public class JdkClassWriter extends ClassVisitor {
                 }
 
                 @Override
-                public JdkByteArrayAttribute readAttribute(AttributedElement enclosing, ClassReader cf, int pos) {
+                public RawAttribute readAttribute(AttributedElement enclosing, ClassReader cf, int pos) {
                     throw new UnsupportedOperationException();
                 }
 
                 @Override
-                public void writeAttribute(BufWriter buf, JdkByteArrayAttribute attr) {
+                public void writeAttribute(BufWriter buf, RawAttribute attr) {
                     buf.writeIndex(buf.constantPool().utf8Entry(name));
                     buf.writeInt(attr.bytes.length);
                     buf.writeBytes(attr.bytes);
