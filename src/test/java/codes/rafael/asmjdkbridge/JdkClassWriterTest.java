@@ -44,7 +44,7 @@ public class JdkClassWriterTest {
                 {CustomAttribute.make(), 0},
                 {String.class, ClassReader.SKIP_FRAMES},
                 {Integer.class, ClassReader.SKIP_FRAMES},
-                {System.class, ClassReader.SKIP_FRAMES}
+                {Math.class, ClassReader.SKIP_FRAMES}
         });
     }
 

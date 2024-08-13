@@ -45,7 +45,7 @@ public class JdkClassReaderTest {
                 {CustomAttribute.make(), false},
                 {String.class, false},
                 {Integer.class, false},
-                {System.class, false}
+                {Math.class, false}
         });
     }
 
