@@ -1,5 +1,7 @@
 package codes.rafael.asmjdkbridge;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.classfile.Label;
 import java.lang.classfile.*;
 import java.lang.classfile.attribute.*;
@@ -8,6 +10,7 @@ import java.lang.classfile.constantpool.Utf8Entry;
 import java.lang.classfile.instruction.*;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.*;
+import org.objectweb.asm.ClassReader;
 
 import java.lang.constant.*;
 import java.lang.reflect.AccessFlag;
@@ -25,6 +28,20 @@ public class JdkClassReader {
             SAME_EXTENDED = 251;
 
     private final ClassModel classModel;
+
+    public JdkClassReader(byte[] classFile) {
+        this(ClassFile.of().parse(classFile));
+    }
+
+    public JdkClassReader(InputStream inputStream) throws IOException {
+        this(inputStream.readAllBytes());
+    }
+
+    public JdkClassReader(String className) throws IOException {
+        try (InputStream inputStream = ClassLoader.getSystemResourceAsStream(className.replace('.', '/') + ".class")) {
+            classModel = ClassFile.of().parse(inputStream.readAllBytes());
+        }
+    }
 
     public JdkClassReader(ClassModel classModel) {
         this.classModel = classModel;
