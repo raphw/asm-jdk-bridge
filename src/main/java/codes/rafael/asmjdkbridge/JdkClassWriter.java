@@ -568,6 +568,7 @@ public class JdkClassWriter extends ClassVisitor {
                     case Opcodes.LSHL -> CodeBuilder::lshl;
                     case Opcodes.ISHR -> CodeBuilder::ishr;
                     case Opcodes.LSHR -> CodeBuilder::lshr;
+                    case Opcodes.IUSHR -> CodeBuilder::iushr;
                     case Opcodes.LUSHR -> CodeBuilder::lushr;
                     case Opcodes.IAND -> CodeBuilder::iand;
                     case Opcodes.LAND -> CodeBuilder::land;
