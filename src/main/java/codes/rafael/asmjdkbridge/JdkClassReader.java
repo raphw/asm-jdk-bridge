@@ -145,6 +145,7 @@ public class JdkClassReader {
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
                 acceptAttributes(methodModel, methodVisitor::visitAttribute);
                 methodModel.code().ifPresent(code -> {
+                    code.findAttribute(Attributes.CHARACTER_RANGE_TABLE).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new CharacterRangeTableAttribute(characterRangeTable.characterRangeTable())));
                     int localVariablesSize = Type.getMethodType(methodModel.methodType().stringValue()).getArgumentTypes().length + (methodModel.flags().has(AccessFlag.STATIC) ? 0 : 1);
                     Map<Label, StackMapFrameInfo> frames = code.findAttribute(Attributes.STACK_MAP_TABLE)
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapFrameInfo::target, Function.identity())))
@@ -298,10 +299,7 @@ public class JdkClassReader {
                                     }
                                 }
                             }
-                            case CharacterRange ignored -> {
-                                // TODO: Is there an easier way to deconstruct to byte array then by knowing spec?
-                                // Note: This would allow for better forward compatibility if unknown attributes should just be dumped to binary.
-                            }
+                            case CharacterRange ignored -> { /* ASM's contract requires to process this attribute before visiting instructions */ }
                             case RuntimeVisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), true, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
                             case RuntimeInvisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), false, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
                             default -> throw new UnsupportedOperationException("Unknown value: " + element);
@@ -419,7 +417,7 @@ public class JdkClassReader {
                 case TypeAnnotation.OffsetTarget value -> offsetTypeAnnotations.merge(labels.computeIfAbsent(value.target(), _ -> new org.objectweb.asm.Label()),
                         Collections.singletonList(Map.entry(typeAnnotation, visible)),
                         (left, right) -> Stream.of(left.stream(), right.stream()).flatMap(Function.identity()).collect(Collectors.toList()));
-                case TypeAnnotation.CatchTarget value -> appendAnnotationValues(methodVisitor.visitTryCatchAnnotation( // TODO: verify annotation index?
+                case TypeAnnotation.CatchTarget value -> appendAnnotationValues(methodVisitor.visitTryCatchAnnotation(
                         TypeReference.newTypeReference(value.targetType().targetTypeValue()).getValue(),
                         toTypePath(typeAnnotation.targetPath()),
                         typeAnnotation.className().stringValue(),
