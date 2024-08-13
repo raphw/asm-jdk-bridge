@@ -23,38 +23,38 @@ public class JdkClassWriterTest {
     @Parameterized.Parameters(name = "{0} (expandFrames={1})")
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][]{
-                {Trivial.class, 0},
-                {LoadStoreAndReturn.class, 0},
-                {FieldConstructorAndMethod.class, 0},
-                {Operations.class, 0},
-                {DeprecatedClass.class, 0},
-                {SyntheticConstructor.Inner.class, 0},
-                {ArrayInstructions.class, 0},
-                {Invokedynamic.class, 0},
-                {BranchesAndStackMapFrames.class, 0},
-                {BranchesAndStackMapFrames.class, ClassReader.EXPAND_FRAMES},
-                {Switches.class, 0},
-                {TryThrowCatch.class, 0},
-                {RecordComponents.class, 0},
-                {NoRecordComponents.class, 0},
-                {Annotations.class, 0},
-                {TypeAnnotationsWithoutPath.class, 0},
-                {TypeAnnotationsWithPath.class, 0},
-                {TypeAnnotationsInCode.class, 0},
-                {CustomAttribute.make(), 0},
-                {String.class, ClassReader.SKIP_FRAMES},
-                {Integer.class, ClassReader.SKIP_FRAMES},
-                {Math.class, 0}
+                {Trivial.class, 0, 0},
+                {LoadStoreAndReturn.class, 0, 0},
+                {FieldConstructorAndMethod.class, 0, 0},
+                {Operations.class, 0, 0},
+                {DeprecatedClass.class, 0, 0},
+                {SyntheticConstructor.Inner.class, 0, 0},
+                {ArrayInstructions.class, 0, 0},
+                {Invokedynamic.class, 0, 0},
+                {BranchesAndStackMapFrames.class, 0, ClassWriter.COMPUTE_FRAMES},
+                {BranchesAndStackMapFrames.class, ClassReader.EXPAND_FRAMES, 0},
+                {Switches.class, 0, ClassWriter.COMPUTE_FRAMES},
+                {TryThrowCatch.class, 0, ClassWriter.COMPUTE_FRAMES},
+                {RecordComponents.class, 0, 0},
+                {NoRecordComponents.class, 0, 0},
+                {Annotations.class, 0, 0},
+                {TypeAnnotationsWithoutPath.class, 0, 0},
+                {TypeAnnotationsWithPath.class, 0, 0},
+                {TypeAnnotationsInCode.class, 0, ClassWriter.COMPUTE_FRAMES},
+                {CustomAttribute.make(), 0, 0},
+                {String.class, ClassReader.SKIP_FRAMES, 0},
+                {Integer.class, ClassReader.SKIP_FRAMES, 0},
+                {Math.class, 0, ClassWriter.COMPUTE_FRAMES}
         });
     }
 
     private final Class<?> target;
+    private final int readerFlags, writerFlags;
 
-    private final int flags;
-
-    public JdkClassWriterTest(Class<?> target, int flags) {
+    public JdkClassWriterTest(Class<?> target, int readerFlags, int writerFlags) {
         this.target = target;
-        this.flags = flags;
+        this.readerFlags = readerFlags;
+        this.writerFlags = writerFlags;
     }
 
     @Test
@@ -64,16 +64,16 @@ public class JdkClassWriterTest {
             classFile = inputStream.readAllBytes();
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
-        new ClassReader(classFile).accept(toVisitor(asm), flags);
-        JdkClassWriter writer = new JdkClassWriter(0, attribute -> {
+        new ClassReader(classFile).accept(toVisitor(asm), readerFlags);
+        JdkClassWriter writer = new JdkClassWriter(writerFlags, attribute -> {
             if (attribute instanceof TestAttribute testAttribute) {
                 return testAttribute.content;
             } else {
                 throw new AssertionError("Unknown attribute: " + attribute.type);
             }
         });
-        new ClassReader(classFile).accept(writer, new Attribute[]{ new TestAttribute() }, flags);
-        new ClassReader(writer.toByteArray()).accept(toVisitor(jdk), flags);
+        new ClassReader(classFile).accept(writer, new Attribute[]{ new TestAttribute() }, readerFlags);
+        new ClassReader(writer.toByteArray()).accept(toVisitor(jdk), readerFlags);
         assertEquals(asm.toString(), jdk.toString());
     }
 
