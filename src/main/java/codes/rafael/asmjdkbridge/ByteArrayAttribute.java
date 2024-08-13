@@ -4,7 +4,7 @@ import org.objectweb.asm.*;
 
 public class ByteArrayAttribute extends Attribute {
 
-    final byte[] bytes;
+    public final byte[] bytes;
 
     public ByteArrayAttribute(String type, byte[] bytes) {
         super(type);
