@@ -404,7 +404,7 @@ public class JdkClassWriter extends ClassVisitor {
             public void visitCode() {
                 codeConsumers = new ArrayList<>();
                 if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
-                    if ((access & Opcodes.ACC_STATIC) != 0) {
+                    if ((access & Opcodes.ACC_STATIC) == 0) {
                         locals.add(name.equals("<init>")
                             ? StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_UNINITIALIZED_THIS
                             : StackMapFrameInfo.ObjectVerificationTypeInfo.of(ClassDesc.ofInternalName(name)));
