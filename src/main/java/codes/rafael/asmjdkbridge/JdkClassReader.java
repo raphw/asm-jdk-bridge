@@ -21,6 +21,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+@SuppressWarnings("ALL")
 public class JdkClassReader {
 
     private static final int
@@ -48,10 +49,10 @@ public class JdkClassReader {
     }
 
     public void accept(ClassVisitor classVisitor) {
-        accept(classVisitor, false);
+        accept(classVisitor, 0);
     }
 
-    public void accept(ClassVisitor classVisitor, boolean expandFrames) {
+    public void accept(ClassVisitor classVisitor, int flags) {
         Map<Label, org.objectweb.asm.Label> labels = new HashMap<>();
         classVisitor.visit(classModel.minorVersion() << 16 | classModel.majorVersion(),
                 classModel.flags().flagsMask()
@@ -61,14 +62,16 @@ public class JdkClassReader {
                 classModel.findAttribute(Attributes.SIGNATURE).map(signature -> signature.signature().stringValue()).orElse(null),
                 classModel.superclass().map(ClassEntry::asInternalName).orElse(null),
                 classModel.interfaces().stream().map(ClassEntry::asInternalName).toArray(String[]::new));
-        String sourceFile = classModel.findAttribute(Attributes.SOURCE_FILE)
-                .map(attribute -> attribute.sourceFile().stringValue())
-                .orElse(null);
-        String debug = classModel.findAttribute(Attributes.SOURCE_DEBUG_EXTENSION)
-                .map(attribute -> new String(attribute.contents(), StandardCharsets.UTF_8))
-                .orElse(null);
-        if (sourceFile != null || debug != null) {
-            classVisitor.visitSource(sourceFile, debug);
+        if ((flags & ClassReader.SKIP_DEBUG) == 0) {
+            String sourceFile = classModel.findAttribute(Attributes.SOURCE_FILE)
+                    .map(attribute -> attribute.sourceFile().stringValue())
+                    .orElse(null);
+            String debug = classModel.findAttribute(Attributes.SOURCE_DEBUG_EXTENSION)
+                    .map(attribute -> new String(attribute.contents(), StandardCharsets.UTF_8))
+                    .orElse(null);
+            if (sourceFile != null || debug != null) {
+                classVisitor.visitSource(sourceFile, debug);
+            }
         }
         classModel.findAttribute(Attributes.MODULE).ifPresent(module -> {
             ModuleVisitor moduleVisitor = classVisitor.visitModule(module.moduleName().name().stringValue(),
@@ -147,9 +150,11 @@ public class JdkClassReader {
                     methodModel.findAttribute(Attributes.SIGNATURE).map(signature -> signature.signature().stringValue()).orElse(null),
                     methodModel.findAttribute(Attributes.EXCEPTIONS).map(exceptions -> exceptions.exceptions().stream().map(ClassEntry::asInternalName).toArray(String[]::new)).orElse(null));
             if (methodVisitor != null) {
-                methodModel.findAttribute(Attributes.METHOD_PARAMETERS).stream()
-                        .flatMap(methodParameters -> methodParameters.parameters().stream())
-                        .forEach(methodParameter -> methodVisitor.visitParameter(methodParameter.name().map(Utf8Entry::stringValue).orElse(null), methodParameter.flagsMask()));
+                if ((flags & ClassReader.SKIP_DEBUG) == 0) {
+                    methodModel.findAttribute(Attributes.METHOD_PARAMETERS).stream()
+                            .flatMap(methodParameters -> methodParameters.parameters().stream())
+                            .forEach(methodParameter -> methodVisitor.visitParameter(methodParameter.name().map(Utf8Entry::stringValue).orElse(null), methodParameter.flagsMask()));
+                }
                 methodModel.findAttribute(Attributes.ANNOTATION_DEFAULT).ifPresent(annotationDefault -> {
                     AnnotationVisitor annotationVisitor = methodVisitor.visitAnnotationDefault();
                     if (annotationVisitor != null) {
@@ -161,12 +166,12 @@ public class JdkClassReader {
                 acceptParameterAnnotations(methodModel, methodVisitor, true);
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
                 acceptAttributes(methodModel, methodVisitor::visitAttribute);
-                methodModel.code().ifPresent(code -> {
+                methodModel.code().filter(_ -> (flags & ClassReader.SKIP_CODE) == 0).ifPresent(code -> {
                     code.findAttribute(Attributes.CHARACTER_RANGE_TABLE).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new CharacterRangeTableAttribute(characterRangeTable.characterRangeTable())));
                     int localVariablesSize = Type.getMethodType(methodModel.methodType().stringValue()).getArgumentTypes().length + (methodModel.flags().has(AccessFlag.STATIC) ? 0 : 1);
-                    Map<Label, StackMapFrameInfo> frames = code.findAttribute(Attributes.STACK_MAP_TABLE)
+                    Map<Label, StackMapFrameInfo> frames = (flags & ClassReader.SKIP_FRAMES) == 0 ? code.findAttribute(Attributes.STACK_MAP_TABLE)
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapFrameInfo::target, Function.identity())))
-                            .orElse(Collections.emptyMap());
+                            .orElse(Collections.emptyMap()) : Map.of();
                     Map<MergedLocalVariableKey, MergedLocalVariableValue> localVariables = new LinkedHashMap<>();
                     Map<org.objectweb.asm.Label, List<Map.Entry<TypeAnnotation, Boolean>>> offsetTypeAnnotations = new HashMap<>();
                     List<Map.Entry<TypeAnnotation, Boolean>> localVariableAnnotations = new ArrayList<>();
@@ -254,11 +259,13 @@ public class JdkClassReader {
                                     value.slot()
                             ), (_, values) -> new MergedLocalVariableValue(value.typeSymbol().descriptorString(), values == null ? null : values.signature));
                             case LineNumber value -> {
-                                if (currentPositionLabel == null) {
-                                    currentPositionLabel = new org.objectweb.asm.Label();
-                                    methodVisitor.visitLabel(currentPositionLabel);
+                                if ((flags & ClassReader.SKIP_DEBUG) == 0) {
+                                    if (currentPositionLabel == null) {
+                                        currentPositionLabel = new org.objectweb.asm.Label();
+                                        methodVisitor.visitLabel(currentPositionLabel);
+                                    }
+                                    methodVisitor.visitLineNumber(value.line(), currentPositionLabel);
                                 }
-                                methodVisitor.visitLineNumber(value.line(), currentPositionLabel);
                             }
                             case LabelTarget value -> {
                                 currentPositionLabel = labels.computeIfAbsent(value.label(), _ -> new org.objectweb.asm.Label());
@@ -273,7 +280,7 @@ public class JdkClassReader {
                                             it.push(next);
                                         }
                                     }
-                                    if (expandFrames) {
+                                    if ((flags & ClassReader.EXPAND_FRAMES) != 0) {
                                         methodVisitor.visitFrame(Opcodes.F_NEW,
                                                 frame.locals().size(),
                                                 frame.locals().isEmpty() ? null : frame.locals().stream()
@@ -330,12 +337,14 @@ public class JdkClassReader {
                             currentPositionLabel = null;
                         }
                     }
-                    localVariables.forEach((key, value) -> methodVisitor.visitLocalVariable(key.name(),
-                            value.descriptor(),
-                            value.signature(),
-                            key.start(),
-                            key.end(),
-                            key.slot()));
+                    if ((flags & ClassReader.SKIP_DEBUG) == 0) {
+                        localVariables.forEach((key, value) -> methodVisitor.visitLocalVariable(key.name(),
+                                value.descriptor(),
+                                value.signature(),
+                                key.start(),
+                                key.end(),
+                                key.slot()));
+                    }
                     localVariableAnnotations.forEach(entry -> {
                         TypeAnnotation.LocalVarTarget target = (TypeAnnotation.LocalVarTarget) entry.getKey().targetInfo();
                         appendAnnotationValues(methodVisitor.visitLocalVariableAnnotation(
