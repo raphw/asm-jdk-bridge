@@ -7,6 +7,7 @@ import org.objectweb.asm.*;
 import java.lang.classfile.*;
 import java.lang.classfile.ClassReader;
 import java.lang.classfile.attribute.*;
+import java.lang.classfile.constantpool.ConstantPoolBuilder;
 import java.lang.classfile.instruction.SwitchCase;
 import java.lang.constant.*;
 import java.nio.charset.StandardCharsets;
@@ -18,7 +19,7 @@ import java.util.function.Function;
 public class JdkClassWriter extends ClassVisitor {
 
     private final int flags;
-    private final ClassFile classFile;
+    private final ConstantPoolBuilder constantPoolBuilder;
     private final Function<Attribute, byte[]> extractor;
 
     private final List<ClassDesc> nestMembers = new ArrayList<>();
@@ -69,24 +70,21 @@ public class JdkClassWriter extends ClassVisitor {
         });
     }
 
-    public JdkClassWriter(int flags, ClassFile classFile) {
-        this(flags, classFile, attribute -> {
+    public JdkClassWriter(int flags, ConstantPoolBuilder constantPoolBuilder) {
+        this(flags, constantPoolBuilder, attribute -> {
             throw new UnsupportedOperationException("Unknown attribute: " + attribute);
         });
     }
 
     public JdkClassWriter(int flags, Function<Attribute, byte[]> extractor) {
-        this(flags, ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE), extractor);
+        this(flags, null, extractor);
     }
 
-    public JdkClassWriter(int flags, ClassFile classFile, Function<Attribute, byte[]> extractor) {
+    public JdkClassWriter(int flags, ConstantPoolBuilder constantPoolBuilder, Function<Attribute, byte[]> extractor) {
         super(Opcodes.ASM9);
         this.flags = flags;
-        this.classFile = classFile;
+        this.constantPoolBuilder = constantPoolBuilder;
         this.extractor = extractor;
-        if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
-            classFile.withOptions(ClassFile.StackMapsOption.DROP_STACK_MAPS);
-        }
     }
 
     @Override
@@ -581,7 +579,9 @@ public class JdkClassWriter extends ClassVisitor {
                 } else if (value instanceof Label label) {
                     return StackMapFrameInfo.UninitializedVerificationTypeInfo.of(labels.apply(label));
                 } else if (value instanceof String name) {
-                    return StackMapFrameInfo.ObjectVerificationTypeInfo.of(ClassDesc.ofInternalName(name));
+                    return StackMapFrameInfo.ObjectVerificationTypeInfo.of(name.startsWith("[")
+                        ? ClassDesc.ofDescriptor(name)
+                        : ClassDesc.ofInternalName(name));
                 } else {
                     throw new IllegalArgumentException("Unsupported type: " + value);
                 }
@@ -878,7 +878,6 @@ public class JdkClassWriter extends ClassVisitor {
 //                    throw new IllegalStateException("JDK class writer requires to visit line numbers at current location");
 //                }
                 codeConsumers.add(codeBuilder -> codeBuilder.lineNumber(line));
-                super.visitLineNumber(line, start);
             }
 
             @Override
@@ -987,7 +986,12 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitEnd() {
-        bytes = classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+        ClassFile classFile = ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE, (flags & ClassWriter.COMPUTE_FRAMES) == 0
+                ? ClassFile.StackMapsOption.DROP_STACK_MAPS
+                : ClassFile.StackMapsOption.GENERATE_STACK_MAPS);
+        bytes = constantPoolBuilder == null
+                ? classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)))
+                : classFile.build(constantPoolBuilder.classEntry(thisClass), constantPoolBuilder, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
     }
 
     private ConstantDesc toConstantDesc(Object asm) {
