@@ -14,6 +14,7 @@ import org.objectweb.asm.ClassReader;
 
 import java.lang.constant.*;
 import java.lang.reflect.AccessFlag;
+import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
@@ -433,6 +434,75 @@ public class JdkClassReader {
             case AnnotationValue.OfAnnotation value -> appendAnnotationValues(annotationVisitor.visitAnnotation(name, value.annotation().className().stringValue()), value.annotation().elements());
             case AnnotationValue.OfEnum value -> annotationVisitor.visitEnum(name, value.className().stringValue(), value.constantName().stringValue());
             case AnnotationValue.OfArray value -> {
+                Set<Character> tags = value.values().stream().map(AnnotationValue::tag).collect(Collectors.toSet());
+                if (tags.size() == 1) {
+                    switch (tags.iterator().next()) {
+                        case 'Z': {
+                            boolean[] array = new boolean[value.values().size()];
+                            for (int index = 0; index < value.values().size(); index++) {
+                                array[index] = ((AnnotationValue.OfConstant.OfBoolean) value.values().get(index)).booleanValue();
+                            }
+                            annotationVisitor.visit(name, array);
+                            return;
+                        }
+                        case 'B': {
+                            byte[] array = new byte[value.values().size()];
+                            for (int index = 0; index < value.values().size(); index++) {
+                                array[index] = ((AnnotationValue.OfConstant.OfByte) value.values().get(index)).byteValue();
+                            }
+                            annotationVisitor.visit(name, array);
+                            return;
+                        }
+                        case 'S': {
+                            short[] array = new short[value.values().size()];
+                            for (int index = 0; index < value.values().size(); index++) {
+                                array[index] = ((AnnotationValue.OfConstant.OfShort) value.values().get(index)).shortValue();
+                            }
+                            annotationVisitor.visit(name, array);
+                            return;
+                        }
+                        case 'C': {
+                            char[] array = new char[value.values().size()];
+                            for (int index = 0; index < value.values().size(); index++) {
+                                array[index] = ((AnnotationValue.OfConstant.OfCharacter) value.values().get(index)).charValue();
+                            }
+                            annotationVisitor.visit(name, array);
+                            return;
+                        }
+                        case 'I': {
+                            int[] array = new int[value.values().size()];
+                            for (int index = 0; index < value.values().size(); index++) {
+                                array[index] = ((AnnotationValue.OfConstant.OfInteger) value.values().get(index)).intValue();
+                            }
+                            annotationVisitor.visit(name, array);
+                            return;
+                        }
+                        case 'L': {
+                            long[] array = new long[value.values().size()];
+                            for (int index = 0; index < value.values().size(); index++) {
+                                array[index] = ((AnnotationValue.OfConstant.OfLong) value.values().get(index)).longValue();
+                            }
+                            annotationVisitor.visit(name, array);
+                            return;
+                        }
+                        case 'F': {
+                            float[] array = new float[value.values().size()];
+                            for (int index = 0; index < value.values().size(); index++) {
+                                array[index] = ((AnnotationValue.OfConstant.OfFloat) value.values().get(index)).floatValue();
+                            }
+                            annotationVisitor.visit(name, array);
+                            return;
+                        }
+                        case 'D': {
+                            double[] array = new double[value.values().size()];
+                            for (int index = 0; index < value.values().size(); index++) {
+                                array[index] = ((AnnotationValue.OfConstant.OfDouble) value.values().get(index)).doubleValue();
+                            }
+                            annotationVisitor.visit(name, array);
+                            return;
+                        }
+                    }
+                }
                 AnnotationVisitor nested = annotationVisitor.visitArray(name);
                 if (nested != null) {
                     value.values().forEach(entry -> appendAnnotationValue(nested, null, entry));
