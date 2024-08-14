@@ -974,9 +974,9 @@ public class JdkClassWriter extends ClassVisitor {
                     if (codeConsumers != null) {
                         methodBuilder.withCode(codeBuilder -> {
                             codeConsumers.forEach(codeConsumer -> codeConsumer.accept(codeBuilder));
-                            if (!stackMapFrames.isEmpty()) {
+                            /*if (!stackMapFrames.isEmpty()) {
                                 codeBuilder.with(StackMapTableAttribute.of(stackMapFrames));
-                            }
+                            }*/
                         });
                     }
                 }));
@@ -986,9 +986,9 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitEnd() {
-        ClassFile classFile = ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE, (flags & ClassWriter.COMPUTE_FRAMES) == 0
-                ? ClassFile.StackMapsOption.DROP_STACK_MAPS
-                : ClassFile.StackMapsOption.GENERATE_STACK_MAPS);
+        ClassFile classFile = (flags & ClassWriter.COMPUTE_FRAMES) == 0 // TODO: fix
+                ? ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE, ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED)
+                : ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE, ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED);
         bytes = constantPoolBuilder == null
                 ? classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)))
                 : classFile.build(constantPoolBuilder.classEntry(thisClass), constantPoolBuilder, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
