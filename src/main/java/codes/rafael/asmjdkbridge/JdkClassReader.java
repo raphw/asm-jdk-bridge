@@ -326,6 +326,8 @@ public class JdkClassReader {
                             case CharacterRange ignored -> { /* ASM's contract requires to process this attribute before visiting instructions */ }
                             case RuntimeVisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), true, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
                             case RuntimeInvisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), false, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
+                            case DiscontinuedInstruction.JsrInstruction value -> methodVisitor.visitJumpInsn(value.opcode().bytecode(), labels.computeIfAbsent(value.target(), _ -> new org.objectweb.asm.Label()));
+                            case DiscontinuedInstruction.RetInstruction value -> methodVisitor.visitVarInsn(value.opcode().bytecode(), value.slot());
                             default -> throw new UnsupportedOperationException("Unknown value: " + element);
                         }
                         if (element instanceof Instruction) {

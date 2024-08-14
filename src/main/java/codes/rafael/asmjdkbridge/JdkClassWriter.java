@@ -8,6 +8,7 @@ import java.lang.classfile.*;
 import java.lang.classfile.ClassReader;
 import java.lang.classfile.attribute.*;
 import java.lang.classfile.constantpool.ConstantPoolBuilder;
+import java.lang.classfile.instruction.DiscontinuedInstruction;
 import java.lang.classfile.instruction.SwitchCase;
 import java.lang.constant.*;
 import java.nio.charset.StandardCharsets;
@@ -727,7 +728,7 @@ public class JdkClassWriter extends ClassVisitor {
                     case Opcodes.FSTORE -> codeBuilder -> codeBuilder.fstore(varIndex);
                     case Opcodes.DSTORE -> codeBuilder -> codeBuilder.dstore(varIndex);
                     case Opcodes.ASTORE -> codeBuilder -> codeBuilder.astore(varIndex);
-                    case Opcodes.RET -> throw new IllegalStateException("Unsupported opcode: " + opcode);
+                    case Opcodes.RET -> codeBuilder -> codeBuilder.with(DiscontinuedInstruction.RetInstruction.of(varIndex));
                     default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                 };
                 codeConsumers.add(codeConsumer);
@@ -803,7 +804,7 @@ public class JdkClassWriter extends ClassVisitor {
                     case Opcodes.GOTO -> codeBuilder -> codeBuilder.goto_(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
                     case Opcodes.IFNULL -> codeBuilder -> codeBuilder.if_null(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
                     case Opcodes.IFNONNULL -> codeBuilder -> codeBuilder.if_nonnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.JSR -> throw new IllegalStateException("Unsupported opcode: " + opcode);
+                    case Opcodes.JSR -> codeBuilder -> codeBuilder.with(DiscontinuedInstruction.JsrInstruction.of(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
                     default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                 };
                 codeConsumers.add(codeConsumer);
