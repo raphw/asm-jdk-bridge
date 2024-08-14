@@ -977,7 +977,7 @@ public class JdkClassWriter extends ClassVisitor {
                         methodBuilder.withCode(codeBuilder -> {
                             codeConsumers.forEach(codeConsumer -> codeConsumer.accept(codeBuilder));
                             if (!stackMapFrames.isEmpty()) {
-                                //codeBuilder.with(StackMapTableAttribute.of(stackMapFrames));
+                                codeBuilder.with(StackMapTableAttribute.of(stackMapFrames));
                             }
                         });
                     }
