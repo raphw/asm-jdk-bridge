@@ -411,7 +411,7 @@ public class JdkClassWriter extends ClassVisitor {
                     if ((access & Opcodes.ACC_STATIC) == 0) {
                         locals.add(name.equals("<init>")
                             ? StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_UNINITIALIZED_THIS
-                            : StackMapFrameInfo.ObjectVerificationTypeInfo.of(ClassDesc.ofInternalName(name)));
+                            : StackMapFrameInfo.ObjectVerificationTypeInfo.of(thisClass));
                     }
                     Type type = Type.getMethodType(descriptor);
                     for (Type argumentType : type.getArgumentTypes()) {
