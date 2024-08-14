@@ -20,7 +20,7 @@ import static org.junit.Assert.assertEquals;
 public class JdkClassWriterTest {
 
     @SuppressWarnings("deprecation")
-    @Parameterized.Parameters(name = "{0} (expandFrames={1})")
+    @Parameterized.Parameters(name = "{0} (reader={1}, writer={2})")
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][]{
                 {Trivial.class, 0, 0},
@@ -32,7 +32,7 @@ public class JdkClassWriterTest {
                 {ArrayInstructions.class, 0, 0},
                 {Invokedynamic.class, 0, 0},
                 {BranchesAndStackMapFrames.class, 0, ClassWriter.COMPUTE_FRAMES},
-                {BranchesAndStackMapFrames.class, ClassReader.EXPAND_FRAMES, 0},
+                {BranchesAndStackMapFrames.class, ClassReader.EXPAND_FRAMES, ClassWriter.COMPUTE_FRAMES},
                 {Switches.class, 0, ClassWriter.COMPUTE_FRAMES},
                 {TryThrowCatch.class, 0, ClassWriter.COMPUTE_FRAMES},
                 {RecordComponents.class, 0, 0},

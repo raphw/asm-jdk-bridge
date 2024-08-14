@@ -20,7 +20,7 @@ import static org.junit.Assert.assertEquals;
 public class JdkClassReaderTest {
 
     @SuppressWarnings("deprecation")
-    @Parameterized.Parameters(name = "{0} (expandFrames={1})")
+    @Parameterized.Parameters(name = "{0} (reader={1})")
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][]{
                 {Trivial.class, 0},

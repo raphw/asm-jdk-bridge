@@ -989,7 +989,7 @@ public class JdkClassWriter extends ClassVisitor {
     @Override
     public void visitEnd() {
         ClassFile classFile = (flags & ClassWriter.COMPUTE_FRAMES) == 0
-                ? ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE, ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED)
+                ? ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE, ClassFile.StackMapsOption.DROP_STACK_MAPS)
                 : ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE, ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED);
         bytes = constantPoolBuilder == null
                 ? classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)))
