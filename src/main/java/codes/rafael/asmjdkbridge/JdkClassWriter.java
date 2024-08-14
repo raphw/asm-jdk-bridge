@@ -774,7 +774,7 @@ public class JdkClassWriter extends ClassVisitor {
                 }
                 codeConsumers.add(codeBuilder -> codeBuilder.invokeDynamicInstruction(DynamicCallSiteDesc.of(
                         MethodHandleDesc.of(
-                                DirectMethodHandleDesc.Kind.valueOf(bootstrapMethodHandle.getTag()),
+                                DirectMethodHandleDesc.Kind.valueOf(bootstrapMethodHandle.getTag(), bootstrapMethodHandle.isInterface()),
                                 ClassDesc.ofInternalName(bootstrapMethodHandle.getOwner()),
                                     bootstrapMethodHandle.getName(),
                                     bootstrapMethodHandle.getDesc()),
@@ -1015,7 +1015,7 @@ public class JdkClassWriter extends ClassVisitor {
             };
         } else if (asm instanceof Handle value) {
             return MethodHandleDesc.of(
-                    DirectMethodHandleDesc.Kind.valueOf(value.getTag()),
+                    DirectMethodHandleDesc.Kind.valueOf(value.getTag(), value.isInterface()),
                     ClassDesc.ofInternalName(value.getOwner()),
                     value.getName(),
                     value.getDesc());
@@ -1026,7 +1026,7 @@ public class JdkClassWriter extends ClassVisitor {
             }
             return DynamicConstantDesc.ofNamed(
                     MethodHandleDesc.of(
-                            DirectMethodHandleDesc.Kind.valueOf(value.getBootstrapMethod().getTag()),
+                            DirectMethodHandleDesc.Kind.valueOf(value.getBootstrapMethod().getTag(), value.getBootstrapMethod().isInterface()),
                             ClassDesc.ofInternalName(value.getBootstrapMethod().getOwner()),
                             value.getBootstrapMethod().getName(),
                             value.getBootstrapMethod().getDesc()),
