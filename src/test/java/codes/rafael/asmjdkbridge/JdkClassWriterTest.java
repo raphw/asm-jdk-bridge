@@ -42,6 +42,8 @@ public class JdkClassWriterTest {
                 {TypeAnnotationsWithPath.class, 0, 0},
                 {TypeAnnotationsInCode.class, 0, ClassWriter.COMPUTE_FRAMES},
                 {CustomAttribute.make(), 0, 0},
+                {SyntheticParameters.class, 0, 0},
+                {SyntheticParameters.InnerClass.class, 0, 0},
                 {String.class, ClassReader.SKIP_FRAMES, 0},
                 {Integer.class, ClassReader.SKIP_FRAMES, 0},
                 {Math.class, 0, ClassWriter.COMPUTE_FRAMES}
