@@ -389,20 +389,24 @@ public class JdkClassWriter extends ClassVisitor {
             private final List<RawAttribute> attributes = new ArrayList<>();
             private AnnotationValue defaultValue;
             private int catchCount = -1;
-            private final List<StackMapFrameInfo> stackMapFrames = new ArrayList<>();
+            private Label currentLocation;
             private final List<StackMapFrameInfo.VerificationTypeInfo> locals = new ArrayList<>();
             private final List<MethodParameterInfo> methodParameters = new ArrayList<>();
             private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
             private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
             private final Map<Integer, List<Annotation>> visibleParameterAnnotations = new HashMap<>(), invisibleParameterAnnotations = new HashMap<>();
             private int visibleParameterAnnotationsCount, invisibleParameterAnnotationsCount;
-            private final Map<Label, java.lang.classfile.Label> labels = new HashMap<>();
 
-            private Label currentLocation;
+            private List<StackMapFrameInfo> stackMapFrames;
+            private Map<Label, java.lang.classfile.Label> labels;
 
             @Override
             public void visitCode() {
                 codeConsumers = new ArrayList<>();
+                codeConsumers.add(_ -> {
+                    stackMapFrames = new ArrayList<>();
+                    labels = new HashMap<>();
+                });
                 if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
                     if ((access & Opcodes.ACC_STATIC) == 0) {
                         locals.add(name.equals("<init>")
@@ -555,9 +559,7 @@ public class JdkClassWriter extends ClassVisitor {
                         default:
                             throw new IllegalArgumentException("Unsupported type: " + type);
                     }
-                    stackMapFrames.add(StackMapFrameInfo.of(codeBuilder.newBoundLabel(),
-                            new ArrayList<>(locals),
-                            stacks));
+                    stackMapFrames.add(StackMapFrameInfo.of(codeBuilder.newBoundLabel(), new ArrayList<>(locals), stacks));
                 });
             }
 
@@ -974,9 +976,9 @@ public class JdkClassWriter extends ClassVisitor {
                     if (codeConsumers != null) {
                         methodBuilder.withCode(codeBuilder -> {
                             codeConsumers.forEach(codeConsumer -> codeConsumer.accept(codeBuilder));
-                            /*if (!stackMapFrames.isEmpty()) {
-                                codeBuilder.with(StackMapTableAttribute.of(stackMapFrames));
-                            }*/
+                            if (!stackMapFrames.isEmpty()) {
+                                //codeBuilder.with(StackMapTableAttribute.of(stackMapFrames));
+                            }
                         });
                     }
                 }));
@@ -986,7 +988,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitEnd() {
-        ClassFile classFile = (flags & ClassWriter.COMPUTE_FRAMES) == 0 // TODO: fix
+        ClassFile classFile = (flags & ClassWriter.COMPUTE_FRAMES) == 0
                 ? ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE, ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED)
                 : ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE, ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED);
         bytes = constantPoolBuilder == null
