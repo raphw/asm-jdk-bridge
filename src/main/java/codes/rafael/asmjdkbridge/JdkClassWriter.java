@@ -92,7 +92,7 @@ public class JdkClassWriter extends ClassVisitor {
         thisClass = ClassDesc.ofInternalName(name);
         isRecord = (access & Opcodes.ACC_RECORD) != 0;
         classConsumers.add(classBuilder -> {
-            classBuilder.withVersion(version & 0xFF, (version >> 8) & 0xFF);
+            classBuilder.withVersion(version & 0xFFFF, version >>> 16);
             classBuilder.withFlags(access & ~(Opcodes.ACC_DEPRECATED | Opcodes.ACC_RECORD));
             if ((access & Opcodes.ACC_DEPRECATED) != 0) {
                 classBuilder.with(DeprecatedAttribute.of());
