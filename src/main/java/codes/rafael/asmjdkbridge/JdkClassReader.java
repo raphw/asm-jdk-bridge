@@ -1,5 +1,9 @@
 package codes.rafael.asmjdkbridge;
 
+import org.objectweb.asm.Attribute;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.*;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.classfile.Label;
@@ -8,13 +12,8 @@ import java.lang.classfile.attribute.*;
 import java.lang.classfile.constantpool.ClassEntry;
 import java.lang.classfile.constantpool.Utf8Entry;
 import java.lang.classfile.instruction.*;
-import org.objectweb.asm.Attribute;
-import org.objectweb.asm.*;
-import org.objectweb.asm.ClassReader;
-
 import java.lang.constant.*;
 import java.lang.reflect.AccessFlag;
-import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
@@ -435,7 +434,7 @@ public class JdkClassReader {
             case AnnotationValue.OfEnum value -> annotationVisitor.visitEnum(name, value.className().stringValue(), value.constantName().stringValue());
             case AnnotationValue.OfArray value -> {
                 Set<Character> tags = value.values().stream().map(AnnotationValue::tag).collect(Collectors.toSet());
-                if (tags.size() == 1) {
+                if (tags.size() == 1) { // Handle arrays of primitive types as direct values.
                     switch (tags.iterator().next()) {
                         case 'Z': {
                             boolean[] array = new boolean[value.values().size()];

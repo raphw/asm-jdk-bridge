@@ -4,8 +4,8 @@ import org.objectweb.asm.Attribute;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.*;
 
-import java.lang.classfile.*;
 import java.lang.classfile.ClassReader;
+import java.lang.classfile.*;
 import java.lang.classfile.attribute.*;
 import java.lang.classfile.constantpool.ConstantPoolBuilder;
 import java.lang.classfile.instruction.DiscontinuedInstruction;
