@@ -920,7 +920,10 @@ public class JdkClassWriter extends ClassVisitor {
                                 ClassDesc.ofInternalName(type));
                     }
                 });
+            }
 
+            @Override
+            public void visitMaxs(int maxStack, int maxLocals) {
             }
 
             @Override
