@@ -17,6 +17,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.lang.constant.ConstantDescs.CD_Object;
+
 public class JdkClassWriter extends ClassVisitor {
 
     private final int flags;
@@ -992,9 +994,24 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitEnd() {
-        ClassFile classFile = (flags & ClassWriter.COMPUTE_FRAMES) == 0
-                ? ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE, ClassFile.StackMapsOption.DROP_STACK_MAPS)
-                : ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE, ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED);
+        ClassFile classFile;
+        if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
+            classFile = ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE, ClassFile.StackMapsOption.DROP_STACK_MAPS);
+        } else {
+            classFile = ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE,
+                    ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED,
+                    ClassFile.ClassHierarchyResolverOption.of(classDesc -> {
+                        if (!classDesc.isClassOrInterface()) {
+                            return null;
+                        } else if (classDesc.equals(ConstantDescs.CD_Object)) {
+                            return ClassHierarchyResolver.ClassHierarchyInfo.ofClass(null);
+                        }
+                        String superClass = getSuperClass(classDesc.displayName().replace('.', '/'));
+                        return superClass == null
+                                ? ClassHierarchyResolver.ClassHierarchyInfo.ofInterface()
+                                : ClassHierarchyResolver.ClassHierarchyInfo.ofClass(ClassDesc.ofInternalName(superClass));
+                    }));
+        };
         bytes = constantPoolBuilder == null
                 ? classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)))
                 : classFile.build(constantPoolBuilder.classEntry(thisClass), constantPoolBuilder, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
@@ -1047,6 +1064,25 @@ public class JdkClassWriter extends ClassVisitor {
             throw new IllegalStateException();
         }
         return bytes;
+    }
+
+    protected String getSuperClass(String name) {
+        ClassLoader classLoader = getClassLoader();
+        Class<?> type;
+        try {
+            type = Class.forName(name.replace('/', '.'), false, classLoader);
+        } catch (ClassNotFoundException e) {
+            throw new TypeNotPresentException(name.replace('/', '.'), e);
+        }
+        if (type.isInterface()) {
+            return null;
+        } else {
+            return Type.getInternalName(type.getSuperclass());
+        }
+    }
+
+    protected ClassLoader getClassLoader() {
+        return getClass().getClassLoader();
     }
 
     private static class WritingAnnotationVisitor extends AnnotationVisitor {
