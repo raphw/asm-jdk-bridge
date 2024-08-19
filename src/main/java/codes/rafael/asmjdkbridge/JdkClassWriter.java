@@ -711,7 +711,7 @@ public class JdkClassWriter extends ClassVisitor {
                 Consumer<CodeBuilder> codeConsumer = switch (opcode) {
                     case Opcodes.BIPUSH -> codeBuilder -> codeBuilder.bipush(operand);
                     case Opcodes.SIPUSH -> codeBuilder -> codeBuilder.sipush(operand);
-                    case Opcodes.NEWARRAY -> codeBuilder -> codeBuilder.newarray(TypeKind.fromNewArrayCode(operand));
+                    case Opcodes.NEWARRAY -> codeBuilder -> codeBuilder.newarray(TypeKind.fromNewarrayCode(operand));
                     default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                 };
                 codeConsumers.add(codeConsumer);
@@ -738,7 +738,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitFieldInsn(int opcode, String owner, String name, String descriptor) {
-                codeConsumers.add(codeBuilder -> codeBuilder.fieldInstruction(
+                codeConsumers.add(codeBuilder -> codeBuilder.fieldAccess(
                         switch (opcode) {
                             case Opcodes.GETFIELD -> Opcode.GETFIELD;
                             case Opcodes.PUTFIELD -> Opcode.PUTFIELD;
@@ -753,7 +753,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
-                codeConsumers.add(codeBuilder -> codeBuilder.invokeInstruction(
+                codeConsumers.add(codeBuilder -> codeBuilder.invoke(
                         switch (opcode) {
                             case Opcodes.INVOKEVIRTUAL -> Opcode.INVOKEVIRTUAL;
                             case Opcodes.INVOKEINTERFACE -> Opcode.INVOKEINTERFACE;
@@ -775,7 +775,7 @@ public class JdkClassWriter extends ClassVisitor {
                 for (int index = 0; index < bootstrapMethodArguments.length; index++) {
                     constants[index] = toConstantDesc(bootstrapMethodArguments[index]);
                 }
-                codeConsumers.add(codeBuilder -> codeBuilder.invokeDynamicInstruction(DynamicCallSiteDesc.of(
+                codeConsumers.add(codeBuilder -> codeBuilder.invokedynamic(DynamicCallSiteDesc.of(
                         MethodHandleDesc.of(
                                 DirectMethodHandleDesc.Kind.valueOf(bootstrapMethodHandle.getTag(), bootstrapMethodHandle.isInterface()),
                                 ClassDesc.ofInternalName(bootstrapMethodHandle.getOwner()),
@@ -804,8 +804,8 @@ public class JdkClassWriter extends ClassVisitor {
                     case Opcodes.IF_ACMPEQ -> codeBuilder -> codeBuilder.if_acmpeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
                     case Opcodes.IF_ACMPNE -> codeBuilder -> codeBuilder.if_acmpne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
                     case Opcodes.GOTO -> codeBuilder -> codeBuilder.goto_(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IFNULL -> codeBuilder -> codeBuilder.if_null(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IFNONNULL -> codeBuilder -> codeBuilder.if_nonnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                    case Opcodes.IFNULL -> codeBuilder -> codeBuilder.ifnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                    case Opcodes.IFNONNULL -> codeBuilder -> codeBuilder.ifnonnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
                     case Opcodes.JSR -> codeBuilder -> codeBuilder.with(DiscontinuedInstruction.JsrInstruction.of(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
                     default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                 };
@@ -836,7 +836,7 @@ public class JdkClassWriter extends ClassVisitor {
                     for (int index = 0; index < labels.length; index++) {
                         switchCases[index] = SwitchCase.of(min + index, this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel()));
                     }
-                    codeBuilder.tableSwitchInstruction(
+                    codeBuilder.tableswitch(
                             min,
                             max,
                             this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()),
@@ -851,7 +851,7 @@ public class JdkClassWriter extends ClassVisitor {
                     for (int index = 0; index < labels.length; index++) {
                         switchCases[index] = SwitchCase.of(keys[index], this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel()));
                     }
-                    codeBuilder.lookupSwitchInstruction(
+                    codeBuilder.lookupswitch(
                             this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()),
                             List.of(switchCases));
                 });
@@ -866,7 +866,7 @@ public class JdkClassWriter extends ClassVisitor {
                     case Opcodes.NEW -> codeBuilder -> codeBuilder.new_(description);
                     case Opcodes.ANEWARRAY -> codeBuilder -> codeBuilder.anewarray(description);
                     case Opcodes.CHECKCAST -> codeBuilder -> codeBuilder.checkcast(description);
-                    case Opcodes.INSTANCEOF -> codeBuilder -> codeBuilder.instanceof_(description);
+                    case Opcodes.INSTANCEOF -> codeBuilder -> codeBuilder.instanceOf(description);
                     default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
                 };
                 codeConsumers.add(codeConsumer);

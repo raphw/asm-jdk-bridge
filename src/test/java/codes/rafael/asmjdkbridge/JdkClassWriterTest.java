@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -66,7 +67,7 @@ public class JdkClassWriterTest {
             classFile = inputStream.readAllBytes();
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
-        new ClassReader(classFile).accept(toVisitor(asm), readerFlags);
+        toClassReader(classFile).accept(toVisitor(asm), readerFlags);
         JdkClassWriter writer = new JdkClassWriter(writerFlags, attribute -> {
             if (attribute instanceof TestAttribute testAttribute) {
                 return testAttribute.content;
@@ -74,13 +75,23 @@ public class JdkClassWriterTest {
                 throw new AssertionError("Unknown attribute: " + attribute.type);
             }
         });
-        new ClassReader(classFile).accept(writer, new Attribute[]{ new TestAttribute() }, readerFlags);
-        new ClassReader(writer.toByteArray()).accept(toVisitor(jdk), readerFlags);
+        toClassReader(classFile).accept(writer, new Attribute[]{ new TestAttribute() }, readerFlags);
+        toClassReader(writer.toByteArray()).accept(toVisitor(jdk), readerFlags);
         assertEquals(asm.toString(), jdk.toString());
     }
 
     private static ClassVisitor toVisitor(StringWriter writer) {
         return new TraceClassVisitor(new PrintWriter(writer));
+    }
+
+    private static ClassReader toClassReader(byte[] bytes) {
+        try {
+            Constructor<ClassReader> constructor = ClassReader.class.getDeclaredConstructor(byte[].class, int.class, boolean.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(bytes, 0, false);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 
     public static class TestAttribute extends Attribute {

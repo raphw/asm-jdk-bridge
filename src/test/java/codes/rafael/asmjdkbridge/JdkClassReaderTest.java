@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -66,12 +67,22 @@ public class JdkClassReaderTest {
             classFile = inputStream.readAllBytes();
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
-        new ClassReader(classFile).accept(toVisitor(asm), flags);
+        toClassReader(classFile).accept(toVisitor(asm), flags);
         new JdkClassReader(classFile).accept(toVisitor(jdk), flags);
         assertEquals(asm.toString(), jdk.toString());
     }
 
     private static ClassVisitor toVisitor(StringWriter writer) {
         return new TraceClassVisitor(new PrintWriter(writer));
+    }
+
+    private static ClassReader toClassReader(byte[] bytes) {
+        try {
+            Constructor<ClassReader> constructor = ClassReader.class.getDeclaredConstructor(byte[].class, int.class, boolean.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(bytes, 0, false);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 }

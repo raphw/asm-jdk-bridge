@@ -88,7 +88,7 @@
                 <version>3.8.0</version>
                 <inherited>true</inherited>
                 <configuration>
-                    <release>22</release>
+                    <release>24</release>
                     <encoding>utf-8</encoding>
                     <compilerArgs>
                         <arg>--enable-preview</arg>

@@ -56,32 +56,32 @@ public class JdkClassReader {
         Map<Label, org.objectweb.asm.Label> labels = new HashMap<>();
         classVisitor.visit(classModel.minorVersion() << 16 | classModel.majorVersion(),
                 classModel.flags().flagsMask()
-                        | (classModel.findAttribute(Attributes.DEPRECATED).isPresent() ? Opcodes.ACC_DEPRECATED : 0)
-                        | (classModel.findAttribute(Attributes.RECORD).isPresent() ? Opcodes.ACC_RECORD : 0),
+                        | (classModel.findAttribute(Attributes.deprecated()).isPresent() ? Opcodes.ACC_DEPRECATED : 0)
+                        | (classModel.findAttribute(Attributes.record()).isPresent() ? Opcodes.ACC_RECORD : 0),
                 classModel.thisClass().asInternalName(),
-                classModel.findAttribute(Attributes.SIGNATURE).map(signature -> signature.signature().stringValue()).orElse(null),
+                classModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
                 classModel.superclass().map(ClassEntry::asInternalName).orElse(null),
                 classModel.interfaces().stream().map(ClassEntry::asInternalName).toArray(String[]::new));
         if ((flags & ClassReader.SKIP_DEBUG) == 0) {
-            String sourceFile = classModel.findAttribute(Attributes.SOURCE_FILE)
+            String sourceFile = classModel.findAttribute(Attributes.sourceFile())
                     .map(attribute -> attribute.sourceFile().stringValue())
                     .orElse(null);
-            String debug = classModel.findAttribute(Attributes.SOURCE_DEBUG_EXTENSION)
+            String debug = classModel.findAttribute(Attributes.sourceDebugExtension())
                     .map(attribute -> new String(attribute.contents(), StandardCharsets.UTF_8))
                     .orElse(null);
             if (sourceFile != null || debug != null) {
                 classVisitor.visitSource(sourceFile, debug);
             }
         }
-        classModel.findAttribute(Attributes.MODULE).ifPresent(module -> {
+        classModel.findAttribute(Attributes.module()).ifPresent(module -> {
             ModuleVisitor moduleVisitor = classVisitor.visitModule(module.moduleName().name().stringValue(),
                     module.moduleFlagsMask(),
                     module.moduleVersion().map(Utf8Entry::stringValue).orElse(null));
             if (moduleVisitor != null) {
-                classModel.findAttribute(Attributes.MODULE_MAIN_CLASS)
+                classModel.findAttribute(Attributes.moduleMainClass())
                         .map(moduleMainClass -> moduleMainClass.mainClass().asInternalName())
                         .ifPresent(moduleVisitor::visitMainClass);
-                classModel.findAttribute(Attributes.MODULE_PACKAGES).stream()
+                classModel.findAttribute(Attributes.modulePackages()).stream()
                         .flatMap(modulePackagesAttribute -> modulePackagesAttribute.packages().stream())
                         .map(packageName -> packageName.name().stringValue())
                         .forEach(moduleVisitor::visitPackage);
@@ -101,30 +101,30 @@ public class JdkClassReader {
                 moduleVisitor.visitEnd();
             }
         });
-        classModel.findAttribute(Attributes.NEST_HOST).ifPresent(nestHost -> classVisitor.visitNestHost(nestHost.nestHost().asInternalName()));
-        classModel.findAttribute(Attributes.ENCLOSING_METHOD).ifPresent(enclosingMethod -> classVisitor.visitOuterClass(enclosingMethod.enclosingClass().asInternalName(),
+        classModel.findAttribute(Attributes.nestHost()).ifPresent(nestHost -> classVisitor.visitNestHost(nestHost.nestHost().asInternalName()));
+        classModel.findAttribute(Attributes.enclosingMethod()).ifPresent(enclosingMethod -> classVisitor.visitOuterClass(enclosingMethod.enclosingClass().asInternalName(),
                 enclosingMethod.enclosingMethod().map(value -> value.name().stringValue()).orElse(null),
                 enclosingMethod.enclosingMethod().map(value -> value.type().stringValue()).orElse(null)));
         acceptAnnotations(classModel, classVisitor::visitAnnotation, classVisitor::visitTypeAnnotation);
         acceptAttributes(classModel, classVisitor::visitAttribute);
-        classModel.findAttribute(Attributes.NEST_MEMBERS).stream()
+        classModel.findAttribute(Attributes.nestMembers()).stream()
                 .flatMap(nestMembers -> nestMembers.nestMembers().stream())
                 .forEach(nestMember -> classVisitor.visitNestMember(nestMember.asInternalName()));
-        classModel.findAttribute(Attributes.PERMITTED_SUBCLASSES).stream()
+        classModel.findAttribute(Attributes.permittedSubclasses()).stream()
                 .flatMap(permittedSubclasses -> permittedSubclasses.permittedSubclasses().stream())
                 .forEach(nestMember -> classVisitor.visitPermittedSubclass(nestMember.asInternalName()));
-        classModel.findAttribute(Attributes.INNER_CLASSES).stream()
+        classModel.findAttribute(Attributes.innerClasses()).stream()
                 .flatMap(innerClasses -> innerClasses.classes().stream())
                 .forEach(innerClass -> classVisitor.visitInnerClass(innerClass.innerClass().asInternalName(),
                         innerClass.outerClass().map(ClassEntry::asInternalName).orElse(null),
                         innerClass.innerName().map(Utf8Entry::stringValue).orElse(null),
                         innerClass.flagsMask()));
-        classModel.findAttribute(Attributes.RECORD).stream()
+        classModel.findAttribute(Attributes.record()).stream()
                 .flatMap(record -> record.components().stream())
                 .forEach(recordComponent -> {
                     RecordComponentVisitor recordComponentVisitor = classVisitor.visitRecordComponent(recordComponent.name().stringValue(),
                             recordComponent.descriptor().stringValue(),
-                            recordComponent.findAttribute(Attributes.SIGNATURE).map(signature -> signature.signature().stringValue()).orElse(null));
+                            recordComponent.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null));
                     if (recordComponentVisitor != null) {
                         acceptAnnotations(recordComponent, recordComponentVisitor::visitAnnotation, recordComponentVisitor::visitTypeAnnotation);
                         acceptAttributes(recordComponent, recordComponentVisitor::visitAttribute);
@@ -132,11 +132,11 @@ public class JdkClassReader {
                     }
                 });
         for (FieldModel fieldModel : classModel.fields()) {
-            FieldVisitor fieldVisitor = classVisitor.visitField(fieldModel.flags().flagsMask() | (fieldModel.findAttribute(Attributes.DEPRECATED).isPresent() ? Opcodes.ACC_DEPRECATED : 0),
+            FieldVisitor fieldVisitor = classVisitor.visitField(fieldModel.flags().flagsMask() | (fieldModel.findAttribute(Attributes.deprecated()).isPresent() ? Opcodes.ACC_DEPRECATED : 0),
                     fieldModel.fieldName().stringValue(),
                     fieldModel.fieldType().stringValue(),
-                    fieldModel.findAttribute(Attributes.SIGNATURE).map(signature -> signature.signature().stringValue()).orElse(null),
-                    fieldModel.findAttribute(Attributes.CONSTANT_VALUE).map(constantValue -> toAsmConstant(constantValue.constant().constantValue())).orElse(null));
+                    fieldModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
+                    fieldModel.findAttribute(Attributes.constantValue()).map(constantValue -> toAsmConstant(constantValue.constant().constantValue())).orElse(null));
             if (fieldVisitor != null) {
                 acceptAnnotations(fieldModel, fieldVisitor::visitAnnotation, fieldVisitor::visitTypeAnnotation);
                 acceptAttributes(fieldModel, fieldVisitor::visitAttribute);
@@ -144,18 +144,18 @@ public class JdkClassReader {
             }
         }
         for (MethodModel methodModel : classModel.methods()) {
-            MethodVisitor methodVisitor = classVisitor.visitMethod(methodModel.flags().flagsMask() | (methodModel.findAttribute(Attributes.DEPRECATED).isPresent() ? Opcodes.ACC_DEPRECATED : 0),
+            MethodVisitor methodVisitor = classVisitor.visitMethod(methodModel.flags().flagsMask() | (methodModel.findAttribute(Attributes.deprecated()).isPresent() ? Opcodes.ACC_DEPRECATED : 0),
                     methodModel.methodName().stringValue(),
                     methodModel.methodType().stringValue(),
-                    methodModel.findAttribute(Attributes.SIGNATURE).map(signature -> signature.signature().stringValue()).orElse(null),
-                    methodModel.findAttribute(Attributes.EXCEPTIONS).map(exceptions -> exceptions.exceptions().stream().map(ClassEntry::asInternalName).toArray(String[]::new)).orElse(null));
+                    methodModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
+                    methodModel.findAttribute(Attributes.exceptions()).map(exceptions -> exceptions.exceptions().stream().map(ClassEntry::asInternalName).toArray(String[]::new)).orElse(null));
             if (methodVisitor != null) {
                 if ((flags & ClassReader.SKIP_DEBUG) == 0) {
-                    methodModel.findAttribute(Attributes.METHOD_PARAMETERS).stream()
+                    methodModel.findAttribute(Attributes.methodParameters()).stream()
                             .flatMap(methodParameters -> methodParameters.parameters().stream())
                             .forEach(methodParameter -> methodVisitor.visitParameter(methodParameter.name().map(Utf8Entry::stringValue).orElse(null), methodParameter.flagsMask()));
                 }
-                methodModel.findAttribute(Attributes.ANNOTATION_DEFAULT).ifPresent(annotationDefault -> {
+                methodModel.findAttribute(Attributes.annotationDefault()).ifPresent(annotationDefault -> {
                     AnnotationVisitor annotationVisitor = methodVisitor.visitAnnotationDefault();
                     if (annotationVisitor != null) {
                         appendAnnotationValue(annotationVisitor, null, annotationDefault.defaultValue());
@@ -166,10 +166,10 @@ public class JdkClassReader {
                 acceptParameterAnnotations(methodModel, methodVisitor, true);
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
                 acceptAttributes(methodModel, methodVisitor::visitAttribute);
-                methodModel.code().filter(_ -> (flags & ClassReader.SKIP_CODE) == 0).ifPresent(code -> {
-                    code.findAttribute(Attributes.CHARACTER_RANGE_TABLE).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new CharacterRangeTableAttribute(characterRangeTable.characterRangeTable())));
+                methodModel.code().filter(_ -> (flags & ClassReader.SKIP_CODE) == 0).map(code -> (CodeAttribute) code).ifPresent(code -> {
+                    code.findAttribute(Attributes.characterRangeTable()).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new CharacterRangeTableAttribute(characterRangeTable.characterRangeTable())));
                     int localVariablesSize = Type.getMethodType(methodModel.methodType().stringValue()).getArgumentTypes().length + (methodModel.flags().has(AccessFlag.STATIC) ? 0 : 1);
-                    Map<Label, StackMapFrameInfo> frames = (flags & ClassReader.SKIP_FRAMES) == 0 ? code.findAttribute(Attributes.STACK_MAP_TABLE)
+                    Map<Label, StackMapFrameInfo> frames = (flags & ClassReader.SKIP_FRAMES) == 0 ? code.findAttribute(Attributes.stackMapTable())
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapFrameInfo::target, Function.identity())))
                             .orElse(Collections.emptyMap()) : Map.of();
                     Map<MergedLocalVariableKey, MergedLocalVariableValue> localVariables = new LinkedHashMap<>();
@@ -241,7 +241,7 @@ public class JdkClassReader {
                             case NewObjectInstruction value -> methodVisitor.visitTypeInsn(value.opcode().bytecode(), value.className().asInternalName());
                             case ConvertInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case NewMultiArrayInstruction value -> methodVisitor.visitMultiANewArrayInsn(value.arrayType().asInternalName(), value.dimensions());
-                            case NewPrimitiveArrayInstruction value -> methodVisitor.visitIntInsn(value.opcode().bytecode(), value.typeKind().newarraycode());
+                            case NewPrimitiveArrayInstruction value -> methodVisitor.visitIntInsn(value.opcode().bytecode(), value.typeKind().newarrayCode());
                             case LocalVariableType value -> localVariables.compute(new MergedLocalVariableKey(
                                     labels.computeIfAbsent(value.startScope(), _ -> new org.objectweb.asm.Label()),
                                     labels.computeIfAbsent(value.endScope(), _ -> new org.objectweb.asm.Label()),
@@ -367,19 +367,19 @@ public class JdkClassReader {
     }
 
     private static void acceptAnnotations(AttributedElement element, AnnotationVisitorSource annotationVisitorSource, TypeAnnotationVisitorSource typeAnnotationVisitorSource) {
-        element.findAttribute(Attributes.RUNTIME_VISIBLE_ANNOTATIONS).stream()
+        element.findAttribute(Attributes.runtimeVisibleAnnotations()).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
                 .forEach(annotation -> appendAnnotationValues(annotationVisitorSource.visitAnnotation(annotation.className().stringValue(), true), annotation.elements()));
-        element.findAttribute(Attributes.RUNTIME_INVISIBLE_ANNOTATIONS).stream()
+        element.findAttribute(Attributes.runtimeInvisibleAnnotations()).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
                 .forEach(annotation -> appendAnnotationValues(annotationVisitorSource.visitAnnotation(annotation.className().stringValue(), false), annotation.elements()));
-        element.findAttribute(Attributes.RUNTIME_VISIBLE_TYPE_ANNOTATIONS).stream()
+        element.findAttribute(Attributes.runtimeVisibleTypeAnnotations()).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
                 .forEach(annotation -> appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(toTypeReference(annotation.targetInfo()).getValue(),
                         toTypePath(annotation.targetPath()),
                         annotation.className().stringValue(),
                         true), annotation.elements()));
-        element.findAttribute(Attributes.RUNTIME_INVISIBLE_TYPE_ANNOTATIONS).stream()
+        element.findAttribute(Attributes.runtimeInvisibleTypeAnnotations()).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
                 .forEach(annotation -> appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(toTypeReference(annotation.targetInfo()).getValue(),
                         toTypePath(annotation.targetPath()),
@@ -388,12 +388,12 @@ public class JdkClassReader {
     }
 
     private static void acceptParameterAnnotations(MethodModel methodModel, MethodVisitor methodVisitor, boolean visible) {
-        int count = methodModel.findAttribute(Attributes.METHOD_PARAMETERS)
+        int count = methodModel.findAttribute(Attributes.methodParameters())
                 .map(parameters -> (int) parameters.parameters().stream().filter(parameter -> !parameter.has(AccessFlag.SYNTHETIC) && !parameter.has(AccessFlag.MANDATED)).count())
                 .orElseGet(() -> methodModel.methodTypeSymbol().parameterCount());
         Optional<List<List<Annotation>>> target = visible
-                ? methodModel.findAttribute(Attributes.RUNTIME_VISIBLE_PARAMETER_ANNOTATIONS).map(RuntimeVisibleParameterAnnotationsAttribute::parameterAnnotations)
-                : methodModel.findAttribute(Attributes.RUNTIME_INVISIBLE_PARAMETER_ANNOTATIONS).map(RuntimeInvisibleParameterAnnotationsAttribute::parameterAnnotations);
+                ? methodModel.findAttribute(Attributes.runtimeVisibleParameterAnnotations()).map(RuntimeVisibleParameterAnnotationsAttribute::parameterAnnotations)
+                : methodModel.findAttribute(Attributes.runtimeInvisibleParameterAnnotations()).map(RuntimeInvisibleParameterAnnotationsAttribute::parameterAnnotations);
         target.ifPresent(annotations -> {
             methodVisitor.visitAnnotableParameterCount(count, visible);
             for (int index = 0; index < annotations.size(); index++) {
