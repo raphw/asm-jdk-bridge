@@ -44,6 +44,10 @@ public class JdkClassReader {
         }
     }
 
+    public ClassModel getClassModel() {
+        return classModel;
+    }
+
     public JdkClassReader(ClassModel classModel) {
         this.classModel = classModel;
     }
