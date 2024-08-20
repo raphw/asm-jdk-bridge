@@ -17,12 +17,10 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static java.lang.constant.ConstantDescs.CD_Object;
-
 public class JdkClassWriter extends ClassVisitor {
 
     private final int flags;
-    private final ConstantPoolBuilder constantPoolBuilder;
+    private final ClassModel classModel;
     private final Function<Attribute, byte[]> extractor;
 
     private final List<ClassDesc> nestMembers = new ArrayList<>();
@@ -73,8 +71,8 @@ public class JdkClassWriter extends ClassVisitor {
         });
     }
 
-    public JdkClassWriter(int flags, ConstantPoolBuilder constantPoolBuilder) {
-        this(flags, constantPoolBuilder, attribute -> {
+    public JdkClassWriter(int flags, ClassModel classModel) {
+        this(flags, classModel, attribute -> {
             throw new UnsupportedOperationException("Unknown attribute: " + attribute);
         });
     }
@@ -83,10 +81,10 @@ public class JdkClassWriter extends ClassVisitor {
         this(flags, null, extractor);
     }
 
-    public JdkClassWriter(int flags, ConstantPoolBuilder constantPoolBuilder, Function<Attribute, byte[]> extractor) {
+    public JdkClassWriter(int flags, ClassModel classModel, Function<Attribute, byte[]> extractor) {
         super(Opcodes.ASM9);
         this.flags = flags;
-        this.constantPoolBuilder = constantPoolBuilder;
+        this.classModel = classModel;
         this.extractor = extractor;
     }
 
@@ -1012,9 +1010,14 @@ public class JdkClassWriter extends ClassVisitor {
                                 : ClassHierarchyResolver.ClassHierarchyInfo.ofClass(ClassDesc.ofInternalName(superClass));
                     }));
         };
-        bytes = constantPoolBuilder == null
-                ? classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)))
-                : classFile.build(constantPoolBuilder.classEntry(thisClass), constantPoolBuilder, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+        if (classModel == null) {
+            bytes = classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+        } else {
+            ConstantPoolBuilder constantPoolBuilder = ConstantPoolBuilder.of(classModel);
+            bytes = classFile.build(constantPoolBuilder.classEntry(thisClass),
+                    constantPoolBuilder,
+                    classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+        }
     }
 
     private ConstantDesc toConstantDesc(Object asm) {
