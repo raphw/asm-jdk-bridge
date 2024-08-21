@@ -338,8 +338,8 @@ public class JdkClassReader {
                             offsetTypeAnnotations.getOrDefault(currentPositionLabel, Collections.emptyList()).forEach(entry -> appendAnnotationValues(methodVisitor.visitInsnAnnotation(
                                     TypeReference.newTypeReference(entry.getKey().targetInfo().targetType().targetTypeValue()).getValue(),
                                     toTypePath(entry.getKey().targetPath()),
-                                    entry.getKey().className().stringValue(),
-                                    entry.getValue()), entry.getKey().elements()));
+                                    entry.getKey().annotation().className().stringValue(),
+                                    entry.getValue()), entry.getKey().annotation().elements()));
                             currentPositionLabel = null;
                         }
                     }
@@ -359,8 +359,8 @@ public class JdkClassReader {
                                 target.table().stream().map(localVarTargetInfo -> labels.get(localVarTargetInfo.startLabel())).toArray(org.objectweb.asm.Label[]::new),
                                 target.table().stream().map(localVarTargetInfo -> labels.get(localVarTargetInfo.endLabel())).toArray(org.objectweb.asm.Label[]::new),
                                 target.table().stream().mapToInt(TypeAnnotation.LocalVarTargetInfo::index).toArray(),
-                                entry.getKey().className().stringValue(),
-                                entry.getValue()), entry.getKey().elements());
+                                entry.getKey().annotation().className().stringValue(),
+                                entry.getValue()), entry.getKey().annotation().elements());
                     });
                     methodVisitor.visitMaxs(code.maxStack(), code.maxLocals());
                 });
@@ -381,14 +381,14 @@ public class JdkClassReader {
                 .flatMap(annotations -> annotations.annotations().stream())
                 .forEach(annotation -> appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(toTypeReference(annotation.targetInfo()).getValue(),
                         toTypePath(annotation.targetPath()),
-                        annotation.className().stringValue(),
-                        true), annotation.elements()));
+                        annotation.annotation().className().stringValue(),
+                        true), annotation.annotation().elements()));
         element.findAttribute(Attributes.runtimeInvisibleTypeAnnotations()).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
                 .forEach(annotation -> appendAnnotationValues(typeAnnotationVisitorSource.visitTypeAnnotation(toTypeReference(annotation.targetInfo()).getValue(),
                         toTypePath(annotation.targetPath()),
-                        annotation.className().stringValue(),
-                        false), annotation.elements()));
+                        annotation.annotation().className().stringValue(),
+                        false), annotation.annotation().elements()));
     }
 
     private static void acceptParameterAnnotations(MethodModel methodModel, MethodVisitor methodVisitor, boolean visible) {
@@ -427,12 +427,12 @@ public class JdkClassReader {
             case AnnotationValue.OfConstant.OfBoolean value -> annotationVisitor.visit(name, value.booleanValue());
             case AnnotationValue.OfConstant.OfByte value -> annotationVisitor.visit(name, value.byteValue());
             case AnnotationValue.OfConstant.OfShort value -> annotationVisitor.visit(name, value.shortValue());
-            case AnnotationValue.OfConstant.OfCharacter value -> annotationVisitor.visit(name, value.charValue());
-            case AnnotationValue.OfConstant.OfInteger value -> annotationVisitor.visit(name, value.intValue());
+            case AnnotationValue.OfConstant.OfChar value -> annotationVisitor.visit(name, value.charValue());
+            case AnnotationValue.OfConstant.OfInt value -> annotationVisitor.visit(name, value.intValue());
             case AnnotationValue.OfConstant.OfLong value -> annotationVisitor.visit(name, value.longValue());
             case AnnotationValue.OfConstant.OfFloat value -> annotationVisitor.visit(name, value.floatValue());
             case AnnotationValue.OfConstant.OfDouble value -> annotationVisitor.visit(name, value.doubleValue());
-            case AnnotationValue.OfConstant value -> annotationVisitor.visit(name, toAsmConstant(value.constantValue()));
+            case AnnotationValue.OfConstant.OfString value -> annotationVisitor.visit(name, toAsmConstant(value.stringValue()));
             case AnnotationValue.OfClass value -> annotationVisitor.visit(name, Type.getType(value.className().stringValue()));
             case AnnotationValue.OfAnnotation value -> appendAnnotationValues(annotationVisitor.visitAnnotation(name, value.annotation().className().stringValue()), value.annotation().elements());
             case AnnotationValue.OfEnum value -> annotationVisitor.visitEnum(name, value.className().stringValue(), value.constantName().stringValue());
@@ -467,7 +467,7 @@ public class JdkClassReader {
                         case 'C': {
                             char[] array = new char[value.values().size()];
                             for (int index = 0; index < value.values().size(); index++) {
-                                array[index] = ((AnnotationValue.OfConstant.OfCharacter) value.values().get(index)).charValue();
+                                array[index] = ((AnnotationValue.OfConstant.OfChar) value.values().get(index)).charValue();
                             }
                             annotationVisitor.visit(name, array);
                             return;
@@ -475,7 +475,7 @@ public class JdkClassReader {
                         case 'I': {
                             int[] array = new int[value.values().size()];
                             for (int index = 0; index < value.values().size(); index++) {
-                                array[index] = ((AnnotationValue.OfConstant.OfInteger) value.values().get(index)).intValue();
+                                array[index] = ((AnnotationValue.OfConstant.OfInt) value.values().get(index)).intValue();
                             }
                             annotationVisitor.visit(name, array);
                             return;
@@ -531,8 +531,8 @@ public class JdkClassReader {
                 case TypeAnnotation.CatchTarget value -> appendAnnotationValues(methodVisitor.visitTryCatchAnnotation(
                         TypeReference.newTypeReference(value.targetType().targetTypeValue()).getValue(),
                         toTypePath(typeAnnotation.targetPath()),
-                        typeAnnotation.className().stringValue(),
-                        visible), typeAnnotation.elements());
+                        typeAnnotation.annotation().className().stringValue(),
+                        visible), typeAnnotation.annotation().elements());
                 default -> throw new UnsupportedOperationException("Unexpected target: " + typeAnnotation.targetInfo());
             }
         });

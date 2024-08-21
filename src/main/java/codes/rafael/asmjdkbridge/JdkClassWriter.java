@@ -1180,8 +1180,9 @@ public class JdkClassWriter extends ClassVisitor {
                     () -> consumer.accept(targeting -> TypeAnnotation.of(
                             targeting.apply(reference),
                             components,
-                            ClassDesc.ofDescriptor(descriptor),
-                            elements)));
+                            Annotation.of(
+                                ClassDesc.ofDescriptor(descriptor),
+                                elements))));
         }
 
         private WritingAnnotationVisitor(BiConsumer<String, AnnotationValue> consumer, Runnable onEnd) {
