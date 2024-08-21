@@ -77,13 +77,19 @@ public class JdkClassWriter extends ClassVisitor {
         });
     }
 
+    public JdkClassWriter(int flags, JdkClassReader classReader) {
+        this(flags, classReader, attribute -> {
+            throw new UnsupportedOperationException("Unknown attribute: " + attribute);
+        });
+    }
+
     public JdkClassWriter(int flags, Function<Attribute, byte[]> extractor) {
         this(flags, (ClassModel) null, extractor);
     }
 
 
     public JdkClassWriter(int flags, JdkClassReader classReader, Function<Attribute, byte[]> extractor) {
-        this(flags, classReader.getClassModel(), extractor);
+        this(flags, classReader == null ? null : classReader.getClassModel(), extractor);
     }
 
     public JdkClassWriter(int flags, ClassModel classModel, Function<Attribute, byte[]> extractor) {
