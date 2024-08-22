@@ -165,7 +165,9 @@ public class JdkClassReader {
                     fieldModel.fieldType().stringValue(),
                     fieldModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
                     fieldModel.findAttribute(Attributes.constantValue()).map(constantValue -> toAsmConstant(constantValue.constant().constantValue())).orElse(null));
-            if (fieldVisitor != null) {
+            if (fieldVisitor instanceof JdkClassWriter.WritingFieldVisitor writingFieldVisitor) {
+                writingFieldVisitor.add(fieldModel);
+            } else if (fieldVisitor != null) {
                 acceptAnnotations(fieldModel, fieldVisitor::visitAnnotation, fieldVisitor::visitTypeAnnotation);
                 acceptAttributes(fieldModel, fieldVisitor::visitAttribute);
                 fieldVisitor.visitEnd();
@@ -177,7 +179,9 @@ public class JdkClassReader {
                     methodModel.methodType().stringValue(),
                     methodModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
                     methodModel.findAttribute(Attributes.exceptions()).map(exceptions -> exceptions.exceptions().stream().map(ClassEntry::asInternalName).toArray(String[]::new)).orElse(null));
-            if (methodVisitor != null) {
+            if (methodVisitor instanceof JdkClassWriter.WritingMethodVisitor writingMethodVisitor) {
+                writingMethodVisitor.add(methodModel);
+            } else if (methodVisitor != null) {
                 if ((flags & ClassReader.SKIP_DEBUG) == 0) {
                     methodModel.findAttribute(Attributes.methodParameters()).stream()
                             .flatMap(methodParameters -> methodParameters.parameters().stream())

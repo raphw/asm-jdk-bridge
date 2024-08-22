@@ -346,673 +346,714 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
-        return new FieldVisitor(Opcodes.ASM9) {
+        return new WritingFieldVisitor(access, name, descriptor, signature, value);
+    }
 
-            private final List<CustomAttribute<?>> attributes = new ArrayList<>();
-            private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
-            private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
+    class WritingFieldVisitor extends FieldVisitor {
 
-            @Override
-            public void visitAttribute(Attribute attribute) {
-                extractor.apply(attribute).ifPresent(attributes::add);
-            }
+        private final int access;
+        private final String name;
+        private final String descriptor;
+        private final String signature;
+        private final Object value;
 
-            @Override
-            public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-                return WritingAnnotationVisitor.of(
-                        descriptor,
-                        (visible ? visibleAnnotations : invisibleAnnotations)::add);
-            }
+        private final List<CustomAttribute<?>> attributes = new ArrayList<>();
+        private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
+        private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
 
-            @Override
-            public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-                return WritingAnnotationVisitor.ofTypeAnnotation(
-                        descriptor,
-                        typeRef,
-                        typePath,
-                        (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
-            }
+        WritingFieldVisitor(int access, String name, String descriptor, String signature, Object value) {
+            super(Opcodes.ASM9);
+            this.access = access;
+            this.name = name;
+            this.descriptor = descriptor;
+            this.signature = signature;
+            this.value = value;
+        }
 
-            @Override
-            public void visitEnd() {
-                classConsumers.add(classBuilder -> classBuilder.withField(name, ClassDesc.ofDescriptor(descriptor), fieldBuilder -> {
-                    fieldBuilder.withFlags(access & ~Opcodes.ACC_DEPRECATED);
-                    if ((access & Opcodes.ACC_DEPRECATED) != 0) {
-                        fieldBuilder.with(DeprecatedAttribute.of());
-                    }
-                    if (signature != null) {
-                        fieldBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
-                    }
-                    for (CustomAttribute<?> attribute : attributes) {
-                        fieldBuilder.with(attribute);
-                    }
-                    if (!visibleAnnotations.isEmpty()) {
-                        fieldBuilder.with(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
-                    }
-                    if (!invisibleAnnotations.isEmpty()) {
-                        fieldBuilder.with(RuntimeInvisibleAnnotationsAttribute.of(invisibleAnnotations));
-                    }
-                    if (!visibleTypeAnnotations.isEmpty()) {
-                        fieldBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations));
-                    }
-                    if (!invisibleTypeAnnotations.isEmpty()) {
-                        fieldBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations));
-                    }
-                    if (value != null) {
-                        fieldBuilder.with(ConstantValueAttribute.of(toConstantDesc(value)));
-                    }
-                }));
-            }
-        };
+        void add(FieldModel field) {
+            classConsumers.add(classBuilder -> classBuilder.with(field));
+        }
+
+        @Override
+        public void visitAttribute(Attribute attribute) {
+            extractor.apply(attribute).ifPresent(attributes::add);
+        }
+
+        @Override
+        public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+            return WritingAnnotationVisitor.of(
+                    descriptor,
+                    (visible ? visibleAnnotations : invisibleAnnotations)::add);
+        }
+
+        @Override
+        public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+            return WritingAnnotationVisitor.ofTypeAnnotation(
+                    descriptor,
+                    typeRef,
+                    typePath,
+                    (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
+        }
+
+        @Override
+        public void visitEnd() {
+            classConsumers.add(classBuilder -> classBuilder.withField(name, ClassDesc.ofDescriptor(descriptor), fieldBuilder -> {
+                fieldBuilder.withFlags(access & ~Opcodes.ACC_DEPRECATED);
+                if ((access & Opcodes.ACC_DEPRECATED) != 0) {
+                    fieldBuilder.with(DeprecatedAttribute.of());
+                }
+                if (signature != null) {
+                    fieldBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
+                }
+                for (CustomAttribute<?> attribute : attributes) {
+                    fieldBuilder.with(attribute);
+                }
+                if (!visibleAnnotations.isEmpty()) {
+                    fieldBuilder.with(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
+                }
+                if (!invisibleAnnotations.isEmpty()) {
+                    fieldBuilder.with(RuntimeInvisibleAnnotationsAttribute.of(invisibleAnnotations));
+                }
+                if (!visibleTypeAnnotations.isEmpty()) {
+                    fieldBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations));
+                }
+                if (!invisibleTypeAnnotations.isEmpty()) {
+                    fieldBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations));
+                }
+                if (value != null) {
+                    fieldBuilder.with(ConstantValueAttribute.of(toConstantDesc(value)));
+                }
+            }));
+        }
     }
 
     @Override
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-        return new MethodVisitor(Opcodes.ASM9) {
+        return new WritingMethodVisitor(access, name, descriptor, signature, exceptions);
+    }
 
-            private List<Consumer<CodeBuilder>> codeConsumers;
+    class WritingMethodVisitor extends MethodVisitor {
 
-            private final List<CustomAttribute<?>> attributes = new ArrayList<>();
-            private AnnotationValue defaultValue;
-            private int catchCount = -1;
-            private Label currentLocation;
-            private final List<StackMapFrameInfo.VerificationTypeInfo> locals = new ArrayList<>();
-            private final List<MethodParameterInfo> methodParameters = new ArrayList<>();
-            private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
-            private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
-            private final Map<Integer, List<Annotation>> visibleParameterAnnotations = new HashMap<>(), invisibleParameterAnnotations = new HashMap<>();
-            private int visibleParameterAnnotationsCount, invisibleParameterAnnotationsCount;
+        private final int access;
+        private final String name;
+        private final String descriptor;
+        private final String signature;
+        private final String[] exceptions;
 
-            private List<StackMapFrameInfo> stackMapFrames;
-            private Map<Label, java.lang.classfile.Label> labels;
+        private List<Consumer<CodeBuilder>> codeConsumers;
 
-            @Override
-            public void visitCode() {
-                codeConsumers = new ArrayList<>();
-                codeConsumers.add(_ -> {
-                    stackMapFrames = new ArrayList<>();
-                    labels = new HashMap<>();
-                });
-                if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
-                    if ((access & Opcodes.ACC_STATIC) == 0) {
-                        locals.add(name.equals("<init>")
+        private final List<CustomAttribute<?>> attributes = new ArrayList<>();
+        private AnnotationValue defaultValue;
+        private int catchCount = -1;
+        private Label currentLocation;
+        private final List<StackMapFrameInfo.VerificationTypeInfo> locals = new ArrayList<>();
+        private final List<MethodParameterInfo> methodParameters = new ArrayList<>();
+        private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
+        private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
+        private final Map<Integer, List<Annotation>> visibleParameterAnnotations = new HashMap<>(), invisibleParameterAnnotations = new HashMap<>();
+        private int visibleParameterAnnotationsCount, invisibleParameterAnnotationsCount;
+
+        private List<StackMapFrameInfo> stackMapFrames;
+        private Map<Label, java.lang.classfile.Label> labels;
+
+        public WritingMethodVisitor(int access, String name, String descriptor, String signature, String[] exceptions) {
+            super(Opcodes.ASM9);
+            this.access = access;
+            this.name = name;
+            this.descriptor = descriptor;
+            this.signature = signature;
+            this.exceptions = exceptions;
+        }
+
+        void add(MethodModel model) {
+            classConsumers.add(classBuilder -> classBuilder.with(model));
+        }
+
+        @Override
+        public void visitCode() {
+            codeConsumers = new ArrayList<>();
+            codeConsumers.add(_ -> {
+                stackMapFrames = new ArrayList<>();
+                labels = new HashMap<>();
+            });
+            if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
+                if ((access & Opcodes.ACC_STATIC) == 0) {
+                    locals.add(name.equals("<init>")
                             ? StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_UNINITIALIZED_THIS
                             : StackMapFrameInfo.ObjectVerificationTypeInfo.of(thisClass));
-                    }
-                    Type type = Type.getMethodType(descriptor);
-                    for (Type argumentType : type.getArgumentTypes()) {
-                        locals.add(switch (argumentType.getSort()) {
-                            case Type.BOOLEAN, Type.BYTE, Type.SHORT, Type.CHAR, Type.INT -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_INTEGER;
-                            case Type.LONG -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_LONG;
-                            case Type.FLOAT -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_FLOAT;
-                            case Type.DOUBLE -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_DOUBLE;
-                            default -> StackMapFrameInfo.ObjectVerificationTypeInfo.of(ClassDesc.ofDescriptor(argumentType.getDescriptor()));
-                        });
-                    }
+                }
+                Type type = Type.getMethodType(descriptor);
+                for (Type argumentType : type.getArgumentTypes()) {
+                    locals.add(switch (argumentType.getSort()) {
+                        case Type.BOOLEAN, Type.BYTE, Type.SHORT, Type.CHAR, Type.INT -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_INTEGER;
+                        case Type.LONG -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_LONG;
+                        case Type.FLOAT -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_FLOAT;
+                        case Type.DOUBLE -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_DOUBLE;
+                        default -> StackMapFrameInfo.ObjectVerificationTypeInfo.of(ClassDesc.ofDescriptor(argumentType.getDescriptor()));
+                    });
                 }
             }
+        }
 
-            @Override
-            public void visitAttribute(Attribute attribute) {
-                extractor.apply(attribute).ifPresent(attributes::add);
+        @Override
+        public void visitAttribute(Attribute attribute) {
+            extractor.apply(attribute).ifPresent(attributes::add);
+        }
+
+        @Override
+        public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+            return WritingAnnotationVisitor.of(
+                    descriptor,
+                    (visible ? visibleAnnotations : invisibleAnnotations)::add);
+        }
+
+        @Override
+        public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+            return WritingAnnotationVisitor.ofTypeAnnotation(
+                    descriptor,
+                    typeRef,
+                    typePath,
+                    (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
+        }
+
+        @Override
+        public void visitParameter(String name, int access) {
+            methodParameters.add(MethodParameterInfo.ofParameter(Optional.ofNullable(name), access));
+        }
+
+        @Override
+        public void visitAnnotableParameterCount(int parameterCount, boolean visible) {
+            if (visible) {
+                visibleParameterAnnotationsCount = parameterCount;
+            } else {
+                invisibleParameterAnnotationsCount = parameterCount;
             }
+        }
 
-            @Override
-            public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-                return WritingAnnotationVisitor.of(
-                        descriptor,
-                        (visible ? visibleAnnotations : invisibleAnnotations)::add);
+        @Override
+        public AnnotationVisitor visitParameterAnnotation(int parameter, String descriptor, boolean visible) {
+            return WritingAnnotationVisitor.of(
+                    descriptor,
+                    (visible ? visibleParameterAnnotations : invisibleParameterAnnotations).computeIfAbsent(parameter, _ -> new ArrayList<>())::add);
+        }
+
+        @Override
+        public AnnotationVisitor visitTryCatchAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+            int catchCount = this.catchCount;
+            return WritingAnnotationVisitor.ofExceptionTypeAnnotation(
+                    descriptor,
+                    typeRef,
+                    typePath,
+                    function -> codeConsumers.add(codeBuilder -> {
+                        TypeAnnotation annotation = function.apply(catchCount);
+                        codeBuilder.with(visible
+                                ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation)
+                                : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
+
+                    }));
+        }
+
+        @Override
+        public AnnotationVisitor visitInsnAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+            return WritingAnnotationVisitor.ofLabeledTypeAnnotation(
+                    descriptor,
+                    typeRef,
+                    typePath,
+                    function -> codeConsumers.add(codeBuilder -> {
+                        TypeAnnotation annotation = function.apply(codeBuilder.newBoundLabel());
+                        codeBuilder.with(visible
+                                ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation)
+                                : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
+
+                    }));
+        }
+
+        @Override
+        public AnnotationVisitor visitAnnotationDefault() {
+            return WritingAnnotationVisitor.ofValue(value -> defaultValue = value);
+        }
+
+        @Override
+        public AnnotationVisitor visitLocalVariableAnnotation(int typeRef, TypePath typePath, Label[] start, Label[] end, int[] indices, String descriptor, boolean visible) {
+            return WritingAnnotationVisitor.ofTargetedTypeAnnotation(
+                    descriptor,
+                    typeRef,
+                    typePath,
+                    function -> codeConsumers.add(codeBuilder -> {
+                        List<TypeAnnotation.LocalVarTargetInfo> targets = new ArrayList<>();
+                        for (int index = 0; index < start.length; index++) {
+                            targets.add(TypeAnnotation.LocalVarTargetInfo.of(
+                                    labels.computeIfAbsent(start[index], _ -> codeBuilder.newLabel()),
+                                    labels.computeIfAbsent(end[index], _ -> codeBuilder.newLabel()),
+                                    indices[index]));
+                        }
+                        TypeAnnotation annotation = function.apply(targets);
+                        codeBuilder.with(visible
+                                ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation)
+                                : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
+
+                    }));
+        }
+
+        @Override
+        public void visitFrame(int type, int numLocal, Object[] local, int numStack, Object[] stack) {
+            if ((flags & ClassWriter.COMPUTE_FRAMES) != 0) {
+                return;
             }
-
-            @Override
-            public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-                return WritingAnnotationVisitor.ofTypeAnnotation(
-                        descriptor,
-                        typeRef,
-                        typePath,
-                        (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
-            }
-
-            @Override
-            public void visitParameter(String name, int access) {
-                methodParameters.add(MethodParameterInfo.ofParameter(Optional.ofNullable(name), access));
-            }
-
-            @Override
-            public void visitAnnotableParameterCount(int parameterCount, boolean visible) {
-                if (visible) {
-                    visibleParameterAnnotationsCount = parameterCount;
-                } else {
-                    invisibleParameterAnnotationsCount = parameterCount;
+            codeConsumers.add(codeBuilder -> {
+                List<StackMapFrameInfo.VerificationTypeInfo> stacks = new ArrayList<>(numStack);
+                for (int index = 0; index < numStack; index++) {
+                    stacks.add(toVerificationTypeInfo(stack[index], label -> labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
                 }
-            }
-
-            @Override
-            public AnnotationVisitor visitParameterAnnotation(int parameter, String descriptor, boolean visible) {
-                return WritingAnnotationVisitor.of(
-                        descriptor,
-                        (visible ? visibleParameterAnnotations : invisibleParameterAnnotations).computeIfAbsent(parameter, _ -> new ArrayList<>())::add);
-            }
-
-            @Override
-            public AnnotationVisitor visitTryCatchAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-                int catchCount = this.catchCount;
-                return WritingAnnotationVisitor.ofExceptionTypeAnnotation(
-                        descriptor,
-                        typeRef,
-                        typePath,
-                        function -> codeConsumers.add(codeBuilder -> {
-                            TypeAnnotation annotation = function.apply(catchCount);
-                            codeBuilder.with(visible
-                                    ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation)
-                                    : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
-
-                        }));
-            }
-
-            @Override
-            public AnnotationVisitor visitInsnAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-                return WritingAnnotationVisitor.ofLabeledTypeAnnotation(
-                        descriptor,
-                        typeRef,
-                        typePath,
-                        function -> codeConsumers.add(codeBuilder -> {
-                            TypeAnnotation annotation = function.apply(codeBuilder.newBoundLabel());
-                            codeBuilder.with(visible
-                                    ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation)
-                                    : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
-
-                        }));
-            }
-
-            @Override
-            public AnnotationVisitor visitAnnotationDefault() {
-                return WritingAnnotationVisitor.ofValue(value -> defaultValue = value);
-            }
-
-            @Override
-            public AnnotationVisitor visitLocalVariableAnnotation(int typeRef, TypePath typePath, Label[] start, Label[] end, int[] indices, String descriptor, boolean visible) {
-                return WritingAnnotationVisitor.ofTargetedTypeAnnotation(
-                        descriptor,
-                        typeRef,
-                        typePath,
-                        function -> codeConsumers.add(codeBuilder -> {
-                            List<TypeAnnotation.LocalVarTargetInfo> targets = new ArrayList<>();
-                            for (int index = 0; index < start.length; index++) {
-                                targets.add(TypeAnnotation.LocalVarTargetInfo.of(
-                                        labels.computeIfAbsent(start[index], _ -> codeBuilder.newLabel()),
-                                        labels.computeIfAbsent(end[index], _ -> codeBuilder.newLabel()),
-                                        indices[index]));
-                            }
-                            TypeAnnotation annotation = function.apply(targets);
-                            codeBuilder.with(visible
-                                    ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation)
-                                    : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
-
-                        }));
-            }
-
-            @Override
-            public void visitFrame(int type, int numLocal, Object[] local, int numStack, Object[] stack) {
-                if ((flags & ClassWriter.COMPUTE_FRAMES) != 0) {
-                    return;
+                switch (type) {
+                    case Opcodes.F_SAME:
+                        break;
+                    case Opcodes.F_SAME1:
+                        break;
+                    case Opcodes.F_APPEND:
+                        for (int index = 0; index < numLocal; index++) {
+                            locals.add(toVerificationTypeInfo(local[index], label -> labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
+                        }
+                        break;
+                    case Opcodes.F_CHOP:
+                        locals.subList(locals.size() - numLocal, locals.size()).clear();
+                        break;
+                    case Opcodes.F_FULL:
+                    case Opcodes.F_NEW:
+                        locals.clear();
+                        for (int index = 0; index < numLocal; index++) {
+                            locals.add(toVerificationTypeInfo(local[index], label -> labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
+                        }
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported type: " + type);
                 }
-                codeConsumers.add(codeBuilder -> {
-                    List<StackMapFrameInfo.VerificationTypeInfo> stacks = new ArrayList<>(numStack);
-                    for (int index = 0; index < numStack; index++) {
-                        stacks.add(toVerificationTypeInfo(stack[index], label -> labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
-                    }
-                    switch (type) {
-                        case Opcodes.F_SAME:
-                            break;
-                        case Opcodes.F_SAME1:
-                            break;
-                        case Opcodes.F_APPEND:
-                            for (int index = 0; index < numLocal; index++) {
-                                locals.add(toVerificationTypeInfo(local[index], label -> labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
-                            }
-                            break;
-                        case Opcodes.F_CHOP:
-                            locals.subList(locals.size() - numLocal, locals.size()).clear();
-                            break;
-                        case Opcodes.F_FULL:
-                        case Opcodes.F_NEW:
-                            locals.clear();
-                            for (int index = 0; index < numLocal; index++) {
-                                locals.add(toVerificationTypeInfo(local[index], label -> labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
-                            }
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Unsupported type: " + type);
-                    }
-                    stackMapFrames.add(StackMapFrameInfo.of(codeBuilder.newBoundLabel(), new ArrayList<>(locals), stacks));
-                });
-            }
+                stackMapFrames.add(StackMapFrameInfo.of(codeBuilder.newBoundLabel(), new ArrayList<>(locals), stacks));
+            });
+        }
 
-            private static StackMapFrameInfo.VerificationTypeInfo toVerificationTypeInfo(Object value, Function<Label, java.lang.classfile.Label> labels) {
-                if (value == Opcodes.TOP) {
-                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_TOP;
-                } else if (value == Opcodes.INTEGER) {
-                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_INTEGER;
-                } else if (value == Opcodes.LONG) {
-                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_LONG;
-                } else if (value == Opcodes.FLOAT) {
-                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_FLOAT;
-                } else if (value == Opcodes.DOUBLE) {
-                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_DOUBLE;
-                } else if (value == Opcodes.NULL) {
-                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_NULL;
-                } else if (value == Opcodes.UNINITIALIZED_THIS) {
-                    return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_UNINITIALIZED_THIS;
-                } else if (value instanceof Label label) {
-                    return StackMapFrameInfo.UninitializedVerificationTypeInfo.of(labels.apply(label));
-                } else if (value instanceof String name) {
-                    return StackMapFrameInfo.ObjectVerificationTypeInfo.of(name.startsWith("[")
+        private static StackMapFrameInfo.VerificationTypeInfo toVerificationTypeInfo(Object value, Function<Label, java.lang.classfile.Label> labels) {
+            if (value == Opcodes.TOP) {
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_TOP;
+            } else if (value == Opcodes.INTEGER) {
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_INTEGER;
+            } else if (value == Opcodes.LONG) {
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_LONG;
+            } else if (value == Opcodes.FLOAT) {
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_FLOAT;
+            } else if (value == Opcodes.DOUBLE) {
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_DOUBLE;
+            } else if (value == Opcodes.NULL) {
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_NULL;
+            } else if (value == Opcodes.UNINITIALIZED_THIS) {
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_UNINITIALIZED_THIS;
+            } else if (value instanceof Label label) {
+                return StackMapFrameInfo.UninitializedVerificationTypeInfo.of(labels.apply(label));
+            } else if (value instanceof String name) {
+                return StackMapFrameInfo.ObjectVerificationTypeInfo.of(name.startsWith("[")
                         ? ClassDesc.ofDescriptor(name)
                         : ClassDesc.ofInternalName(name));
-                } else {
-                    throw new IllegalArgumentException("Unsupported type: " + value);
-                }
+            } else {
+                throw new IllegalArgumentException("Unsupported type: " + value);
             }
+        }
 
-            @Override
-            public void visitInsn(int opcode) {
-                Consumer<CodeBuilder> codeConsumer = switch (opcode) {
-                    case Opcodes.NOP -> CodeBuilder::nop;
-                    case Opcodes.ACONST_NULL -> CodeBuilder::aconst_null;
-                    case Opcodes.ICONST_M1 -> CodeBuilder::iconst_m1;
-                    case Opcodes.ICONST_0 -> CodeBuilder::iconst_0;
-                    case Opcodes.ICONST_1 -> CodeBuilder::iconst_1;
-                    case Opcodes.ICONST_2 -> CodeBuilder::iconst_2;
-                    case Opcodes.ICONST_3 -> CodeBuilder::iconst_3;
-                    case Opcodes.ICONST_4 -> CodeBuilder::iconst_4;
-                    case Opcodes.ICONST_5 -> CodeBuilder::iconst_5;
-                    case Opcodes.LCONST_0 -> CodeBuilder::lconst_0;
-                    case Opcodes.LCONST_1 -> CodeBuilder::lconst_1;
-                    case Opcodes.FCONST_0 -> CodeBuilder::fconst_0;
-                    case Opcodes.FCONST_1 -> CodeBuilder::fconst_1;
-                    case Opcodes.DCONST_0 -> CodeBuilder::dconst_0;
-                    case Opcodes.DCONST_1 -> CodeBuilder::dconst_1;
-                    case Opcodes.IALOAD -> CodeBuilder::iaload;
-                    case Opcodes.LALOAD -> CodeBuilder::laload;
-                    case Opcodes.FALOAD -> CodeBuilder::faload;
-                    case Opcodes.DALOAD -> CodeBuilder::daload;
-                    case Opcodes.AALOAD -> CodeBuilder::aaload;
-                    case Opcodes.BALOAD -> CodeBuilder::baload;
-                    case Opcodes.CALOAD -> CodeBuilder::caload;
-                    case Opcodes.SALOAD -> CodeBuilder::saload;
-                    case Opcodes.IASTORE -> CodeBuilder::iastore;
-                    case Opcodes.LASTORE -> CodeBuilder::lastore;
-                    case Opcodes.FASTORE -> CodeBuilder::fastore;
-                    case Opcodes.DASTORE -> CodeBuilder::dastore;
-                    case Opcodes.AASTORE -> CodeBuilder::aastore;
-                    case Opcodes.BASTORE -> CodeBuilder::bastore;
-                    case Opcodes.CASTORE -> CodeBuilder::castore;
-                    case Opcodes.SASTORE -> CodeBuilder::sastore;
-                    case Opcodes.POP -> CodeBuilder::pop;
-                    case Opcodes.POP2 -> CodeBuilder::pop2;
-                    case Opcodes.DUP -> CodeBuilder::dup;
-                    case Opcodes.DUP_X1 -> CodeBuilder::dup_x1;
-                    case Opcodes.DUP_X2 -> CodeBuilder::dup_x2;
-                    case Opcodes.DUP2 -> CodeBuilder::dup2;
-                    case Opcodes.DUP2_X1 -> CodeBuilder::dup2_x1;
-                    case Opcodes.DUP2_X2 -> CodeBuilder::dup2_x2;
-                    case Opcodes.SWAP -> CodeBuilder::swap;
-                    case Opcodes.IADD -> CodeBuilder::iadd;
-                    case Opcodes.LADD -> CodeBuilder::ladd;
-                    case Opcodes.FADD -> CodeBuilder::fadd;
-                    case Opcodes.DADD -> CodeBuilder::dadd;
-                    case Opcodes.ISUB -> CodeBuilder::isub;
-                    case Opcodes.LSUB -> CodeBuilder::lsub;
-                    case Opcodes.FSUB -> CodeBuilder::fsub;
-                    case Opcodes.DSUB -> CodeBuilder::dsub;
-                    case Opcodes.IMUL -> CodeBuilder::imul;
-                    case Opcodes.LMUL -> CodeBuilder::lmul;
-                    case Opcodes.FMUL -> CodeBuilder::fmul;
-                    case Opcodes.DMUL -> CodeBuilder::dmul;
-                    case Opcodes.IDIV -> CodeBuilder::idiv;
-                    case Opcodes.LDIV -> CodeBuilder::ldiv;
-                    case Opcodes.FDIV -> CodeBuilder::fdiv;
-                    case Opcodes.DDIV -> CodeBuilder::ddiv;
-                    case Opcodes.IREM -> CodeBuilder::irem;
-                    case Opcodes.LREM -> CodeBuilder::lrem;
-                    case Opcodes.FREM -> CodeBuilder::frem;
-                    case Opcodes.DREM -> CodeBuilder::drem;
-                    case Opcodes.INEG -> CodeBuilder::ineg;
-                    case Opcodes.LNEG -> CodeBuilder::lneg;
-                    case Opcodes.FNEG -> CodeBuilder::fneg;
-                    case Opcodes.DNEG -> CodeBuilder::dneg;
-                    case Opcodes.ISHL -> CodeBuilder::ishl;
-                    case Opcodes.LSHL -> CodeBuilder::lshl;
-                    case Opcodes.ISHR -> CodeBuilder::ishr;
-                    case Opcodes.LSHR -> CodeBuilder::lshr;
-                    case Opcodes.IUSHR -> CodeBuilder::iushr;
-                    case Opcodes.LUSHR -> CodeBuilder::lushr;
-                    case Opcodes.IAND -> CodeBuilder::iand;
-                    case Opcodes.LAND -> CodeBuilder::land;
-                    case Opcodes.IOR -> CodeBuilder::ior;
-                    case Opcodes.LOR -> CodeBuilder::lor;
-                    case Opcodes.IXOR -> CodeBuilder::ixor;
-                    case Opcodes.LXOR -> CodeBuilder::lxor;
-                    case Opcodes.I2L -> CodeBuilder::i2l;
-                    case Opcodes.I2F -> CodeBuilder::i2f;
-                    case Opcodes.I2D -> CodeBuilder::i2d;
-                    case Opcodes.L2I -> CodeBuilder::l2i;
-                    case Opcodes.L2F -> CodeBuilder::l2f;
-                    case Opcodes.L2D -> CodeBuilder::l2d;
-                    case Opcodes.F2I -> CodeBuilder::f2i;
-                    case Opcodes.F2L -> CodeBuilder::f2l;
-                    case Opcodes.F2D -> CodeBuilder::f2d;
-                    case Opcodes.D2I -> CodeBuilder::d2i;
-                    case Opcodes.D2L -> CodeBuilder::d2l;
-                    case Opcodes.D2F -> CodeBuilder::d2f;
-                    case Opcodes.I2B -> CodeBuilder::i2b;
-                    case Opcodes.I2C -> CodeBuilder::i2c;
-                    case Opcodes.I2S -> CodeBuilder::i2s;
-                    case Opcodes.LCMP -> CodeBuilder::lcmp;
-                    case Opcodes.FCMPL -> CodeBuilder::fcmpl;
-                    case Opcodes.FCMPG -> CodeBuilder::fcmpg;
-                    case Opcodes.DCMPL -> CodeBuilder::dcmpl;
-                    case Opcodes.DCMPG -> CodeBuilder::dcmpg;
-                    case Opcodes.IRETURN -> CodeBuilder::ireturn;
-                    case Opcodes.LRETURN -> CodeBuilder::lreturn;
-                    case Opcodes.FRETURN -> CodeBuilder::freturn;
-                    case Opcodes.DRETURN -> CodeBuilder::dreturn;
-                    case Opcodes.ARETURN -> CodeBuilder::areturn;
-                    case Opcodes.RETURN -> CodeBuilder::return_;
-                    case Opcodes.ARRAYLENGTH -> CodeBuilder::arraylength;
-                    case Opcodes.ATHROW -> CodeBuilder::athrow;
-                    case Opcodes.MONITORENTER -> CodeBuilder::monitorenter;
-                    case Opcodes.MONITOREXIT -> CodeBuilder::monitorexit;
-                    default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
-                };
-                codeConsumers.add(codeConsumer);
-            }
+        @Override
+        public void visitInsn(int opcode) {
+            Consumer<CodeBuilder> codeConsumer = switch (opcode) {
+                case Opcodes.NOP -> CodeBuilder::nop;
+                case Opcodes.ACONST_NULL -> CodeBuilder::aconst_null;
+                case Opcodes.ICONST_M1 -> CodeBuilder::iconst_m1;
+                case Opcodes.ICONST_0 -> CodeBuilder::iconst_0;
+                case Opcodes.ICONST_1 -> CodeBuilder::iconst_1;
+                case Opcodes.ICONST_2 -> CodeBuilder::iconst_2;
+                case Opcodes.ICONST_3 -> CodeBuilder::iconst_3;
+                case Opcodes.ICONST_4 -> CodeBuilder::iconst_4;
+                case Opcodes.ICONST_5 -> CodeBuilder::iconst_5;
+                case Opcodes.LCONST_0 -> CodeBuilder::lconst_0;
+                case Opcodes.LCONST_1 -> CodeBuilder::lconst_1;
+                case Opcodes.FCONST_0 -> CodeBuilder::fconst_0;
+                case Opcodes.FCONST_1 -> CodeBuilder::fconst_1;
+                case Opcodes.DCONST_0 -> CodeBuilder::dconst_0;
+                case Opcodes.DCONST_1 -> CodeBuilder::dconst_1;
+                case Opcodes.IALOAD -> CodeBuilder::iaload;
+                case Opcodes.LALOAD -> CodeBuilder::laload;
+                case Opcodes.FALOAD -> CodeBuilder::faload;
+                case Opcodes.DALOAD -> CodeBuilder::daload;
+                case Opcodes.AALOAD -> CodeBuilder::aaload;
+                case Opcodes.BALOAD -> CodeBuilder::baload;
+                case Opcodes.CALOAD -> CodeBuilder::caload;
+                case Opcodes.SALOAD -> CodeBuilder::saload;
+                case Opcodes.IASTORE -> CodeBuilder::iastore;
+                case Opcodes.LASTORE -> CodeBuilder::lastore;
+                case Opcodes.FASTORE -> CodeBuilder::fastore;
+                case Opcodes.DASTORE -> CodeBuilder::dastore;
+                case Opcodes.AASTORE -> CodeBuilder::aastore;
+                case Opcodes.BASTORE -> CodeBuilder::bastore;
+                case Opcodes.CASTORE -> CodeBuilder::castore;
+                case Opcodes.SASTORE -> CodeBuilder::sastore;
+                case Opcodes.POP -> CodeBuilder::pop;
+                case Opcodes.POP2 -> CodeBuilder::pop2;
+                case Opcodes.DUP -> CodeBuilder::dup;
+                case Opcodes.DUP_X1 -> CodeBuilder::dup_x1;
+                case Opcodes.DUP_X2 -> CodeBuilder::dup_x2;
+                case Opcodes.DUP2 -> CodeBuilder::dup2;
+                case Opcodes.DUP2_X1 -> CodeBuilder::dup2_x1;
+                case Opcodes.DUP2_X2 -> CodeBuilder::dup2_x2;
+                case Opcodes.SWAP -> CodeBuilder::swap;
+                case Opcodes.IADD -> CodeBuilder::iadd;
+                case Opcodes.LADD -> CodeBuilder::ladd;
+                case Opcodes.FADD -> CodeBuilder::fadd;
+                case Opcodes.DADD -> CodeBuilder::dadd;
+                case Opcodes.ISUB -> CodeBuilder::isub;
+                case Opcodes.LSUB -> CodeBuilder::lsub;
+                case Opcodes.FSUB -> CodeBuilder::fsub;
+                case Opcodes.DSUB -> CodeBuilder::dsub;
+                case Opcodes.IMUL -> CodeBuilder::imul;
+                case Opcodes.LMUL -> CodeBuilder::lmul;
+                case Opcodes.FMUL -> CodeBuilder::fmul;
+                case Opcodes.DMUL -> CodeBuilder::dmul;
+                case Opcodes.IDIV -> CodeBuilder::idiv;
+                case Opcodes.LDIV -> CodeBuilder::ldiv;
+                case Opcodes.FDIV -> CodeBuilder::fdiv;
+                case Opcodes.DDIV -> CodeBuilder::ddiv;
+                case Opcodes.IREM -> CodeBuilder::irem;
+                case Opcodes.LREM -> CodeBuilder::lrem;
+                case Opcodes.FREM -> CodeBuilder::frem;
+                case Opcodes.DREM -> CodeBuilder::drem;
+                case Opcodes.INEG -> CodeBuilder::ineg;
+                case Opcodes.LNEG -> CodeBuilder::lneg;
+                case Opcodes.FNEG -> CodeBuilder::fneg;
+                case Opcodes.DNEG -> CodeBuilder::dneg;
+                case Opcodes.ISHL -> CodeBuilder::ishl;
+                case Opcodes.LSHL -> CodeBuilder::lshl;
+                case Opcodes.ISHR -> CodeBuilder::ishr;
+                case Opcodes.LSHR -> CodeBuilder::lshr;
+                case Opcodes.IUSHR -> CodeBuilder::iushr;
+                case Opcodes.LUSHR -> CodeBuilder::lushr;
+                case Opcodes.IAND -> CodeBuilder::iand;
+                case Opcodes.LAND -> CodeBuilder::land;
+                case Opcodes.IOR -> CodeBuilder::ior;
+                case Opcodes.LOR -> CodeBuilder::lor;
+                case Opcodes.IXOR -> CodeBuilder::ixor;
+                case Opcodes.LXOR -> CodeBuilder::lxor;
+                case Opcodes.I2L -> CodeBuilder::i2l;
+                case Opcodes.I2F -> CodeBuilder::i2f;
+                case Opcodes.I2D -> CodeBuilder::i2d;
+                case Opcodes.L2I -> CodeBuilder::l2i;
+                case Opcodes.L2F -> CodeBuilder::l2f;
+                case Opcodes.L2D -> CodeBuilder::l2d;
+                case Opcodes.F2I -> CodeBuilder::f2i;
+                case Opcodes.F2L -> CodeBuilder::f2l;
+                case Opcodes.F2D -> CodeBuilder::f2d;
+                case Opcodes.D2I -> CodeBuilder::d2i;
+                case Opcodes.D2L -> CodeBuilder::d2l;
+                case Opcodes.D2F -> CodeBuilder::d2f;
+                case Opcodes.I2B -> CodeBuilder::i2b;
+                case Opcodes.I2C -> CodeBuilder::i2c;
+                case Opcodes.I2S -> CodeBuilder::i2s;
+                case Opcodes.LCMP -> CodeBuilder::lcmp;
+                case Opcodes.FCMPL -> CodeBuilder::fcmpl;
+                case Opcodes.FCMPG -> CodeBuilder::fcmpg;
+                case Opcodes.DCMPL -> CodeBuilder::dcmpl;
+                case Opcodes.DCMPG -> CodeBuilder::dcmpg;
+                case Opcodes.IRETURN -> CodeBuilder::ireturn;
+                case Opcodes.LRETURN -> CodeBuilder::lreturn;
+                case Opcodes.FRETURN -> CodeBuilder::freturn;
+                case Opcodes.DRETURN -> CodeBuilder::dreturn;
+                case Opcodes.ARETURN -> CodeBuilder::areturn;
+                case Opcodes.RETURN -> CodeBuilder::return_;
+                case Opcodes.ARRAYLENGTH -> CodeBuilder::arraylength;
+                case Opcodes.ATHROW -> CodeBuilder::athrow;
+                case Opcodes.MONITORENTER -> CodeBuilder::monitorenter;
+                case Opcodes.MONITOREXIT -> CodeBuilder::monitorexit;
+                default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
+            };
+            codeConsumers.add(codeConsumer);
+        }
 
-            @Override
-            public void visitIntInsn(int opcode, int operand) {
-                Consumer<CodeBuilder> codeConsumer = switch (opcode) {
-                    case Opcodes.BIPUSH -> codeBuilder -> codeBuilder.bipush(operand);
-                    case Opcodes.SIPUSH -> codeBuilder -> codeBuilder.sipush(operand);
-                    case Opcodes.NEWARRAY -> codeBuilder -> codeBuilder.newarray(TypeKind.fromNewarrayCode(operand));
-                    default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
-                };
-                codeConsumers.add(codeConsumer);
-            }
+        @Override
+        public void visitIntInsn(int opcode, int operand) {
+            Consumer<CodeBuilder> codeConsumer = switch (opcode) {
+                case Opcodes.BIPUSH -> codeBuilder -> codeBuilder.bipush(operand);
+                case Opcodes.SIPUSH -> codeBuilder -> codeBuilder.sipush(operand);
+                case Opcodes.NEWARRAY -> codeBuilder -> codeBuilder.newarray(TypeKind.fromNewarrayCode(operand));
+                default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
+            };
+            codeConsumers.add(codeConsumer);
+        }
 
-            @Override
-            public void visitVarInsn(int opcode, int varIndex) {
-                Consumer<CodeBuilder> codeConsumer = switch (opcode) {
-                    case Opcodes.ILOAD -> codeBuilder -> codeBuilder.iload(varIndex);
-                    case Opcodes.LLOAD -> codeBuilder -> codeBuilder.lload(varIndex);
-                    case Opcodes.FLOAD -> codeBuilder -> codeBuilder.fload(varIndex);
-                    case Opcodes.DLOAD -> codeBuilder -> codeBuilder.dload(varIndex);
-                    case Opcodes.ALOAD -> codeBuilder -> codeBuilder.aload(varIndex);
-                    case Opcodes.ISTORE -> codeBuilder -> codeBuilder.istore(varIndex);
-                    case Opcodes.LSTORE -> codeBuilder -> codeBuilder.lstore(varIndex);
-                    case Opcodes.FSTORE -> codeBuilder -> codeBuilder.fstore(varIndex);
-                    case Opcodes.DSTORE -> codeBuilder -> codeBuilder.dstore(varIndex);
-                    case Opcodes.ASTORE -> codeBuilder -> codeBuilder.astore(varIndex);
-                    case Opcodes.RET -> codeBuilder -> codeBuilder.with(DiscontinuedInstruction.RetInstruction.of(varIndex));
-                    default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
-                };
-                codeConsumers.add(codeConsumer);
-            }
+        @Override
+        public void visitVarInsn(int opcode, int varIndex) {
+            Consumer<CodeBuilder> codeConsumer = switch (opcode) {
+                case Opcodes.ILOAD -> codeBuilder -> codeBuilder.iload(varIndex);
+                case Opcodes.LLOAD -> codeBuilder -> codeBuilder.lload(varIndex);
+                case Opcodes.FLOAD -> codeBuilder -> codeBuilder.fload(varIndex);
+                case Opcodes.DLOAD -> codeBuilder -> codeBuilder.dload(varIndex);
+                case Opcodes.ALOAD -> codeBuilder -> codeBuilder.aload(varIndex);
+                case Opcodes.ISTORE -> codeBuilder -> codeBuilder.istore(varIndex);
+                case Opcodes.LSTORE -> codeBuilder -> codeBuilder.lstore(varIndex);
+                case Opcodes.FSTORE -> codeBuilder -> codeBuilder.fstore(varIndex);
+                case Opcodes.DSTORE -> codeBuilder -> codeBuilder.dstore(varIndex);
+                case Opcodes.ASTORE -> codeBuilder -> codeBuilder.astore(varIndex);
+                case Opcodes.RET -> codeBuilder -> codeBuilder.with(DiscontinuedInstruction.RetInstruction.of(varIndex));
+                default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
+            };
+            codeConsumers.add(codeConsumer);
+        }
 
-            @Override
-            public void visitFieldInsn(int opcode, String owner, String name, String descriptor) {
-                codeConsumers.add(codeBuilder -> codeBuilder.fieldAccess(
-                        switch (opcode) {
-                            case Opcodes.GETFIELD -> Opcode.GETFIELD;
-                            case Opcodes.PUTFIELD -> Opcode.PUTFIELD;
-                            case Opcodes.GETSTATIC -> Opcode.GETSTATIC;
-                            case Opcodes.PUTSTATIC -> Opcode.PUTSTATIC;
-                            default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
-                        },
-                        ClassDesc.ofInternalName(owner),
-                        name,
-                        ClassDesc.ofDescriptor(descriptor)));
-            }
+        @Override
+        public void visitFieldInsn(int opcode, String owner, String name, String descriptor) {
+            codeConsumers.add(codeBuilder -> codeBuilder.fieldAccess(
+                    switch (opcode) {
+                        case Opcodes.GETFIELD -> Opcode.GETFIELD;
+                        case Opcodes.PUTFIELD -> Opcode.PUTFIELD;
+                        case Opcodes.GETSTATIC -> Opcode.GETSTATIC;
+                        case Opcodes.PUTSTATIC -> Opcode.PUTSTATIC;
+                        default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
+                    },
+                    ClassDesc.ofInternalName(owner),
+                    name,
+                    ClassDesc.ofDescriptor(descriptor)));
+        }
 
-            @Override
-            public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
-                codeConsumers.add(codeBuilder -> codeBuilder.invoke(
-                        switch (opcode) {
-                            case Opcodes.INVOKEVIRTUAL -> Opcode.INVOKEVIRTUAL;
-                            case Opcodes.INVOKEINTERFACE -> Opcode.INVOKEINTERFACE;
-                            case Opcodes.INVOKESPECIAL -> Opcode.INVOKESPECIAL;
-                            case Opcodes.INVOKESTATIC -> Opcode.INVOKESTATIC;
-                            default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
-                        },
-                        owner.startsWith("[")
+        @Override
+        public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
+            codeConsumers.add(codeBuilder -> codeBuilder.invoke(
+                    switch (opcode) {
+                        case Opcodes.INVOKEVIRTUAL -> Opcode.INVOKEVIRTUAL;
+                        case Opcodes.INVOKEINTERFACE -> Opcode.INVOKEINTERFACE;
+                        case Opcodes.INVOKESPECIAL -> Opcode.INVOKESPECIAL;
+                        case Opcodes.INVOKESTATIC -> Opcode.INVOKESTATIC;
+                        default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
+                    },
+                    owner.startsWith("[")
                             ? ClassDesc.ofDescriptor(owner)
                             : ClassDesc.ofInternalName(owner),
-                        name,
-                        MethodTypeDesc.ofDescriptor(descriptor),
-                        isInterface));
-            }
+                    name,
+                    MethodTypeDesc.ofDescriptor(descriptor),
+                    isInterface));
+        }
 
-            @Override
-            public void visitInvokeDynamicInsn(String name, String descriptor, Handle bootstrapMethodHandle, Object... bootstrapMethodArguments) {
-                ConstantDesc[] constants = new ConstantDesc[bootstrapMethodArguments.length];
-                for (int index = 0; index < bootstrapMethodArguments.length; index++) {
-                    constants[index] = toConstantDesc(bootstrapMethodArguments[index]);
+        @Override
+        public void visitInvokeDynamicInsn(String name, String descriptor, Handle bootstrapMethodHandle, Object... bootstrapMethodArguments) {
+            ConstantDesc[] constants = new ConstantDesc[bootstrapMethodArguments.length];
+            for (int index = 0; index < bootstrapMethodArguments.length; index++) {
+                constants[index] = toConstantDesc(bootstrapMethodArguments[index]);
+            }
+            codeConsumers.add(codeBuilder -> codeBuilder.invokedynamic(DynamicCallSiteDesc.of(
+                    MethodHandleDesc.of(
+                            DirectMethodHandleDesc.Kind.valueOf(bootstrapMethodHandle.getTag(), bootstrapMethodHandle.isInterface()),
+                            ClassDesc.ofInternalName(bootstrapMethodHandle.getOwner()),
+                            bootstrapMethodHandle.getName(),
+                            bootstrapMethodHandle.getDesc()),
+                    name,
+                    MethodTypeDesc.ofDescriptor(descriptor),
+                    constants)));
+        }
+
+        @Override
+        public void visitJumpInsn(int opcode, Label label) {
+            Consumer<CodeBuilder> codeConsumer = switch (opcode) {
+                case Opcodes.IFEQ -> codeBuilder -> codeBuilder.ifeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFNE -> codeBuilder -> codeBuilder.ifne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFLT -> codeBuilder -> codeBuilder.iflt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFGE -> codeBuilder -> codeBuilder.ifge(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFGT -> codeBuilder -> codeBuilder.ifgt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFLE -> codeBuilder -> codeBuilder.ifle(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPEQ -> codeBuilder -> codeBuilder.if_icmpeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPNE -> codeBuilder -> codeBuilder.if_icmpne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPLT -> codeBuilder -> codeBuilder.if_icmplt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPGE -> codeBuilder -> codeBuilder.if_icmpge(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPGT -> codeBuilder -> codeBuilder.if_icmpgt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPLE -> codeBuilder -> codeBuilder.if_icmple(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ACMPEQ -> codeBuilder -> codeBuilder.if_acmpeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ACMPNE -> codeBuilder -> codeBuilder.if_acmpne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.GOTO -> codeBuilder -> codeBuilder.goto_(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFNULL -> codeBuilder -> codeBuilder.ifnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFNONNULL -> codeBuilder -> codeBuilder.ifnonnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.JSR -> codeBuilder -> codeBuilder.with(DiscontinuedInstruction.JsrInstruction.of(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
+                default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
+            };
+            codeConsumers.add(codeConsumer);
+        }
+
+        @Override
+        public void visitLdcInsn(Object value) {
+            ConstantDesc constant = toConstantDesc(value);
+            codeConsumers.add(codeBuilder -> codeBuilder.ldc(constant));
+        }
+
+        @Override
+        public void visitIincInsn(int varIndex, int increment) {
+            codeConsumers.add(codeBuilder -> codeBuilder.iinc(varIndex, increment));
+        }
+
+        @Override
+        public void visitLabel(Label label) {
+            currentLocation = label;
+            codeConsumers.add(codeBuilder -> codeBuilder.labelBinding(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
+        }
+
+        @Override
+        public void visitTableSwitchInsn(int min, int max, Label dflt, Label... labels) {
+            codeConsumers.add(codeBuilder -> {
+                SwitchCase[] switchCases = new SwitchCase[labels.length];
+                for (int index = 0; index < labels.length; index++) {
+                    switchCases[index] = SwitchCase.of(min + index, this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel()));
                 }
-                codeConsumers.add(codeBuilder -> codeBuilder.invokedynamic(DynamicCallSiteDesc.of(
-                        MethodHandleDesc.of(
-                                DirectMethodHandleDesc.Kind.valueOf(bootstrapMethodHandle.getTag(), bootstrapMethodHandle.isInterface()),
-                                ClassDesc.ofInternalName(bootstrapMethodHandle.getOwner()),
-                                    bootstrapMethodHandle.getName(),
-                                    bootstrapMethodHandle.getDesc()),
-                        name,
-                        MethodTypeDesc.ofDescriptor(descriptor),
-                        constants)));
-            }
+                codeBuilder.tableswitch(
+                        min,
+                        max,
+                        this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()),
+                        List.of(switchCases));
+            });
+        }
 
-            @Override
-            public void visitJumpInsn(int opcode, Label label) {
-                Consumer<CodeBuilder> codeConsumer = switch (opcode) {
-                    case Opcodes.IFEQ -> codeBuilder -> codeBuilder.ifeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IFNE -> codeBuilder -> codeBuilder.ifne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IFLT -> codeBuilder -> codeBuilder.iflt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IFGE -> codeBuilder -> codeBuilder.ifge(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IFGT -> codeBuilder -> codeBuilder.ifgt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IFLE -> codeBuilder -> codeBuilder.ifle(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IF_ICMPEQ -> codeBuilder -> codeBuilder.if_icmpeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IF_ICMPNE -> codeBuilder -> codeBuilder.if_icmpne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IF_ICMPLT -> codeBuilder -> codeBuilder.if_icmplt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IF_ICMPGE -> codeBuilder -> codeBuilder.if_icmpge(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IF_ICMPGT -> codeBuilder -> codeBuilder.if_icmpgt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IF_ICMPLE -> codeBuilder -> codeBuilder.if_icmple(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IF_ACMPEQ -> codeBuilder -> codeBuilder.if_acmpeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IF_ACMPNE -> codeBuilder -> codeBuilder.if_acmpne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.GOTO -> codeBuilder -> codeBuilder.goto_(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IFNULL -> codeBuilder -> codeBuilder.ifnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.IFNONNULL -> codeBuilder -> codeBuilder.ifnonnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                    case Opcodes.JSR -> codeBuilder -> codeBuilder.with(DiscontinuedInstruction.JsrInstruction.of(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
-                    default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
-                };
-                codeConsumers.add(codeConsumer);
-            }
+        @Override
+        public void visitLookupSwitchInsn(Label dflt, int[] keys, Label[] labels) {
+            codeConsumers.add(codeBuilder -> {
+                SwitchCase[] switchCases = new SwitchCase[labels.length];
+                for (int index = 0; index < labels.length; index++) {
+                    switchCases[index] = SwitchCase.of(keys[index], this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel()));
+                }
+                codeBuilder.lookupswitch(
+                        this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()),
+                        List.of(switchCases));
+            });
+        }
 
-            @Override
-            public void visitLdcInsn(Object value) {
-                ConstantDesc constant = toConstantDesc(value);
-                codeConsumers.add(codeBuilder -> codeBuilder.ldc(constant));
-            }
+        @Override
+        public void visitTypeInsn(int opcode, String type) {
+            ClassDesc description = type.startsWith("[")
+                    ? ClassDesc.ofDescriptor(type)
+                    : ClassDesc.ofInternalName(type);
+            Consumer<CodeBuilder> codeConsumer = switch (opcode) {
+                case Opcodes.NEW -> codeBuilder -> codeBuilder.new_(description);
+                case Opcodes.ANEWARRAY -> codeBuilder -> codeBuilder.anewarray(description);
+                case Opcodes.CHECKCAST -> codeBuilder -> codeBuilder.checkcast(description);
+                case Opcodes.INSTANCEOF -> codeBuilder -> codeBuilder.instanceOf(description);
+                default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
+            };
+            codeConsumers.add(codeConsumer);
+        }
 
-            @Override
-            public void visitIincInsn(int varIndex, int increment) {
-                codeConsumers.add(codeBuilder -> codeBuilder.iinc(varIndex, increment));
-            }
+        @Override
+        public void visitMultiANewArrayInsn(String descriptor, int numDimensions) {
+            codeConsumers.add(codeBuilder -> codeBuilder.multianewarray(ClassDesc.ofDescriptor(descriptor), numDimensions));
+        }
 
-            @Override
-            public void visitLabel(Label label) {
-                currentLocation = label;
-                codeConsumers.add(codeBuilder -> codeBuilder.labelBinding(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
-            }
-
-            @Override
-            public void visitTableSwitchInsn(int min, int max, Label dflt, Label... labels) {
-                codeConsumers.add(codeBuilder -> {
-                    SwitchCase[] switchCases = new SwitchCase[labels.length];
-                    for (int index = 0; index < labels.length; index++) {
-                        switchCases[index] = SwitchCase.of(min + index, this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel()));
-                    }
-                    codeBuilder.tableswitch(
-                            min,
-                            max,
-                            this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()),
-                            List.of(switchCases));
-                });
-            }
-
-            @Override
-            public void visitLookupSwitchInsn(Label dflt, int[] keys, Label[] labels) {
-                codeConsumers.add(codeBuilder -> {
-                    SwitchCase[] switchCases = new SwitchCase[labels.length];
-                    for (int index = 0; index < labels.length; index++) {
-                        switchCases[index] = SwitchCase.of(keys[index], this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel()));
-                    }
-                    codeBuilder.lookupswitch(
-                            this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()),
-                            List.of(switchCases));
-                });
-            }
-
-            @Override
-            public void visitTypeInsn(int opcode, String type) {
-                ClassDesc description = type.startsWith("[")
-                        ? ClassDesc.ofDescriptor(type)
-                        : ClassDesc.ofInternalName(type);
-                Consumer<CodeBuilder> codeConsumer = switch (opcode) {
-                    case Opcodes.NEW -> codeBuilder -> codeBuilder.new_(description);
-                    case Opcodes.ANEWARRAY -> codeBuilder -> codeBuilder.anewarray(description);
-                    case Opcodes.CHECKCAST -> codeBuilder -> codeBuilder.checkcast(description);
-                    case Opcodes.INSTANCEOF -> codeBuilder -> codeBuilder.instanceOf(description);
-                    default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
-                };
-                codeConsumers.add(codeConsumer);
-            }
-
-            @Override
-            public void visitMultiANewArrayInsn(String descriptor, int numDimensions) {
-                codeConsumers.add(codeBuilder -> codeBuilder.multianewarray(ClassDesc.ofDescriptor(descriptor), numDimensions));
-            }
-
-            @Override
-            public void visitLineNumber(int line, Label start) {
+        @Override
+        public void visitLineNumber(int line, Label start) {
 //                if (currentLocation != start) {
 //                    throw new IllegalStateException("JDK class writer requires to visit line numbers at current location");
 //                }
-                codeConsumers.add(codeBuilder -> codeBuilder.lineNumber(line));
-            }
+            codeConsumers.add(codeBuilder -> codeBuilder.lineNumber(line));
+        }
 
-            @Override
-            public void visitLocalVariable(String name, String descriptor, String signature, Label start, Label end, int index) {
-                codeConsumers.add(codeBuilder -> {
-                    if (descriptor != null) {
-                        codeBuilder.localVariable(
-                                index,
-                                name,
-                                ClassDesc.ofDescriptor(descriptor),
-                                labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
-                                labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()));
-                    }
-                    if (signature != null) {
-                        codeBuilder.localVariableType(
-                                index,
-                                name,
-                                Signature.parseFrom(signature),
-                                labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
-                                labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()));
-                    }
-                });
-            }
+        @Override
+        public void visitLocalVariable(String name, String descriptor, String signature, Label start, Label end, int index) {
+            codeConsumers.add(codeBuilder -> {
+                if (descriptor != null) {
+                    codeBuilder.localVariable(
+                            index,
+                            name,
+                            ClassDesc.ofDescriptor(descriptor),
+                            labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
+                            labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()));
+                }
+                if (signature != null) {
+                    codeBuilder.localVariableType(
+                            index,
+                            name,
+                            Signature.parseFrom(signature),
+                            labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
+                            labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()));
+                }
+            });
+        }
 
-            @Override
-            public void visitTryCatchBlock(Label start, Label end, Label handler, String type) {
-                catchCount += 1;
-                codeConsumers.add(codeBuilder -> {
-                    if (type == null) {
-                        codeBuilder.exceptionCatchAll(labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
-                                labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()),
-                                labels.computeIfAbsent(handler, _ -> codeBuilder.newLabel()));
-                    } else {
-                        codeBuilder.exceptionCatch(labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
-                                labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()),
-                                labels.computeIfAbsent(handler, _ -> codeBuilder.newLabel()),
-                                ClassDesc.ofInternalName(type));
-                    }
-                });
-            }
+        @Override
+        public void visitTryCatchBlock(Label start, Label end, Label handler, String type) {
+            catchCount += 1;
+            codeConsumers.add(codeBuilder -> {
+                if (type == null) {
+                    codeBuilder.exceptionCatchAll(labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
+                            labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()),
+                            labels.computeIfAbsent(handler, _ -> codeBuilder.newLabel()));
+                } else {
+                    codeBuilder.exceptionCatch(labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
+                            labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()),
+                            labels.computeIfAbsent(handler, _ -> codeBuilder.newLabel()),
+                            ClassDesc.ofInternalName(type));
+                }
+            });
+        }
 
-            @Override
-            public void visitMaxs(int maxStack, int maxLocals) {
-            }
+        @Override
+        public void visitMaxs(int maxStack, int maxLocals) { }
 
-            @Override
-            public void visitEnd() {
-                classConsumers.add(classBuilder -> classBuilder.withMethod(name, MethodTypeDesc.ofDescriptor(descriptor), access & ~Opcodes.ACC_DEPRECATED, methodBuilder -> {
-                    if ((access & Opcodes.ACC_DEPRECATED) != 0) {
-                        methodBuilder.with(DeprecatedAttribute.of());
+        @Override
+        public void visitEnd() {
+            classConsumers.add(classBuilder -> classBuilder.withMethod(name, MethodTypeDesc.ofDescriptor(descriptor), access & ~Opcodes.ACC_DEPRECATED, methodBuilder -> {
+                if ((access & Opcodes.ACC_DEPRECATED) != 0) {
+                    methodBuilder.with(DeprecatedAttribute.of());
+                }
+                if (signature != null) {
+                    methodBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
+                }
+                if (exceptions != null) {
+                    ClassDesc[] entries = new ClassDesc[exceptions.length];
+                    for (int index = 0; index < exceptions.length; index++) {
+                        entries[index] = ClassDesc.ofInternalName(exceptions[index]);
                     }
-                    if (signature != null) {
-                        methodBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
+                    methodBuilder.with(ExceptionsAttribute.ofSymbols(entries));
+                }
+                for (CustomAttribute<?> attribute : attributes) {
+                    methodBuilder.with(attribute);
+                }
+                if (defaultValue != null) {
+                    methodBuilder.with(AnnotationDefaultAttribute.of(defaultValue));
+                }
+                if (!visibleAnnotations.isEmpty()) {
+                    methodBuilder.with(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
+                }
+                if (!invisibleAnnotations.isEmpty()) {
+                    methodBuilder.with(RuntimeInvisibleAnnotationsAttribute.of(invisibleAnnotations));
+                }
+                if (!visibleTypeAnnotations.isEmpty()) {
+                    methodBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations));
+                }
+                if (!invisibleTypeAnnotations.isEmpty()) {
+                    methodBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations));
+                }
+                if (!methodParameters.isEmpty()) {
+                    methodBuilder.with(MethodParametersAttribute.of(methodParameters));
+                }
+                if (!visibleParameterAnnotations.isEmpty()) {
+                    List<List<Annotation>> annotations = new ArrayList<>();
+                    for (int index = 0; index < Math.max(visibleParameterAnnotationsCount, visibleParameterAnnotations.size()); index++) {
+                        annotations.add(visibleParameterAnnotations.getOrDefault(index, List.of()));
                     }
-                    if (exceptions != null) {
-                        ClassDesc[] entries = new ClassDesc[exceptions.length];
-                        for (int index = 0; index < exceptions.length; index++) {
-                            entries[index] = ClassDesc.ofInternalName(exceptions[index]);
+                    methodBuilder.with(RuntimeVisibleParameterAnnotationsAttribute.of(annotations));
+                }
+                if (!invisibleParameterAnnotations.isEmpty()) {
+                    List<List<Annotation>> annotations = new ArrayList<>();
+                    for (int index = 0; index < Math.max(invisibleParameterAnnotationsCount, invisibleParameterAnnotations.size()); index++) {
+                        annotations.add(invisibleParameterAnnotations.getOrDefault(index, List.of()));
+                    }
+                    methodBuilder.with(RuntimeInvisibleParameterAnnotationsAttribute.of(annotations));
+                }
+                if (codeConsumers != null) {
+                    methodBuilder.withCode(codeBuilder -> {
+                        codeConsumers.forEach(codeConsumer -> codeConsumer.accept(codeBuilder));
+                        if (!stackMapFrames.isEmpty()) {
+                            codeBuilder.with(StackMapTableAttribute.of(stackMapFrames));
                         }
-                        methodBuilder.with(ExceptionsAttribute.ofSymbols(entries));
-                    }
-                    for (CustomAttribute<?> attribute : attributes) {
-                        methodBuilder.with(attribute);
-                    }
-                    if (defaultValue != null) {
-                        methodBuilder.with(AnnotationDefaultAttribute.of(defaultValue));
-                    }
-                    if (!visibleAnnotations.isEmpty()) {
-                        methodBuilder.with(RuntimeVisibleAnnotationsAttribute.of(visibleAnnotations));
-                    }
-                    if (!invisibleAnnotations.isEmpty()) {
-                        methodBuilder.with(RuntimeInvisibleAnnotationsAttribute.of(invisibleAnnotations));
-                    }
-                    if (!visibleTypeAnnotations.isEmpty()) {
-                        methodBuilder.with(RuntimeVisibleTypeAnnotationsAttribute.of(visibleTypeAnnotations));
-                    }
-                    if (!invisibleTypeAnnotations.isEmpty()) {
-                        methodBuilder.with(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations));
-                    }
-                    if (!methodParameters.isEmpty()) {
-                        methodBuilder.with(MethodParametersAttribute.of(methodParameters));
-                    }
-                    if (!visibleParameterAnnotations.isEmpty()) {
-                        List<List<Annotation>> annotations = new ArrayList<>();
-                        for (int index = 0; index < Math.max(visibleParameterAnnotationsCount, visibleParameterAnnotations.size()); index++) {
-                            annotations.add(visibleParameterAnnotations.getOrDefault(index, List.of()));
-                        }
-                        methodBuilder.with(RuntimeVisibleParameterAnnotationsAttribute.of(annotations));
-                    }
-                    if (!invisibleParameterAnnotations.isEmpty()) {
-                        List<List<Annotation>> annotations = new ArrayList<>();
-                        for (int index = 0; index < Math.max(invisibleParameterAnnotationsCount, invisibleParameterAnnotations.size()); index++) {
-                            annotations.add(invisibleParameterAnnotations.getOrDefault(index, List.of()));
-                        }
-                        methodBuilder.with(RuntimeInvisibleParameterAnnotationsAttribute.of(annotations));
-                    }
-                    if (codeConsumers != null) {
-                        methodBuilder.withCode(codeBuilder -> {
-                            codeConsumers.forEach(codeConsumer -> codeConsumer.accept(codeBuilder));
-                            if (!stackMapFrames.isEmpty()) {
-                                codeBuilder.with(StackMapTableAttribute.of(stackMapFrames));
-                            }
-                        });
-                    }
-                }));
-            }
-        };
+                    });
+                }
+            }));
+        }
     }
 
     @Override
