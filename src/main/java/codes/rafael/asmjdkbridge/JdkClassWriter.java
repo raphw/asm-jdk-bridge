@@ -1154,7 +1154,7 @@ public class JdkClassWriter extends ClassVisitor {
         return getClass().getClassLoader();
     }
 
-    private static class WritingAnnotationVisitor extends AnnotationVisitor {
+    static class WritingAnnotationVisitor extends AnnotationVisitor {
 
         private final BiConsumer<String, AnnotationValue> consumer;
         private final Runnable onEnd;
@@ -1360,6 +1360,10 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public void visitEnd() {
             onEnd.run();
+        }
+
+        void add(String name, AnnotationValue annotationValue) {
+            consumer.accept(name, annotationValue);
         }
     }
 }

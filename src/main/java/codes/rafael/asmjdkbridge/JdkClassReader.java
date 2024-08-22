@@ -451,6 +451,10 @@ public class JdkClassReader {
     }
 
     private static void appendAnnotationValue(AnnotationVisitor annotationVisitor, String name, AnnotationValue annotationValue) {
+        if (annotationVisitor instanceof JdkClassWriter.WritingAnnotationVisitor writingAnnotationVisitor) {
+            writingAnnotationVisitor.add(name, annotationValue);
+            return;
+        }
         switch (annotationValue) {
             case AnnotationValue.OfConstant.OfBoolean value -> annotationVisitor.visit(name, value.booleanValue());
             case AnnotationValue.OfConstant.OfByte value -> annotationVisitor.visit(name, value.byteValue());
