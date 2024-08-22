@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.classfile.CustomAttribute;
 import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collection;
@@ -42,7 +43,7 @@ public class JdkClassWriterTest {
                 {TypeAnnotationsWithoutPath.class, 0, 0},
                 {TypeAnnotationsWithPath.class, 0, 0},
                 {TypeAnnotationsInCode.class, 0, ClassWriter.COMPUTE_FRAMES},
-                {CustomAttribute.make(), 0, 0},
+                {CustomAttributeExtractable.make(), 0, 0},
                 {SyntheticParameters.class, 0, 0},
                 {SyntheticParameters.InnerClass.class, 0, 0},
                 {String.class, ClassReader.SKIP_FRAMES, 0},
@@ -70,7 +71,7 @@ public class JdkClassWriterTest {
         toClassReader(classFile).accept(toVisitor(asm), readerFlags);
         JdkClassWriter writer = new JdkClassWriter(writerFlags, attribute -> {
             if (attribute instanceof TestAttribute testAttribute) {
-                return testAttribute.content;
+                return testAttribute.attribute;
             } else {
                 throw new AssertionError("Unknown attribute: " + attribute.type);
             }
@@ -96,7 +97,7 @@ public class JdkClassWriterTest {
 
     public static class TestAttribute extends Attribute {
 
-        private byte[] content;
+        private CustomAttribute<?> attribute;
 
         protected TestAttribute() {
             super("CustomAttribute");
@@ -106,15 +107,15 @@ public class JdkClassWriterTest {
         @SuppressWarnings("deprecation")
         protected Attribute read(ClassReader classReader, int offset, int length, char[] charBuffer, int codeAttributeOffset, Label[] labels) {
             TestAttribute attribute = new TestAttribute();
-            attribute.content = new byte[length];
-            System.arraycopy(classReader.b, offset, attribute.content, 0, length);
+            attribute.attribute = new byte[length];
+            System.arraycopy(classReader.b, offset, attribute.attribute, 0, length);
             return attribute;
         }
 
         @Override
         protected ByteVector write(ClassWriter classWriter, byte[] code, int codeLength, int maxStack, int maxLocals) {
-            ByteVector vector = new ByteVector(content.length);
-            vector.putByteArray(content, 0, content.length);
+            ByteVector vector = new ByteVector(attribute.length);
+            vector.putByteArray(attribute, 0, attribute.length);
             return vector;
         }
     }

@@ -42,7 +42,7 @@ public class JdkClassReaderTest {
                 {TypeAnnotationsWithoutPath.class, 0},
                 {TypeAnnotationsWithPath.class, 0},
                 {TypeAnnotationsInCode.class, 0},
-                {CustomAttribute.make(), 0},
+                {CustomAttributeExtractable.make(), 0},
                 {SyntheticParameters.class, 0},
                 {SyntheticParameters.InnerClass.class, 0},
                 {String.class, 0},

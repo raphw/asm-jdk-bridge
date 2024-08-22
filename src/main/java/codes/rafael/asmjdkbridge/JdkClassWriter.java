@@ -4,7 +4,6 @@ import org.objectweb.asm.Attribute;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.*;
 
-import java.lang.classfile.ClassReader;
 import java.lang.classfile.*;
 import java.lang.classfile.attribute.*;
 import java.lang.classfile.constantpool.ConstantPoolBuilder;
@@ -21,20 +20,20 @@ public class JdkClassWriter extends ClassVisitor {
 
     private final int flags;
     private final ClassModel classModel;
-    private final Function<Attribute, byte[]> extractor;
+    private final Function<Attribute, Optional<CustomAttribute<?>>> extractor;
 
     private final List<ClassDesc> nestMembers = new ArrayList<>();
     private final List<InnerClassInfo> innerClasses = new ArrayList<>();
     private final List<ClassDesc> permittedSubclasses = new ArrayList<>();
     private final List<RecordComponentInfo> recordComponents = new ArrayList<>();
-    private final List<RawAttribute> attributes = new ArrayList<>();
+    private final List<CustomAttribute<?>> attributes = new ArrayList<>();
     private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
     private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
 
     private ClassDesc thisClass;
     private boolean isRecord;
     private List<Consumer<ClassBuilder>> classConsumers = new ArrayList<>(List.of(classBuilder -> {
-        for (RawAttribute attribute : attributes) {
+        for (CustomAttribute<?> attribute : attributes) {
             classBuilder.with(attribute);
         }
         if (!visibleAnnotations.isEmpty()) {
@@ -83,20 +82,35 @@ public class JdkClassWriter extends ClassVisitor {
         });
     }
 
-    public JdkClassWriter(int flags, Function<Attribute, byte[]> extractor) {
+    public JdkClassWriter(int flags, Function<Attribute, Optional<CustomAttribute<?>>> extractor) {
         this(flags, (ClassModel) null, extractor);
     }
 
-
-    public JdkClassWriter(int flags, JdkClassReader classReader, Function<Attribute, byte[]> extractor) {
+    public JdkClassWriter(int flags, JdkClassReader classReader, Function<Attribute, Optional<CustomAttribute<?>>> extractor) {
         this(flags, classReader == null ? null : classReader.getClassModel(), extractor);
     }
 
-    public JdkClassWriter(int flags, ClassModel classModel, Function<Attribute, byte[]> extractor) {
+    public JdkClassWriter(int flags, ClassModel classModel, Function<Attribute, Optional<CustomAttribute<?>>> extractor) {
         super(Opcodes.ASM9);
         this.flags = flags;
         this.classModel = classModel;
-        this.extractor = extractor;
+        this.extractor = attribute -> {
+            if (attribute instanceof AsmCharacterRangeTableAttribute characterRangeTableAttribute) {
+                return Optional.of(new AsmCharacterRangeTableAttribute.CustomCharacterRangeTableAttribute(characterRangeTableAttribute.attribute));
+            } else if (attribute instanceof AsmUnknownAttribute unknownAttribute) {
+                return Optional.of(new AsmUnknownAttribute.CustomUnknownAttribute(unknownAttribute.attribute));
+            } else if (attribute instanceof AsmSourceIdAttribute sourceIdAttribute) {
+                return Optional.of(new AsmSourceIdAttribute.CustomSourceIdAttribute(sourceIdAttribute.attribute));
+            } else if (attribute instanceof AsmCompilationIdAttribute compilationIdAttribute) {
+                return Optional.of(new AsmCompilationIdAttribute.CustomCompilationIdAttribute(compilationIdAttribute.attribute));
+            } else if (attribute instanceof AsmModuleResolutionAttribute moduleResolutionAttribute) {
+                return Optional.of(new AsmModuleResolutionAttribute.CustomModuleResolutionAttribute(moduleResolutionAttribute.attribute));
+            } else if (attribute instanceof AsmModuleHashesAttribute moduleHashesAttribute) {
+                return Optional.of(new AsmModuleHashesAttribute.CustomModuleHashesAttribute(moduleHashesAttribute.attribute));
+            } else {
+                return extractor.apply(attribute);
+            }
+        };
     }
 
     @Override
@@ -251,7 +265,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitAttribute(Attribute attribute) {
-        attributes.add(new RawAttribute(attribute.type, extractor.apply(attribute)));
+        extractor.apply(attribute).ifPresent(attributes::add);
     }
 
     @Override
@@ -285,13 +299,13 @@ public class JdkClassWriter extends ClassVisitor {
     public RecordComponentVisitor visitRecordComponent(String name, String descriptor, String signature) {
         return new RecordComponentVisitor(Opcodes.ASM9) {
 
-            private final List<RawAttribute> attributes = new ArrayList<>();
+            private final List<CustomAttribute<?>> attributes = new ArrayList<>();
             private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
             private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
 
             @Override
             public void visitAttribute(Attribute attribute) {
-                attributes.add(new RawAttribute(attribute.type, extractor.apply(attribute)));
+                extractor.apply(attribute).ifPresent(attributes::add);
             }
 
             @Override
@@ -334,13 +348,13 @@ public class JdkClassWriter extends ClassVisitor {
     public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
         return new FieldVisitor(Opcodes.ASM9) {
 
-            private final List<RawAttribute> attributes = new ArrayList<>();
+            private final List<CustomAttribute<?>> attributes = new ArrayList<>();
             private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
             private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
 
             @Override
             public void visitAttribute(Attribute attribute) {
-                attributes.add(new RawAttribute(attribute.type, extractor.apply(attribute)));
+                extractor.apply(attribute).ifPresent(attributes::add);
             }
 
             @Override
@@ -369,7 +383,7 @@ public class JdkClassWriter extends ClassVisitor {
                     if (signature != null) {
                         fieldBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
                     }
-                    for (RawAttribute attribute : attributes) {
+                    for (CustomAttribute<?> attribute : attributes) {
                         fieldBuilder.with(attribute);
                     }
                     if (!visibleAnnotations.isEmpty()) {
@@ -398,7 +412,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             private List<Consumer<CodeBuilder>> codeConsumers;
 
-            private final List<RawAttribute> attributes = new ArrayList<>();
+            private final List<CustomAttribute<?>> attributes = new ArrayList<>();
             private AnnotationValue defaultValue;
             private int catchCount = -1;
             private Label currentLocation;
@@ -440,7 +454,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitAttribute(Attribute attribute) {
-                attributes.add(new RawAttribute(attribute.type, extractor.apply(attribute)));
+                extractor.apply(attribute).ifPresent(attributes::add);
             }
 
             @Override
@@ -953,7 +967,7 @@ public class JdkClassWriter extends ClassVisitor {
                         }
                         methodBuilder.with(ExceptionsAttribute.ofSymbols(entries));
                     }
-                    for (RawAttribute attribute : attributes) {
+                    for (CustomAttribute<?> attribute : attributes) {
                         methodBuilder.with(attribute);
                     }
                     if (defaultValue != null) {
@@ -1305,38 +1319,6 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public void visitEnd() {
             onEnd.run();
-        }
-    }
-
-    private static class RawAttribute extends CustomAttribute<RawAttribute> {
-
-        private final byte[] bytes;
-
-        private RawAttribute(String name, byte[] bytes) {
-            super(new AttributeMapper<>() {
-                @Override
-                public String name() {
-                    return name;
-                }
-
-                @Override
-                public RawAttribute readAttribute(AttributedElement enclosing, ClassReader cf, int pos) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public void writeAttribute(BufWriter buf, RawAttribute attr) {
-                    buf.writeIndex(buf.constantPool().utf8Entry(name));
-                    buf.writeInt(attr.bytes.length);
-                    buf.writeBytes(attr.bytes);
-                }
-
-                @Override
-                public AttributeStability stability() {
-                    return AttributeStability.UNKNOWN;
-                }
-            });
-            this.bytes = bytes;
         }
     }
 }

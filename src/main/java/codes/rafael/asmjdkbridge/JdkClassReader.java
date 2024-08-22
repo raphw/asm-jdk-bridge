@@ -30,26 +30,46 @@ public class JdkClassReader {
 
     private final ClassModel classModel;
 
+    private final Function<UnknownAttribute, Optional<Attribute>> extractor;
+
     public JdkClassReader(byte[] classFile) {
-        this(ClassFile.of().parse(classFile));
+        this(classFile, _ -> Optional.empty());
     }
 
     public JdkClassReader(InputStream inputStream) throws IOException {
-        this(inputStream.readAllBytes());
+        this(inputStream, _ -> Optional.empty());
     }
 
     public JdkClassReader(String className) throws IOException {
+        this(className, _ -> Optional.empty());
+    }
+
+    public JdkClassReader(byte[] classFile, Function<UnknownAttribute, Optional<Attribute>> extractor) {
+        this(ClassFile.of().parse(classFile));
+    }
+
+    public JdkClassReader(InputStream inputStream, Function<UnknownAttribute, Optional<Attribute>> extractor) throws IOException {
+        this(inputStream.readAllBytes());
+    }
+
+    public JdkClassReader(String className, Function<UnknownAttribute, Optional<Attribute>> extractor) throws IOException {
         try (InputStream inputStream = ClassLoader.getSystemResourceAsStream(className.replace('.', '/') + ".class")) {
             classModel = ClassFile.of().parse(inputStream.readAllBytes());
         }
+        this.extractor = extractor;
+    }
+
+    public JdkClassReader(ClassModel classModel) {
+        this(classModel, _ -> Optional.empty());
+    }
+
+    public JdkClassReader(ClassModel classModel, Function<UnknownAttribute, Optional<Attribute>> extractor) {
+        this.classModel = classModel;
+        this.extractor = extractor;
     }
 
     public ClassModel getClassModel() {
         return classModel;
-    }
-
-    public JdkClassReader(ClassModel classModel) {
-        this.classModel = classModel;
     }
 
     public void accept(ClassVisitor classVisitor) {
@@ -110,6 +130,10 @@ public class JdkClassReader {
                 enclosingMethod.enclosingMethod().map(value -> value.name().stringValue()).orElse(null),
                 enclosingMethod.enclosingMethod().map(value -> value.type().stringValue()).orElse(null)));
         acceptAnnotations(classModel, classVisitor::visitAnnotation, classVisitor::visitTypeAnnotation);
+        classModel.findAttribute(Attributes.sourceId()).ifPresent(sourceIDAttribute -> classVisitor.visitAttribute(new AsmSourceIdAttribute(sourceIDAttribute)));
+        classModel.findAttribute(Attributes.compilationId()).ifPresent(sourceIDAttribute -> classVisitor.visitAttribute(new AsmCompilationIdAttribute(sourceIDAttribute)));
+        classModel.findAttribute(Attributes.moduleResolution()).ifPresent(moduleResolutionAttribute -> classVisitor.visitAttribute(new AsmModuleResolutionAttribute(moduleResolutionAttribute)));
+        classModel.findAttribute(Attributes.moduleHashes()).ifPresent(moduleResolutionAttribute -> classVisitor.visitAttribute(new AsmModuleHashesAttribute(moduleResolutionAttribute)));
         acceptAttributes(classModel, classVisitor::visitAttribute);
         classModel.findAttribute(Attributes.nestMembers()).stream()
                 .flatMap(nestMembers -> nestMembers.nestMembers().stream())
@@ -171,7 +195,7 @@ public class JdkClassReader {
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
                 acceptAttributes(methodModel, methodVisitor::visitAttribute);
                 methodModel.code().filter(_ -> (flags & ClassReader.SKIP_CODE) == 0).map(code -> (CodeAttribute) code).ifPresent(code -> {
-                    code.findAttribute(Attributes.characterRangeTable()).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new CharacterRangeTableAttribute(characterRangeTable.characterRangeTable())));
+                    code.findAttribute(Attributes.characterRangeTable()).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new AsmCharacterRangeTableAttribute(characterRangeTable)));
                     int localVariablesSize = Type.getMethodType(methodModel.methodType().stringValue()).getArgumentTypes().length + (methodModel.flags().has(AccessFlag.STATIC) ? 0 : 1);
                     Map<Label, StackMapFrameInfo> frames = (flags & ClassReader.SKIP_FRAMES) == 0 ? code.findAttribute(Attributes.stackMapTable())
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapFrameInfo::target, Function.identity())))
@@ -408,11 +432,11 @@ public class JdkClassReader {
         });
     }
 
-    private static void acceptAttributes(AttributedElement element, Consumer<Attribute> consumer) {
+    private void acceptAttributes(AttributedElement element, Consumer<Attribute> consumer) {
         element.attributes().stream()
                 .filter(attribute -> attribute instanceof java.lang.classfile.attribute.UnknownAttribute)
                 .map(java.lang.classfile.attribute.UnknownAttribute.class::cast)
-                .forEach(unknownAttribute -> consumer.accept(new UnknownAttribute(unknownAttribute.attributeName(), unknownAttribute.contents())));
+                .forEach(unknownAttribute -> consumer.accept(extractor.apply(unknownAttribute).orElse(new AsmUnknownAttribute(unknownAttribute))));
     }
 
     private static void appendAnnotationValues(AnnotationVisitor annotationVisitor, List<AnnotationElement> elements) {

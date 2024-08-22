@@ -1,15 +1,14 @@
 package codes.rafael.asmjdkbridge.sample;
 
-import codes.rafael.asmjdkbridge.UnknownAttribute;
 import org.objectweb.asm.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 
-public class CustomAttribute {
+public class CustomAttributeExtractable {
 
     public static Class<?> make() {
-        String generated = CustomAttribute.class.getPackageName() + ".CustomAttributeGen";
+        String generated = CustomAttributeExtractable.class.getPackageName() + ".CustomAttributeGen";
         ClassWriter classWriter = new ClassWriter(0);
         classWriter.visit(Opcodes.V19,
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_ABSTRACT,
