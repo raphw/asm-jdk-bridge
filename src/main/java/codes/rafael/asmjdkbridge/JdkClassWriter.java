@@ -153,94 +153,112 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public ModuleVisitor visitModule(String name, int access, String version) {
-        return new ModuleVisitor(Opcodes.ASM9) {
+        return new WritingModuleVisitor(name, access, version);
+    }
 
-            private String mainClass;
-            private List<PackageDesc> packages = new ArrayList<>();
+    class WritingModuleVisitor extends ModuleVisitor {
 
-            private List<Consumer<ModuleAttribute.ModuleAttributeBuilder>> moduleAttributeConsumers = new ArrayList<>(List.of(moduleAttributeBuilder -> {
-                moduleAttributeBuilder.moduleFlags(access & ~Opcodes.ACC_DEPRECATED);
-                if (version != null) {
-                    moduleAttributeBuilder.moduleVersion(version);
+        private final String name;
+        private final int access;
+        private final String version;
+
+        private String mainClass;
+        private List<PackageDesc> packages = new ArrayList<>();
+
+        private List<Consumer<ModuleAttribute.ModuleAttributeBuilder>> moduleAttributeConsumers = new ArrayList<>();
+
+        private WritingModuleVisitor(String name, int access, String version) {
+            super(Opcodes.ASM9);
+            this.name = name;
+            this.access = access;
+            this.version = version;
+        }
+
+        void add(ClassElement element) {
+            classConsumers.add(classBuilder -> classBuilder.with(element));
+        }
+
+        @Override
+        public void visitMainClass(String mainClass) {
+            this.mainClass = mainClass;
+        }
+
+        @Override
+        public void visitPackage(String packaze) {
+            packages.add(PackageDesc.ofInternalName(packaze));
+        }
+
+        @Override
+        public void visitRequire(String module, int access, String version) {
+            moduleAttributeConsumers.add(moduleAttributeBuilder -> moduleAttributeBuilder.requires(
+                    ModuleDesc.of(module),
+                    access,
+                    version));
+        }
+
+        @Override
+        public void visitExport(String packaze, int access, String... modules) {
+            moduleAttributeConsumers.add(moduleAttributeBuilder -> {
+                ModuleDesc[] descriptions = new ModuleDesc[modules.length];
+                for (int index = 0; index < modules.length; index++) {
+                    descriptions[index] = ModuleDesc.of(modules[index]);
                 }
-            }));
-
-            @Override
-            public void visitMainClass(String mainClass) {
-                this.mainClass = mainClass;
-            }
-
-            @Override
-            public void visitPackage(String packaze) {
-                packages.add(PackageDesc.ofInternalName(packaze));
-            }
-
-            @Override
-            public void visitRequire(String module, int access, String version) {
-                moduleAttributeConsumers.add(moduleAttributeBuilder -> moduleAttributeBuilder.requires(
-                        ModuleDesc.of(module),
+                moduleAttributeBuilder.exports(PackageDesc.ofInternalName(packaze),
                         access,
-                        version));
-            }
+                        descriptions);
+            });
+        }
 
-            @Override
-            public void visitExport(String packaze, int access, String... modules) {
-                moduleAttributeConsumers.add(moduleAttributeBuilder -> {
-                    ModuleDesc[] descriptions = new ModuleDesc[modules.length];
-                    for (int index = 0; index < modules.length; index++) {
-                        descriptions[index] = ModuleDesc.of(modules[index]);
-                    }
-                    moduleAttributeBuilder.exports(PackageDesc.ofInternalName(packaze),
-                            access,
-                            descriptions);
-                });
-            }
+        @Override
+        public void visitOpen(String packaze, int access, String... modules) {
+            moduleAttributeConsumers.add(moduleAttributeBuilder -> {
+                ModuleDesc[] descriptions = new ModuleDesc[modules.length];
+                for (int index = 0; index < modules.length; index++) {
+                    descriptions[index] = ModuleDesc.of(modules[index]);
+                }
+                moduleAttributeBuilder.opens(PackageDesc.ofInternalName(packaze),
+                        access,
+                        descriptions);
+            });
+        }
 
-            @Override
-            public void visitOpen(String packaze, int access, String... modules) {
-                moduleAttributeConsumers.add(moduleAttributeBuilder -> {
-                    ModuleDesc[] descriptions = new ModuleDesc[modules.length];
-                    for (int index = 0; index < modules.length; index++) {
-                        descriptions[index] = ModuleDesc.of(modules[index]);
-                    }
-                    moduleAttributeBuilder.opens(PackageDesc.ofInternalName(packaze),
-                            access,
-                            descriptions);
-                });
-            }
+        @Override
+        public void visitUse(String service) {
+            moduleAttributeConsumers.add(moduleAttributeBuilder ->
+                    moduleAttributeBuilder.uses(ClassDesc.ofInternalName(service)));
+        }
 
-            @Override
-            public void visitUse(String service) {
-                moduleAttributeConsumers.add(moduleAttributeBuilder ->
-                        moduleAttributeBuilder.uses(ClassDesc.ofInternalName(service)));
-            }
+        @Override
+        public void visitProvide(String service, String... providers) {
+            moduleAttributeConsumers.add(moduleAttributeBuilder -> {
+                ClassDesc[] descriptions = new ClassDesc[providers.length];
+                for (int index = 0; index < providers.length; index++) {
+                    descriptions[index] = ClassDesc.of(providers[index]);
+                }
+                moduleAttributeBuilder.provides(ClassDesc.ofInternalName(service), descriptions);
+            });
+        }
 
-            @Override
-            public void visitProvide(String service, String... providers) {
-                moduleAttributeConsumers.add(moduleAttributeBuilder -> {
-                    ClassDesc[] descriptions = new ClassDesc[providers.length];
-                    for (int index = 0; index < providers.length; index++) {
-                        descriptions[index] = ClassDesc.of(providers[index]);
-                    }
-                    moduleAttributeBuilder.provides(ClassDesc.ofInternalName(service), descriptions);
-                });
-            }
-
-            @Override
-            public void visitEnd() {
-                classConsumers.add(classBuilder -> {
-                    classBuilder.with(ModuleAttribute.of(
-                            ModuleDesc.of(name),
-                            moduleAttributeBuilder -> moduleAttributeConsumers.forEach(moduleAttributeConsumer -> moduleAttributeConsumer.accept(moduleAttributeBuilder))));
-                    if (mainClass != null) {
-                        classBuilder.with(ModuleMainClassAttribute.of(ClassDesc.ofInternalName(mainClass)));
-                    }
-                    if (!packages.isEmpty()) {
-                        classBuilder.with(ModulePackagesAttribute.ofNames(packages));
-                    }
-                });
-            }
-        };
+        @Override
+        public void visitEnd() {
+            classConsumers.add(classBuilder -> {
+                classBuilder.with(ModuleAttribute.of(
+                        ModuleDesc.of(name),
+                        moduleAttributeBuilder -> {
+                            moduleAttributeBuilder.moduleFlags(access & ~Opcodes.ACC_DEPRECATED);
+                            if (version != null) {
+                                moduleAttributeBuilder.moduleVersion(version);
+                            }
+                            moduleAttributeConsumers.forEach(moduleAttributeConsumer -> moduleAttributeConsumer.accept(moduleAttributeBuilder));
+                        }));
+                if (mainClass != null) {
+                    classBuilder.with(ModuleMainClassAttribute.of(ClassDesc.ofInternalName(mainClass)));
+                }
+                if (!packages.isEmpty()) {
+                    classBuilder.with(ModulePackagesAttribute.ofNames(packages));
+                }
+            });
+        }
     }
 
     @Override
@@ -361,7 +379,7 @@ public class JdkClassWriter extends ClassVisitor {
         private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
         private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
 
-        WritingFieldVisitor(int access, String name, String descriptor, String signature, Object value) {
+        private WritingFieldVisitor(int access, String name, String descriptor, String signature, Object value) {
             super(Opcodes.ASM9);
             this.access = access;
             this.name = name;
@@ -456,7 +474,7 @@ public class JdkClassWriter extends ClassVisitor {
         private List<StackMapFrameInfo> stackMapFrames;
         private Map<Label, java.lang.classfile.Label> labels;
 
-        public WritingMethodVisitor(int access, String name, String descriptor, String signature, String[] exceptions) {
+        private WritingMethodVisitor(int access, String name, String descriptor, String signature, String[] exceptions) {
             super(Opcodes.ASM9);
             this.access = access;
             this.name = name;

@@ -101,7 +101,11 @@ public class JdkClassReader {
             ModuleVisitor moduleVisitor = classVisitor.visitModule(module.moduleName().name().stringValue(),
                     module.moduleFlagsMask(),
                     module.moduleVersion().map(Utf8Entry::stringValue).orElse(null));
-            if (moduleVisitor != null) {
+            if (moduleVisitor instanceof JdkClassWriter.WritingModuleVisitor writingModuleVisitor) {
+                classModel.findAttribute(Attributes.moduleMainClass()).ifPresent(writingModuleVisitor::add);
+                classModel.findAttribute(Attributes.modulePackages()).ifPresent(writingModuleVisitor::add);
+                writingModuleVisitor.add(module);
+            } else if (moduleVisitor != null) {
                 classModel.findAttribute(Attributes.moduleMainClass())
                         .map(moduleMainClass -> moduleMainClass.mainClass().asInternalName())
                         .ifPresent(moduleVisitor::visitMainClass);
