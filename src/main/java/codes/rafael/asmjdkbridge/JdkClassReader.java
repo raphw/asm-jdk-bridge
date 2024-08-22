@@ -101,7 +101,7 @@ public class JdkClassReader {
             ModuleVisitor moduleVisitor = classVisitor.visitModule(module.moduleName().name().stringValue(),
                     module.moduleFlagsMask(),
                     module.moduleVersion().map(Utf8Entry::stringValue).orElse(null));
-            if (moduleVisitor instanceof JdkClassWriter.WritingModuleVisitor writingModuleVisitor) {
+            if (moduleVisitor instanceof JdkClassWriter.WritingModuleVisitor writingModuleVisitor && writingModuleVisitor.has(classModel)) {
                 classModel.findAttribute(Attributes.moduleMainClass()).ifPresent(writingModuleVisitor::add);
                 classModel.findAttribute(Attributes.modulePackages()).ifPresent(writingModuleVisitor::add);
                 writingModuleVisitor.add(module);
@@ -169,7 +169,7 @@ public class JdkClassReader {
                     fieldModel.fieldType().stringValue(),
                     fieldModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
                     fieldModel.findAttribute(Attributes.constantValue()).map(constantValue -> toAsmConstant(constantValue.constant().constantValue())).orElse(null));
-            if (fieldVisitor instanceof JdkClassWriter.WritingFieldVisitor writingFieldVisitor) {
+            if (fieldVisitor instanceof JdkClassWriter.WritingFieldVisitor writingFieldVisitor && writingFieldVisitor.has(classModel)) {
                 writingFieldVisitor.add(fieldModel);
             } else if (fieldVisitor != null) {
                 acceptAnnotations(fieldModel, fieldVisitor::visitAnnotation, fieldVisitor::visitTypeAnnotation);
@@ -183,7 +183,7 @@ public class JdkClassReader {
                     methodModel.methodType().stringValue(),
                     methodModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
                     methodModel.findAttribute(Attributes.exceptions()).map(exceptions -> exceptions.exceptions().stream().map(ClassEntry::asInternalName).toArray(String[]::new)).orElse(null));
-            if (methodVisitor instanceof JdkClassWriter.WritingMethodVisitor writingMethodVisitor) {
+            if (methodVisitor instanceof JdkClassWriter.WritingMethodVisitor writingMethodVisitor && writingMethodVisitor.has(classModel)) {
                 writingMethodVisitor.add(methodModel);
             } else if (methodVisitor != null) {
                 if ((flags & ClassReader.SKIP_DEBUG) == 0) {
@@ -402,7 +402,7 @@ public class JdkClassReader {
         classVisitor.visitEnd();
     }
 
-    private static void acceptAnnotations(AttributedElement element, AnnotationVisitorSource annotationVisitorSource, TypeAnnotationVisitorSource typeAnnotationVisitorSource) {
+    private void acceptAnnotations(AttributedElement element, AnnotationVisitorSource annotationVisitorSource, TypeAnnotationVisitorSource typeAnnotationVisitorSource) {
         element.findAttribute(Attributes.runtimeVisibleAnnotations()).stream()
                 .flatMap(annotations -> annotations.annotations().stream())
                 .forEach(annotation -> appendAnnotationValues(annotationVisitorSource.visitAnnotation(annotation.className().stringValue(), true), annotation.elements()));
@@ -423,7 +423,7 @@ public class JdkClassReader {
                         false), annotation.annotation().elements()));
     }
 
-    private static void acceptParameterAnnotations(MethodModel methodModel, MethodVisitor methodVisitor, boolean visible) {
+    private void acceptParameterAnnotations(MethodModel methodModel, MethodVisitor methodVisitor, boolean visible) {
         int count = methodModel.findAttribute(Attributes.methodParameters())
                 .map(parameters -> (int) parameters.parameters().stream().filter(parameter -> !parameter.has(AccessFlag.SYNTHETIC) && !parameter.has(AccessFlag.MANDATED)).count())
                 .orElseGet(() -> methodModel.methodTypeSymbol().parameterCount());
@@ -447,15 +447,15 @@ public class JdkClassReader {
                 .forEach(unknownAttribute -> consumer.accept(extractor.apply(unknownAttribute).orElse(new AsmUnknownAttribute(unknownAttribute))));
     }
 
-    private static void appendAnnotationValues(AnnotationVisitor annotationVisitor, List<AnnotationElement> elements) {
+    private void appendAnnotationValues(AnnotationVisitor annotationVisitor, List<AnnotationElement> elements) {
         if (annotationVisitor != null) {
             elements.forEach(element -> appendAnnotationValue(annotationVisitor, element.name().stringValue(), element.value()));
             annotationVisitor.visitEnd();
         }
     }
 
-    private static void appendAnnotationValue(AnnotationVisitor annotationVisitor, String name, AnnotationValue annotationValue) {
-        if (annotationVisitor instanceof JdkClassWriter.WritingAnnotationVisitor writingAnnotationVisitor) {
+    private void appendAnnotationValue(AnnotationVisitor annotationVisitor, String name, AnnotationValue annotationValue) {
+        if (annotationVisitor instanceof JdkClassWriter.WritingAnnotationVisitor writingAnnotationVisitor && writingAnnotationVisitor.has(classModel)) {
             writingAnnotationVisitor.add(name, annotationValue);
             return;
         }
@@ -552,7 +552,7 @@ public class JdkClassReader {
         }
     }
 
-    private static void appendCodeAnnotations(List<TypeAnnotation> typeAnnotations,
+    private void appendCodeAnnotations(List<TypeAnnotation> typeAnnotations,
                                               boolean visible,
                                               MethodVisitor methodVisitor,
                                               Map<Label, org.objectweb.asm.Label> labels,

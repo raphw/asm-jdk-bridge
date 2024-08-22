@@ -174,6 +174,10 @@ public class JdkClassWriter extends ClassVisitor {
             this.version = version;
         }
 
+        boolean has(ClassModel classModel) {
+            return JdkClassWriter.this.classModel.equals(classModel);
+        }
+
         void add(ClassElement element) {
             classConsumers.add(classBuilder -> classBuilder.with(element));
         }
@@ -277,6 +281,7 @@ public class JdkClassWriter extends ClassVisitor {
     @Override
     public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
         return WritingAnnotationVisitor.of(
+                this,
                 descriptor,
                 (visible ? visibleAnnotations : invisibleAnnotations)::add);
     }
@@ -289,6 +294,7 @@ public class JdkClassWriter extends ClassVisitor {
     @Override
     public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
         return WritingAnnotationVisitor.ofTypeAnnotation(
+                this,
                 descriptor,
                 typeRef,
                 typePath,
@@ -329,6 +335,7 @@ public class JdkClassWriter extends ClassVisitor {
             @Override
             public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
                 return WritingAnnotationVisitor.of(
+                        JdkClassWriter.this,
                         descriptor,
                         (visible ? visibleAnnotations : invisibleAnnotations)::add);
             }
@@ -336,6 +343,7 @@ public class JdkClassWriter extends ClassVisitor {
             @Override
             public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
                 return WritingAnnotationVisitor.ofTypeAnnotation(
+                        JdkClassWriter.this,
                         descriptor,
                         typeRef,
                         typePath,
@@ -388,6 +396,10 @@ public class JdkClassWriter extends ClassVisitor {
             this.value = value;
         }
 
+        boolean has(ClassModel classModel) {
+            return JdkClassWriter.this.classModel.equals(classModel);
+        }
+
         void add(FieldModel field) {
             classConsumers.add(classBuilder -> classBuilder.with(field));
         }
@@ -400,6 +412,7 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
             return WritingAnnotationVisitor.of(
+                    JdkClassWriter.this,
                     descriptor,
                     (visible ? visibleAnnotations : invisibleAnnotations)::add);
         }
@@ -407,6 +420,7 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
             return WritingAnnotationVisitor.ofTypeAnnotation(
+                    JdkClassWriter.this,
                     descriptor,
                     typeRef,
                     typePath,
@@ -483,6 +497,10 @@ public class JdkClassWriter extends ClassVisitor {
             this.exceptions = exceptions;
         }
 
+        boolean has(ClassModel classModel) {
+            return JdkClassWriter.this.classModel.equals(classModel);
+        }
+
         void add(MethodModel model) {
             classConsumers.add(classBuilder -> classBuilder.with(model));
         }
@@ -521,6 +539,7 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
             return WritingAnnotationVisitor.of(
+                    JdkClassWriter.this,
                     descriptor,
                     (visible ? visibleAnnotations : invisibleAnnotations)::add);
         }
@@ -528,6 +547,7 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
             return WritingAnnotationVisitor.ofTypeAnnotation(
+                    JdkClassWriter.this,
                     descriptor,
                     typeRef,
                     typePath,
@@ -551,6 +571,7 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public AnnotationVisitor visitParameterAnnotation(int parameter, String descriptor, boolean visible) {
             return WritingAnnotationVisitor.of(
+                    JdkClassWriter.this,
                     descriptor,
                     (visible ? visibleParameterAnnotations : invisibleParameterAnnotations).computeIfAbsent(parameter, _ -> new ArrayList<>())::add);
         }
@@ -559,6 +580,7 @@ public class JdkClassWriter extends ClassVisitor {
         public AnnotationVisitor visitTryCatchAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
             int catchCount = this.catchCount;
             return WritingAnnotationVisitor.ofExceptionTypeAnnotation(
+                    JdkClassWriter.this,
                     descriptor,
                     typeRef,
                     typePath,
@@ -574,6 +596,7 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public AnnotationVisitor visitInsnAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
             return WritingAnnotationVisitor.ofLabeledTypeAnnotation(
+                    JdkClassWriter.this,
                     descriptor,
                     typeRef,
                     typePath,
@@ -588,12 +611,13 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public AnnotationVisitor visitAnnotationDefault() {
-            return WritingAnnotationVisitor.ofValue(value -> defaultValue = value);
+            return WritingAnnotationVisitor.ofValue(JdkClassWriter.this, value -> defaultValue = value);
         }
 
         @Override
         public AnnotationVisitor visitLocalVariableAnnotation(int typeRef, TypePath typePath, Label[] start, Label[] end, int[] indices, String descriptor, boolean visible) {
             return WritingAnnotationVisitor.ofTargetedTypeAnnotation(
+                    JdkClassWriter.this,
                     descriptor,
                     typeRef,
                     typePath,
@@ -1172,26 +1196,26 @@ public class JdkClassWriter extends ClassVisitor {
         return getClass().getClassLoader();
     }
 
-    static class WritingAnnotationVisitor extends AnnotationVisitor {
+    class WritingAnnotationVisitor extends AnnotationVisitor {
 
         private final BiConsumer<String, AnnotationValue> consumer;
         private final Runnable onEnd;
 
-        private static AnnotationVisitor of(String descriptor, Consumer<Annotation> consumer) {
+        private static AnnotationVisitor of(JdkClassWriter classWriter, String descriptor, Consumer<Annotation> consumer) {
             List<AnnotationElement> elements = new ArrayList<>();
-            return new WritingAnnotationVisitor(
+            return classWriter.new WritingAnnotationVisitor(
                     (name, value) -> elements.add(AnnotationElement.of(name, value)),
                     () -> consumer.accept(Annotation.of(ClassDesc.ofDescriptor(descriptor), elements)));
         }
 
-        private static AnnotationVisitor ofValue(Consumer<AnnotationValue> consumer) {
-            return new WritingAnnotationVisitor(
+        private static AnnotationVisitor ofValue(JdkClassWriter classWriter, Consumer<AnnotationValue> consumer) {
+            return classWriter.new WritingAnnotationVisitor(
                     (_, value) -> consumer.accept(value),
                     () -> { });
         }
 
-        private static AnnotationVisitor ofTypeAnnotation(String descriptor, int typeRef, TypePath typePath, Consumer<TypeAnnotation> consumer) {
-            return ofUnresolvedTypeAnnotation(descriptor, typeRef, typePath, function -> consumer.accept(function.apply(reference -> switch (reference.getSort()) {
+        private static AnnotationVisitor ofTypeAnnotation(JdkClassWriter classWriter, String descriptor, int typeRef, TypePath typePath, Consumer<TypeAnnotation> consumer) {
+            return ofUnresolvedTypeAnnotation(classWriter, descriptor, typeRef, typePath, function -> consumer.accept(function.apply(reference -> switch (reference.getSort()) {
                 case TypeReference.CLASS_TYPE_PARAMETER -> TypeAnnotation.TargetInfo.ofClassTypeParameter(reference.getTypeParameterIndex());
                 case TypeReference.METHOD_TYPE_PARAMETER -> TypeAnnotation.TargetInfo.ofMethodTypeParameter(reference.getTypeParameterIndex());
                 case TypeReference.CLASS_EXTENDS -> TypeAnnotation.TargetInfo.ofClassExtends(reference.getSuperTypeIndex());
@@ -1206,15 +1230,15 @@ public class JdkClassWriter extends ClassVisitor {
             })));
         }
 
-        private static AnnotationVisitor ofExceptionTypeAnnotation(String descriptor, int typeRef, TypePath typePath, Consumer<Function<Integer, TypeAnnotation>> consumer) {
-            return ofUnresolvedTypeAnnotation(descriptor, typeRef, typePath, function -> consumer.accept(index -> function.apply(reference -> switch (reference.getSort()) {
+        private static AnnotationVisitor ofExceptionTypeAnnotation(JdkClassWriter classWriter, String descriptor, int typeRef, TypePath typePath, Consumer<Function<Integer, TypeAnnotation>> consumer) {
+            return ofUnresolvedTypeAnnotation(classWriter, descriptor, typeRef, typePath, function -> consumer.accept(index -> function.apply(reference -> switch (reference.getSort()) {
                 case TypeReference.EXCEPTION_PARAMETER -> TypeAnnotation.TargetInfo.ofExceptionParameter(index);
                 default -> throw new IllegalArgumentException("Unexpected reference sort: " + reference.getSort());
             })));
         }
 
-        private static AnnotationVisitor ofLabeledTypeAnnotation(String descriptor, int typeRef, TypePath typePath, Consumer<Function<java.lang.classfile.Label, TypeAnnotation>> consumer) {
-            return ofUnresolvedTypeAnnotation(descriptor, typeRef, typePath, function -> consumer.accept(label -> function.apply(reference -> switch (reference.getSort()) {
+        private static AnnotationVisitor ofLabeledTypeAnnotation(JdkClassWriter classWriter, String descriptor, int typeRef, TypePath typePath, Consumer<Function<java.lang.classfile.Label, TypeAnnotation>> consumer) {
+            return ofUnresolvedTypeAnnotation(classWriter, descriptor, typeRef, typePath, function -> consumer.accept(label -> function.apply(reference -> switch (reference.getSort()) {
                 case TypeReference.INSTANCEOF -> TypeAnnotation.TargetInfo.ofInstanceofExpr(label);
                 case TypeReference.NEW -> TypeAnnotation.TargetInfo.ofNewExpr(label);
                 case TypeReference.CONSTRUCTOR_REFERENCE -> TypeAnnotation.TargetInfo.ofConstructorReference(label);
@@ -1228,15 +1252,15 @@ public class JdkClassWriter extends ClassVisitor {
             })));
         }
 
-        private static AnnotationVisitor ofTargetedTypeAnnotation(String descriptor, int typeRef, TypePath typePath, Consumer<Function<List<TypeAnnotation.LocalVarTargetInfo>, TypeAnnotation>> consumer) {
-            return ofUnresolvedTypeAnnotation(descriptor, typeRef, typePath, function -> consumer.accept(targets -> function.apply(reference -> switch (reference.getSort()) {
+        private static AnnotationVisitor ofTargetedTypeAnnotation(JdkClassWriter classWriter, String descriptor, int typeRef, TypePath typePath, Consumer<Function<List<TypeAnnotation.LocalVarTargetInfo>, TypeAnnotation>> consumer) {
+            return ofUnresolvedTypeAnnotation(classWriter, descriptor, typeRef, typePath, function -> consumer.accept(targets -> function.apply(reference -> switch (reference.getSort()) {
                 case TypeReference.LOCAL_VARIABLE -> TypeAnnotation.TargetInfo.ofLocalVariable(targets);
                 case TypeReference.RESOURCE_VARIABLE -> TypeAnnotation.TargetInfo.ofResourceVariable(targets);
                 default -> throw new IllegalArgumentException("Unexpected reference sort: " + reference.getSort());
             })));
         }
 
-        private static AnnotationVisitor ofUnresolvedTypeAnnotation(String descriptor, int typeRef, TypePath typePath, Consumer<Function<Function<TypeReference, TypeAnnotation.TargetInfo>, TypeAnnotation>> consumer) {
+        private static AnnotationVisitor ofUnresolvedTypeAnnotation(JdkClassWriter classWriter, String descriptor, int typeRef, TypePath typePath, Consumer<Function<Function<TypeReference, TypeAnnotation.TargetInfo>, TypeAnnotation>> consumer) {
             List<AnnotationElement> elements = new ArrayList<>();
             List<TypeAnnotation.TypePathComponent> components;
             if (typePath == null) {
@@ -1254,7 +1278,7 @@ public class JdkClassWriter extends ClassVisitor {
                 }
             }
             TypeReference reference = new TypeReference(typeRef);
-            return new WritingAnnotationVisitor(
+            return classWriter.new WritingAnnotationVisitor(
                     (name, value) -> elements.add(AnnotationElement.of(name, value)),
                     () -> consumer.accept(targeting -> TypeAnnotation.of(
                             targeting.apply(reference),
@@ -1268,6 +1292,14 @@ public class JdkClassWriter extends ClassVisitor {
             super(Opcodes.ASM9);
             this.consumer = consumer;
             this.onEnd = onEnd;
+        }
+
+        boolean has(ClassModel classModel) {
+            return JdkClassWriter.this.classModel.equals(classModel);
+        }
+
+        void add(String name, AnnotationValue annotationValue) {
+            consumer.accept(name, annotationValue);
         }
 
         @Override
@@ -1362,7 +1394,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public AnnotationVisitor visitAnnotation(String name, String descriptor) {
-            return WritingAnnotationVisitor.of(descriptor, annotation -> consumer.accept(
+            return WritingAnnotationVisitor.of(JdkClassWriter.this, descriptor, annotation -> consumer.accept(
                     name,
                     AnnotationValue.ofAnnotation(annotation)));
         }
@@ -1378,10 +1410,6 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public void visitEnd() {
             onEnd.run();
-        }
-
-        void add(String name, AnnotationValue annotationValue) {
-            consumer.accept(name, annotationValue);
         }
     }
 }
