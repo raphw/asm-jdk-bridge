@@ -1,5 +1,6 @@
 package codes.rafael.asmjdkbridge.sample;
 
+import codes.rafael.asmjdkbridge.JdkClassWriterTest;
 import org.objectweb.asm.*;
 
 import java.io.ByteArrayInputStream;
@@ -16,12 +17,12 @@ public class CustomAttributeExtractable {
                 null,
                 Type.getInternalName(Object.class),
                 null);
-        classWriter.visitAttribute(new UnknownAttribute("CustomAttribute", new byte[]{1}));
+        classWriter.visitAttribute(new AsmTestAttribute(new byte[]{1}));
         FieldVisitor fieldVisitor = classWriter.visitField(Opcodes.ACC_PUBLIC, "f", Type.getDescriptor(Object.class), null, null);
-        fieldVisitor.visitAttribute(new UnknownAttribute("CustomAttribute", new byte[]{2}));
+        fieldVisitor.visitAttribute(new AsmTestAttribute(new byte[]{2}));
         classWriter.visitEnd();
         MethodVisitor methodVisitor = classWriter.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_ABSTRACT, "f", Type.getMethodType(Type.VOID_TYPE).getDescriptor(), null, null);
-        methodVisitor.visitAttribute(new UnknownAttribute("CustomAttribute", new byte[]{3}));
+        methodVisitor.visitAttribute(new AsmTestAttribute(new byte[]{3}));
         methodVisitor.visitEnd();
         byte[] classFile = classWriter.toByteArray();
         try {
@@ -45,6 +46,31 @@ public class CustomAttributeExtractable {
             }.loadClass(generated);
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException(e);
+        }
+    }
+
+    static class AsmTestAttribute extends Attribute {
+
+        private byte[] bytes;
+
+        AsmTestAttribute(byte[] bytes) {
+            super("CustomAttribute");
+            this.bytes = bytes;
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        protected Attribute read(ClassReader classReader, int offset, int length, char[] charBuffer, int codeAttributeOffset, Label[] labels) {
+            AsmTestAttribute attribute = new AsmTestAttribute(new byte[length]);
+            System.arraycopy(classReader.b, offset, attribute.bytes, 0, length);
+            return attribute;
+        }
+
+        @Override
+        protected ByteVector write(ClassWriter classWriter, byte[] code, int codeLength, int maxStack, int maxLocals) {
+            ByteVector vector = new ByteVector(bytes.length);
+            vector.putByteArray(bytes, 0, bytes.length);
+            return vector;
         }
     }
 }

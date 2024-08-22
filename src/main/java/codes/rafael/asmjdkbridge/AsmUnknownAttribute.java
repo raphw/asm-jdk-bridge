@@ -1,11 +1,11 @@
 package codes.rafael.asmjdkbridge;
 
 import org.objectweb.asm.*;
+import org.objectweb.asm.Attribute;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.Label;
 
-import java.lang.classfile.AttributeMapper;
-import java.lang.classfile.AttributedElement;
-import java.lang.classfile.BufWriter;
-import java.lang.classfile.CustomAttribute;
+import java.lang.classfile.*;
 import java.lang.classfile.attribute.UnknownAttribute;
 
 class AsmUnknownAttribute extends Attribute {
@@ -47,6 +47,8 @@ class AsmUnknownAttribute extends Attribute {
 
                 @Override
                 public void writeAttribute(BufWriter bufWriter, CustomUnknownAttribute attribute) {
+                    bufWriter.writeIndex(bufWriter.constantPool().utf8Entry(attribute.attributeName()));
+                    bufWriter.writeInt(attribute.attribute.contents().length);
                     bufWriter.writeBytes(attribute.attribute.contents());
                 }
 

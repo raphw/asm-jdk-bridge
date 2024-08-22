@@ -11,10 +11,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.classfile.AttributeMapper;
+import java.lang.classfile.AttributedElement;
+import java.lang.classfile.BufWriter;
 import java.lang.classfile.CustomAttribute;
 import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 
@@ -70,13 +74,13 @@ public class JdkClassWriterTest {
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
         toClassReader(classFile).accept(toVisitor(asm), readerFlags);
         JdkClassWriter writer = new JdkClassWriter(writerFlags, attribute -> {
-            if (attribute instanceof TestAttribute testAttribute) {
-                return testAttribute.attribute;
+            if (attribute instanceof AsmTestAttribute testAttribute) {
+                return Optional.of(new CustomTestAttribute(testAttribute.bytes));
             } else {
                 throw new AssertionError("Unknown attribute: " + attribute.type);
             }
         });
-        toClassReader(classFile).accept(writer, new Attribute[]{ new TestAttribute() }, readerFlags);
+        toClassReader(classFile).accept(writer, new Attribute[]{ new AsmTestAttribute() }, readerFlags);
         toClassReader(writer.toByteArray()).accept(toVisitor(jdk), readerFlags);
         assertEquals(asm.toString(), jdk.toString());
     }
@@ -95,28 +99,62 @@ public class JdkClassWriterTest {
         }
     }
 
-    public static class TestAttribute extends Attribute {
+    static class AsmTestAttribute extends Attribute {
 
-        private CustomAttribute<?> attribute;
+        private byte[] bytes;
 
-        protected TestAttribute() {
+        AsmTestAttribute() {
             super("CustomAttribute");
         }
 
         @Override
         @SuppressWarnings("deprecation")
         protected Attribute read(ClassReader classReader, int offset, int length, char[] charBuffer, int codeAttributeOffset, Label[] labels) {
-            TestAttribute attribute = new TestAttribute();
-            attribute.attribute = new byte[length];
-            System.arraycopy(classReader.b, offset, attribute.attribute, 0, length);
+            AsmTestAttribute attribute = new AsmTestAttribute();
+            attribute.bytes = new byte[length];
+            System.arraycopy(classReader.b, offset, attribute.bytes, 0, length);
             return attribute;
         }
 
         @Override
         protected ByteVector write(ClassWriter classWriter, byte[] code, int codeLength, int maxStack, int maxLocals) {
-            ByteVector vector = new ByteVector(attribute.length);
-            vector.putByteArray(attribute, 0, attribute.length);
+            ByteVector vector = new ByteVector(bytes.length);
+            vector.putByteArray(bytes, 0, bytes.length);
             return vector;
+        }
+    }
+
+    static class CustomTestAttribute extends CustomAttribute<CustomTestAttribute> {
+
+        final byte[] bytes;
+
+        CustomTestAttribute(byte[] bytes) {
+            super(new AttributeMapper<>() {
+                @Override
+                public String name() {
+                    return "CustomAttribute";
+                }
+
+                @Override
+                public CustomTestAttribute readAttribute(AttributedElement attributedElement, java.lang.classfile.ClassReader classReader, int index) {
+                    int length = classReader.readInt(index);
+                    byte[] bytes = classReader.readBytes(index + 4, length);
+                    return new CustomTestAttribute(bytes);
+                }
+
+                @Override
+                public void writeAttribute(BufWriter bufWriter, CustomTestAttribute customTestAttribute) {
+                    bufWriter.writeIndex(bufWriter.constantPool().utf8Entry("CustomAttribute"));
+                    bufWriter.writeInt(bytes.length);
+                    bufWriter.writeBytes(bytes);
+                }
+
+                @Override
+                public AttributeStability stability() {
+                    return AttributeStability.UNKNOWN;
+                }
+            });
+            this.bytes = bytes;
         }
     }
 }
