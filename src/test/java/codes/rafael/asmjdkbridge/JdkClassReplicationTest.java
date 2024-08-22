@@ -68,8 +68,9 @@ public class JdkClassReplicationTest {
             classFile = inputStream.readAllBytes();
         }
         StringWriter original = new StringWriter(), replicated = new StringWriter();
-        JdkClassWriter classWriter = new JdkClassWriter(0);
-        new JdkClassReader(classFile).accept(classWriter, 0);
+        JdkClassReader classReader = new JdkClassReader(classFile);
+        JdkClassWriter classWriter = new JdkClassWriter(0, classReader);
+        classReader.accept(classWriter, 0);
         toClassReader(classFile).accept(toVisitor(original), flags);
         toClassReader(classWriter.toByteArray()).accept(toVisitor(replicated), flags);
         assertEquals(original.toString(), replicated.toString());
