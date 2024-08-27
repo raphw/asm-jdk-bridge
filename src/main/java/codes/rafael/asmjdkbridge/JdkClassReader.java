@@ -12,10 +12,7 @@ import java.lang.classfile.attribute.*;
 import java.lang.classfile.constantpool.*;
 import java.lang.classfile.instruction.*;
 import java.lang.constant.*;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
 import java.lang.reflect.AccessFlag;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
@@ -29,24 +26,6 @@ public class JdkClassReader {
     private static final int
             SAME_LOCALS_1_STACK_ITEM_EXTENDED = 247,
             SAME_EXTENDED = 251;
-
-    private static final MethodHandle READ_ATTRIBUTE;
-
-    static {
-        try {
-            Method method = Attribute.class.getDeclaredMethod("read",
-                    ClassReader.class,
-                    int.class,
-                    int.class,
-                    char[].class,
-                    int.class,
-                    org.objectweb.asm.Label[].class);
-            method.setAccessible(true);
-            READ_ATTRIBUTE = MethodHandles.lookup().unreflect(method);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     private final ClassModel classModel;
 
@@ -594,7 +573,7 @@ public class JdkClassReader {
         });
     }
 
-    private static Object toAsmConstant(ConstantDesc constant) {
+    static Object toAsmConstant(ConstantDesc constant) {
         return switch (constant) {
             case String value -> value;
             case Integer value -> value;
@@ -711,123 +690,6 @@ public class JdkClassReader {
                 value = null;
                 return next;
             }
-        }
-    }
-
-    private static class DelegatingClassReader extends ClassReader {
-
-        private static final byte[] FAKE = new byte[10];
-
-        private final java.lang.classfile.ClassReader delegate;
-
-        private DelegatingClassReader(java.lang.classfile.ClassReader delegate) {
-            super(FAKE);
-            this.delegate = delegate;
-        }
-
-        @Override
-        public int getAccess() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String getClassName() {
-            return delegate.thisClassEntry().asInternalName();
-        }
-
-        @Override
-        public String getSuperName() {
-            return delegate.superclassEntry().map(ClassEntry::asInternalName).orElse(null);
-        }
-
-        @Override
-        public String[] getInterfaces() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void accept(ClassVisitor classVisitor, int parsingOptions) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void accept(ClassVisitor classVisitor, Attribute[] attributePrototypes, int parsingOptions) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int getItemCount() {
-            return delegate.size();
-        }
-
-        @Override
-        public int getItem(int constantPoolEntryIndex) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int getMaxStringLength() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int readByte(int offset) {
-            return delegate.readU1(offset);
-        }
-
-        @Override
-        public int readUnsignedShort(int offset) {
-            return delegate.readU2(offset);
-        }
-
-        @Override
-        public short readShort(int offset) {
-            return (short) delegate.readS2(offset);
-        }
-
-        @Override
-        public int readInt(int offset) {
-            return delegate.readInt(offset);
-        }
-
-        @Override
-        public long readLong(int offset) {
-            return delegate.readLong(offset);
-        }
-
-        @Override
-        public String readUTF8(int offset, char[] charBuffer) {
-            return delegate.readEntry(delegate.readU2(offset), Utf8Entry.class).stringValue();
-        }
-
-        @Override
-        public String readClass(int offset, char[] charBuffer) {
-            return delegate.readEntry(delegate.readU2(offset), ClassEntry.class).name().stringValue();
-        }
-
-        @Override
-        public String readModule(int offset, char[] charBuffer) {
-            return delegate.readEntry(delegate.readU2(offset), ModuleEntry.class).name().stringValue();
-        }
-
-        @Override
-        public String readPackage(int offset, char[] charBuffer) {
-            return delegate.readEntry(delegate.readU2(offset), PackageEntry.class).name().stringValue();
-        }
-
-        @Override
-        public Object readConst(int constantPoolEntryIndex, char[] charBuffer) {
-            return switch (delegate.readEntry(constantPoolEntryIndex)) {
-                case IntegerEntry entry -> entry.intValue();
-                case LongEntry entry -> entry.longValue();
-                case FloatEntry entry -> entry.floatValue();
-                case DoubleEntry entry -> entry.doubleValue();
-                case Utf8Entry entry -> entry.stringValue();
-                case ClassEntry entry -> Type.getType("L" + entry.asInternalName() + ";");
-                case MethodHandleEntry entry -> toAsmConstant(entry.asSymbol());
-                case ConstantDynamicEntry entry -> toAsmConstant(entry.asSymbol());
-                default -> throw new IllegalStateException();
-            };
         }
     }
 }
