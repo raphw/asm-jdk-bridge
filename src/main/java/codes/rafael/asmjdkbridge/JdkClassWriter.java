@@ -20,7 +20,6 @@ public class JdkClassWriter extends ClassVisitor {
 
     private final int flags;
     private final ClassModel classModel;
-    private final Function<Attribute, Optional<CustomAttribute<?>>> extractor;
 
     private final List<ClassDesc> nestMembers = new ArrayList<>();
     private final List<InnerClassInfo> innerClasses = new ArrayList<>();
@@ -65,52 +64,17 @@ public class JdkClassWriter extends ClassVisitor {
     private byte[] bytes;
 
     public JdkClassWriter(int flags) {
-        this(flags, attribute -> {
-            throw new UnsupportedOperationException("Unknown attribute: " + attribute);
-        });
-    }
-
-    public JdkClassWriter(int flags, ClassModel classModel) {
-        this(flags, classModel, attribute -> {
-            throw new UnsupportedOperationException("Unknown attribute: " + attribute);
-        });
+        this(flags, (ClassModel) null);
     }
 
     public JdkClassWriter(int flags, JdkClassReader classReader) {
-        this(flags, classReader, attribute -> {
-            throw new UnsupportedOperationException("Unknown attribute: " + attribute);
-        });
+        this(flags, classReader == null ? null : classReader.getClassModel());
     }
 
-    public JdkClassWriter(int flags, Function<Attribute, Optional<CustomAttribute<?>>> extractor) {
-        this(flags, (ClassModel) null, extractor);
-    }
-
-    public JdkClassWriter(int flags, JdkClassReader classReader, Function<Attribute, Optional<CustomAttribute<?>>> extractor) {
-        this(flags, classReader == null ? null : classReader.getClassModel(), extractor);
-    }
-
-    public JdkClassWriter(int flags, ClassModel classModel, Function<Attribute, Optional<CustomAttribute<?>>> extractor) {
+    public JdkClassWriter(int flags, ClassModel classModel) {
         super(Opcodes.ASM9);
         this.flags = flags;
         this.classModel = classModel;
-        this.extractor = attribute -> {
-            if (attribute instanceof AsmCharacterRangeTableAttribute characterRangeTableAttribute) {
-                return Optional.of(new AsmCharacterRangeTableAttribute.CustomCharacterRangeTableAttribute(characterRangeTableAttribute.attribute));
-            } else if (attribute instanceof AsmUnknownAttribute unknownAttribute) {
-                return Optional.of(new AsmUnknownAttribute.CustomUnknownAttribute(unknownAttribute.attribute));
-            } else if (attribute instanceof AsmSourceIdAttribute sourceIdAttribute) {
-                return Optional.of(new AsmSourceIdAttribute.CustomSourceIdAttribute(sourceIdAttribute.attribute));
-            } else if (attribute instanceof AsmCompilationIdAttribute compilationIdAttribute) {
-                return Optional.of(new AsmCompilationIdAttribute.CustomCompilationIdAttribute(compilationIdAttribute.attribute));
-            } else if (attribute instanceof AsmModuleResolutionAttribute moduleResolutionAttribute) {
-                return Optional.of(new AsmModuleResolutionAttribute.CustomModuleResolutionAttribute(moduleResolutionAttribute.attribute));
-            } else if (attribute instanceof AsmModuleHashesAttribute moduleHashesAttribute) {
-                return Optional.of(new AsmModuleHashesAttribute.CustomModuleHashesAttribute(moduleHashesAttribute.attribute));
-            } else {
-                return extractor.apply(attribute);
-            }
-        };
     }
 
     @Override
@@ -288,7 +252,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitAttribute(Attribute attribute) {
-        extractor.apply(attribute).ifPresent(attributes::add);
+        attributes.add(new AsmAttribute(attribute));
     }
 
     @Override
@@ -329,7 +293,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitAttribute(Attribute attribute) {
-                extractor.apply(attribute).ifPresent(attributes::add);
+                attributes.add(new AsmAttribute(attribute));
             }
 
             @Override
@@ -406,7 +370,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitAttribute(Attribute attribute) {
-            extractor.apply(attribute).ifPresent(attributes::add);
+            attributes.add(new AsmAttribute(attribute));
         }
 
         @Override
@@ -533,7 +497,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitAttribute(Attribute attribute) {
-            extractor.apply(attribute).ifPresent(attributes::add);
+            attributes.add(new AsmAttribute(attribute));
         }
 
         @Override
