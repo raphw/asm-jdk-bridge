@@ -1,6 +1,7 @@
 package codes.rafael.asmjdkbridge;
 
 import org.objectweb.asm.Attribute;
+import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.*;
 
@@ -10,6 +11,9 @@ import java.lang.classfile.constantpool.ConstantPoolBuilder;
 import java.lang.classfile.instruction.DiscontinuedInstruction;
 import java.lang.classfile.instruction.SwitchCase;
 import java.lang.constant.*;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.BiConsumer;
@@ -18,6 +22,23 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 
 public class JdkClassWriter extends ClassVisitor {
+
+    private static final MethodHandle WRITE_ATTRIBUTE;
+
+    static {
+        try {
+            Method method = Attribute.class.getDeclaredMethod("write",
+                    ClassWriter.class,
+                    byte[].class,
+                    int.class,
+                    int.class,
+                    int.class);
+            method.setAccessible(true);
+            WRITE_ATTRIBUTE = MethodHandles.lookup().unreflect(method);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     private final int flags;
     private final ClassModel classModel;

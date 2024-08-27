@@ -12,7 +12,10 @@ import java.lang.classfile.attribute.*;
 import java.lang.classfile.constantpool.*;
 import java.lang.classfile.instruction.*;
 import java.lang.constant.*;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.AccessFlag;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
@@ -26,6 +29,24 @@ public class JdkClassReader {
     private static final int
             SAME_LOCALS_1_STACK_ITEM_EXTENDED = 247,
             SAME_EXTENDED = 251;
+
+    private static final MethodHandle READ_ATTRIBUTE;
+
+    static {
+        try {
+            Method method = Attribute.class.getDeclaredMethod("read",
+                    ClassReader.class,
+                    int.class,
+                    int.class,
+                    char[].class,
+                    int.class,
+                    org.objectweb.asm.Label[].class);
+            method.setAccessible(true);
+            READ_ATTRIBUTE = MethodHandles.lookup().unreflect(method);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     private final ClassModel classModel;
 
