@@ -67,8 +67,8 @@ public class JdkClassReaderTest {
             classFile = inputStream.readAllBytes();
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
-        toClassReader(classFile).accept(toVisitor(asm), flags);
-        new JdkClassReader(classFile).accept(toVisitor(jdk), flags);
+        toClassReader(classFile).accept(toVisitor(asm), new Attribute[]{ new AsmTestAttribute() }, flags);
+        new JdkClassReader(classFile).accept(toVisitor(jdk), new Attribute[]{ new AsmTestAttribute() }, flags);
         assertEquals(asm.toString(), jdk.toString());
     }
 

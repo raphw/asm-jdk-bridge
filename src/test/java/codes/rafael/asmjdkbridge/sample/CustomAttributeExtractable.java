@@ -1,5 +1,6 @@
 package codes.rafael.asmjdkbridge.sample;
 
+import codes.rafael.asmjdkbridge.AsmTestAttribute;
 import codes.rafael.asmjdkbridge.JdkClassWriterTest;
 import org.objectweb.asm.*;
 
@@ -46,31 +47,6 @@ public class CustomAttributeExtractable {
             }.loadClass(generated);
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException(e);
-        }
-    }
-
-    static class AsmTestAttribute extends Attribute {
-
-        private byte[] bytes;
-
-        AsmTestAttribute(byte[] bytes) {
-            super("CustomAttribute");
-            this.bytes = bytes;
-        }
-
-        @Override
-        @SuppressWarnings("deprecation")
-        protected Attribute read(ClassReader classReader, int offset, int length, char[] charBuffer, int codeAttributeOffset, Label[] labels) {
-            AsmTestAttribute attribute = new AsmTestAttribute(new byte[length]);
-            System.arraycopy(classReader.b, offset, attribute.bytes, 0, length);
-            return attribute;
-        }
-
-        @Override
-        protected ByteVector write(ClassWriter classWriter, byte[] code, int codeLength, int maxStack, int maxLocals) {
-            ByteVector vector = new ByteVector(bytes.length);
-            vector.putByteArray(bytes, 0, bytes.length);
-            return vector;
         }
     }
 }

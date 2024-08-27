@@ -433,7 +433,7 @@ public class JdkClassReader {
                     AsmAttribute prototype = prototypes.get(attribute.attributeName());
                     consumer.accept(prototype == null
                             ? new AsmUnknownAttribute(((UnknownAttribute) attribute))
-                            : element.findAttribute(prototype.attributeMapper()).orElseThrow().attribute);
+                            : element.findAttribute(prototype.attributeMapper()).map(x -> x.attribute).orElseGet(() -> new AsmUnknownAttribute(((UnknownAttribute) attribute))));
                 });
     }
 

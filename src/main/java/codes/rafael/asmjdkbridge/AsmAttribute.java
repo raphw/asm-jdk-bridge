@@ -94,6 +94,7 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
                 } catch (Throwable t) {
                     throw new RuntimeException(t);
                 }
+                bufWriter.writeInt(length);
                 bufWriter.writeBytes(bytes, 0, length);
             }
 

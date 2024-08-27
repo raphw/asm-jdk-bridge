@@ -4,17 +4,16 @@ import codes.rafael.asmjdkbridge.sample.*;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import org.objectweb.asm.*;
+import org.objectweb.asm.Attribute;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.util.TraceClassVisitor;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.lang.classfile.AttributeMapper;
-import java.lang.classfile.AttributedElement;
-import java.lang.classfile.BufWriter;
-import java.lang.classfile.CustomAttribute;
 import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collection;
@@ -89,65 +88,6 @@ public class JdkClassWriterTest {
             return constructor.newInstance(bytes, 0, false);
         } catch (Exception e) {
             throw new AssertionError(e);
-        }
-    }
-
-    static class AsmTestAttribute extends Attribute {
-
-        private byte[] bytes;
-
-        AsmTestAttribute() {
-            super("CustomAttribute");
-        }
-
-        @Override
-        @SuppressWarnings("deprecation")
-        protected Attribute read(ClassReader classReader, int offset, int length, char[] charBuffer, int codeAttributeOffset, Label[] labels) {
-            AsmTestAttribute attribute = new AsmTestAttribute();
-            attribute.bytes = new byte[length];
-            System.arraycopy(classReader.b, offset, attribute.bytes, 0, length);
-            return attribute;
-        }
-
-        @Override
-        protected ByteVector write(ClassWriter classWriter, byte[] code, int codeLength, int maxStack, int maxLocals) {
-            ByteVector vector = new ByteVector(bytes.length);
-            vector.putByteArray(bytes, 0, bytes.length);
-            return vector;
-        }
-    }
-
-    static class CustomTestAttribute extends CustomAttribute<CustomTestAttribute> {
-
-        final byte[] bytes;
-
-        CustomTestAttribute(byte[] bytes) {
-            super(new AttributeMapper<>() {
-                @Override
-                public String name() {
-                    return "CustomAttribute";
-                }
-
-                @Override
-                public CustomTestAttribute readAttribute(AttributedElement attributedElement, java.lang.classfile.ClassReader classReader, int index) {
-                    int length = classReader.readInt(index);
-                    byte[] bytes = classReader.readBytes(index + 4, length);
-                    return new CustomTestAttribute(bytes);
-                }
-
-                @Override
-                public void writeAttribute(BufWriter bufWriter, CustomTestAttribute customTestAttribute) {
-                    bufWriter.writeIndex(bufWriter.constantPool().utf8Entry("CustomAttribute"));
-                    bufWriter.writeInt(bytes.length);
-                    bufWriter.writeBytes(bytes);
-                }
-
-                @Override
-                public AttributeStability stability() {
-                    return AttributeStability.UNKNOWN;
-                }
-            });
-            this.bytes = bytes;
         }
     }
 }
