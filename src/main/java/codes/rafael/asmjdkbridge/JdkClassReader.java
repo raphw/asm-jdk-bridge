@@ -9,8 +9,7 @@ import java.io.InputStream;
 import java.lang.classfile.Label;
 import java.lang.classfile.*;
 import java.lang.classfile.attribute.*;
-import java.lang.classfile.constantpool.ClassEntry;
-import java.lang.classfile.constantpool.Utf8Entry;
+import java.lang.classfile.constantpool.*;
 import java.lang.classfile.instruction.*;
 import java.lang.constant.*;
 import java.lang.reflect.AccessFlag;
@@ -691,6 +690,123 @@ public class JdkClassReader {
                 value = null;
                 return next;
             }
+        }
+    }
+
+    private static class DelegatingClassReader extends ClassReader {
+
+        private static final byte[] FAKE = new byte[10];
+
+        private final java.lang.classfile.ClassReader delegate;
+
+        private DelegatingClassReader(java.lang.classfile.ClassReader delegate) {
+            super(FAKE);
+            this.delegate = delegate;
+        }
+
+        @Override
+        public int getAccess() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getClassName() {
+            return delegate.thisClassEntry().asInternalName();
+        }
+
+        @Override
+        public String getSuperName() {
+            return delegate.superclassEntry().map(ClassEntry::asInternalName).orElse(null);
+        }
+
+        @Override
+        public String[] getInterfaces() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void accept(ClassVisitor classVisitor, int parsingOptions) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void accept(ClassVisitor classVisitor, Attribute[] attributePrototypes, int parsingOptions) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int getItemCount() {
+            return delegate.size();
+        }
+
+        @Override
+        public int getItem(int constantPoolEntryIndex) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int getMaxStringLength() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int readByte(int offset) {
+            return delegate.readU1(offset);
+        }
+
+        @Override
+        public int readUnsignedShort(int offset) {
+            return delegate.readU2(offset);
+        }
+
+        @Override
+        public short readShort(int offset) {
+            return (short) delegate.readS2(offset);
+        }
+
+        @Override
+        public int readInt(int offset) {
+            return delegate.readInt(offset);
+        }
+
+        @Override
+        public long readLong(int offset) {
+            return delegate.readLong(offset);
+        }
+
+        @Override
+        public String readUTF8(int offset, char[] charBuffer) {
+            return delegate.readEntry(delegate.readU2(offset), Utf8Entry.class).stringValue();
+        }
+
+        @Override
+        public String readClass(int offset, char[] charBuffer) {
+            return delegate.readEntry(delegate.readU2(offset), ClassEntry.class).name().stringValue();
+        }
+
+        @Override
+        public String readModule(int offset, char[] charBuffer) {
+            return delegate.readEntry(delegate.readU2(offset), ModuleEntry.class).name().stringValue();
+        }
+
+        @Override
+        public String readPackage(int offset, char[] charBuffer) {
+            return delegate.readEntry(delegate.readU2(offset), PackageEntry.class).name().stringValue();
+        }
+
+        @Override
+        public Object readConst(int constantPoolEntryIndex, char[] charBuffer) {
+            return switch (delegate.readEntry(constantPoolEntryIndex)) {
+                case IntegerEntry entry -> entry.intValue();
+                case LongEntry entry -> entry.longValue();
+                case FloatEntry entry -> entry.floatValue();
+                case DoubleEntry entry -> entry.doubleValue();
+                case Utf8Entry entry -> entry.stringValue();
+                case ClassEntry entry -> Type.getType("L" + entry.asInternalName() + ";");
+                case MethodHandleEntry entry -> toAsmConstant(entry.asSymbol());
+                case ConstantDynamicEntry entry -> toAsmConstant(entry.asSymbol());
+                default -> throw new IllegalStateException();
+            };
         }
     }
 }

@@ -15,6 +15,7 @@ import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 public class JdkClassWriter extends ClassVisitor {
 
@@ -1128,7 +1129,7 @@ public class JdkClassWriter extends ClassVisitor {
         }
     }
 
-    private ConstantDesc toConstantDesc(Object asm) {
+    static ConstantDesc toConstantDesc(Object asm) {
         if (asm instanceof Integer value) {
             return value;
         } else if (asm instanceof Long value) {
@@ -1410,6 +1411,159 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public void visitEnd() {
             onEnd.run();
+        }
+    }
+
+    private static class DelegatingClassWriter extends ClassWriter {
+
+        private final BufWriter delegate;
+
+        private DelegatingClassWriter(BufWriter delegate) {
+            super(0);
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean hasFlags(int flags) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public byte[] toByteArray() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int newConst(Object value) {
+            return (switch (value) {
+                case Boolean constant -> delegate.constantPool().intEntry(constant ? 1 : 0).index();
+                case Byte constant -> delegate.constantPool().intEntry(constant).index();
+                case Short constant -> delegate.constantPool().intEntry(constant).index();
+                case Character constant -> delegate.constantPool().intEntry(constant).index();
+                case Integer constant -> delegate.constantPool().intEntry(constant).index();
+                case Long constant -> delegate.constantPool().longEntry(constant).index();
+                case Float constant -> delegate.constantPool().floatEntry(constant).index();
+                case Double constant -> delegate.constantPool().doubleEntry(constant).index();
+                case String constant -> delegate.constantPool().stringEntry(constant).index();
+                case Type constant -> (switch (constant.getSort()) {
+                    case Type.OBJECT -> delegate.constantPool().classEntry(ClassDesc.ofInternalName(constant.getInternalName()));
+                    case Type.METHOD -> delegate.constantPool().methodTypeEntry(MethodTypeDesc.ofDescriptor(constant.getDescriptor()));
+                    default -> delegate.constantPool().classEntry(ClassDesc.ofDescriptor(constant.getDescriptor()));
+                }).index();
+                case Handle constant -> newHandle(constant.getTag(),
+                        constant.getOwner(),
+                        constant.getName(),
+                        constant.getDesc(),
+                        constant.isInterface());
+                case ConstantDynamic constant -> newConstantDynamic(constant.getName(),
+                        constant.getDescriptor(),
+                        constant.getBootstrapMethod(),
+                        constant.getBootstrapMethodArgumentCount(),
+                        constant::getBootstrapMethodArgument);
+                default -> throw new IllegalArgumentException();
+            });
+        }
+
+        @Override
+        public int newUTF8(String value) {
+            return delegate.constantPool().utf8Entry(value).index();
+        }
+
+        @Override
+        public int newClass(String value) {
+            return delegate.constantPool().classEntry(ClassDesc.ofInternalName(value)).index();
+        }
+
+        @Override
+        public int newMethodType(String methodDescriptor) {
+            return delegate.constantPool().methodTypeEntry(MethodTypeDesc.ofDescriptor(methodDescriptor)).index();
+        }
+
+        @Override
+        public int newModule(String moduleName) {
+            return delegate.constantPool().moduleEntry(ModuleDesc.of(moduleName)).index();
+        }
+
+        @Override
+        public int newPackage(String packageName) {
+            return delegate.constantPool().packageEntry(PackageDesc.ofInternalName(packageName)).index();
+        }
+
+        @Override
+        public int newHandle(int tag, String owner, String name, String descriptor, boolean isInterface) {
+            return delegate.constantPool().methodHandleEntry(MethodHandleDesc.of(
+                    DirectMethodHandleDesc.Kind.valueOf(tag, isInterface),
+                    ClassDesc.ofInternalName(owner),
+                    name,
+                    descriptor)).index();
+        }
+
+        @Override
+        public int newConstantDynamic(String name, String descriptor, Handle bootstrapMethodHandle, Object... bootstrapMethodArguments) {
+            return newConstantDynamic(name, descriptor, bootstrapMethodHandle, bootstrapMethodArguments.length, index -> bootstrapMethodArguments[index]);
+        }
+
+        private int newConstantDynamic(String name, String descriptor, Handle bootstrapMethodHandle, int length, IntFunction<Object> resolver) {
+            ConstantDesc[] constants = new ConstantDesc[length];
+            for (int index = 0; index < length; index++) {
+                constants[index] = JdkClassWriter.toConstantDesc(resolver.apply(index));
+            }
+            return delegate.constantPool().constantDynamicEntry(DynamicConstantDesc.ofNamed(
+                    MethodHandleDesc.of(
+                            DirectMethodHandleDesc.Kind.valueOf(bootstrapMethodHandle.getTag(), bootstrapMethodHandle.isInterface()),
+                            ClassDesc.ofInternalName(bootstrapMethodHandle.getOwner()),
+                            bootstrapMethodHandle.getName(),
+                            bootstrapMethodHandle.getDesc()),
+                    name,
+                    ClassDesc.ofDescriptor(descriptor),
+                    constants)).index();
+        }
+
+        @Override
+        public int newInvokeDynamic(String name, String descriptor, Handle bootstrapMethodHandle, Object... bootstrapMethodArguments) {
+            ConstantDesc[] constants = new ConstantDesc[bootstrapMethodArguments.length];
+            for (int index = 0; index < bootstrapMethodArguments.length; index++) {
+                constants[index] = JdkClassWriter.toConstantDesc(bootstrapMethodArguments[index]);
+            }
+            return delegate.constantPool().invokeDynamicEntry(DynamicCallSiteDesc.of(
+                    MethodHandleDesc.of(
+                            DirectMethodHandleDesc.Kind.valueOf(bootstrapMethodHandle.getTag(), bootstrapMethodHandle.isInterface()),
+                            ClassDesc.ofInternalName(bootstrapMethodHandle.getOwner()),
+                            bootstrapMethodHandle.getName(),
+                            bootstrapMethodHandle.getDesc()),
+                    name,
+                    MethodTypeDesc.ofDescriptor(descriptor),
+                    constants)).index();
+        }
+
+        @Override
+        public int newField(String owner, String name, String descriptor) {
+            return delegate.constantPool().fieldRefEntry(
+                    ClassDesc.ofInternalName(owner),
+                    name,
+                    ClassDesc.ofDescriptor(descriptor)).index();
+        }
+
+        @Override
+        public int newMethod(String owner, String name, String descriptor, boolean isInterface) {
+            if (isInterface) {
+                return delegate.constantPool().interfaceMethodRefEntry(
+                        ClassDesc.ofInternalName(owner),
+                        name,
+                        MethodTypeDesc.ofDescriptor(descriptor)).index();
+            } else {
+                return delegate.constantPool().methodRefEntry(
+                        ClassDesc.ofInternalName(owner),
+                        name,
+                        MethodTypeDesc.ofDescriptor(descriptor)).index();
+            }
+        }
+
+        @Override
+        public int newNameType(String name, String descriptor) {
+            return delegate.constantPool().nameAndTypeEntry(
+                    name,
+                    ClassDesc.ofDescriptor(descriptor)).index();
         }
     }
 }
