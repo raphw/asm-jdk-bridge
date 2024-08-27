@@ -18,7 +18,6 @@ import java.lang.classfile.CustomAttribute;
 import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 
@@ -73,15 +72,9 @@ public class JdkClassWriterTest {
         }
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
         toClassReader(classFile).accept(toVisitor(asm), readerFlags);
-        JdkClassWriter writer = new JdkClassWriter(writerFlags, attribute -> {
-            if (attribute instanceof AsmTestAttribute testAttribute) {
-                return Optional.of(new CustomTestAttribute(testAttribute.bytes));
-            } else {
-                throw new AssertionError("Unknown attribute: " + attribute.type);
-            }
-        });
+        JdkClassWriter writer = new JdkClassWriter(writerFlags);
         toClassReader(classFile).accept(writer, new Attribute[]{ new AsmTestAttribute() }, readerFlags);
-        toClassReader(writer.toByteArray()).accept(toVisitor(jdk), readerFlags);
+        toClassReader(writer.toByteArray()).accept(toVisitor(jdk), new Attribute[]{ new AsmTestAttribute() }, readerFlags);
         assertEquals(asm.toString(), jdk.toString());
     }
 

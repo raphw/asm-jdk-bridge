@@ -52,7 +52,7 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
         }
     }
 
-    private final Attribute attribute;
+    final Attribute attribute;
 
     AsmAttribute(Attribute attribute) {
         super(new AttributeMapper<>() {
