@@ -25,14 +25,14 @@ public class JdkClassWriter extends ClassVisitor {
     private final List<InnerClassInfo> innerClasses = new ArrayList<>();
     private final List<ClassDesc> permittedSubclasses = new ArrayList<>();
     private final List<RecordComponentInfo> recordComponents = new ArrayList<>();
-    private final List<CustomAttribute<?>> attributes = new ArrayList<>();
+    private final List<ClassElement> attributes = new ArrayList<>();
     private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
     private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
 
     private ClassDesc thisClass;
     private boolean isRecord;
     private List<Consumer<ClassBuilder>> classConsumers = new ArrayList<>(List.of(classBuilder -> {
-        for (CustomAttribute<?> attribute : attributes) {
+        for (ClassElement attribute : attributes) {
             classBuilder.with(attribute);
         }
         if (!visibleAnnotations.isEmpty()) {
@@ -248,7 +248,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitAttribute(Attribute attribute) {
-        attributes.add(AsmAttribute.of(attribute));
+        attributes.add(AsmWrappedAttribute.unwrap(attribute, ClassElement.class));
     }
 
     @Override
@@ -283,13 +283,13 @@ public class JdkClassWriter extends ClassVisitor {
     public RecordComponentVisitor visitRecordComponent(String name, String descriptor, String signature) {
         return new RecordComponentVisitor(Opcodes.ASM9) {
 
-            private final List<CustomAttribute<?>> attributes = new ArrayList<>();
+            private final List<java.lang.classfile.Attribute<?>> attributes = new ArrayList<>();
             private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
             private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
 
             @Override
             public void visitAttribute(Attribute attribute) {
-                attributes.add(AsmAttribute.of(attribute));
+                attributes.add(AsmWrappedAttribute.unwrap(attribute, java.lang.classfile.Attribute.class));
             }
 
             @Override
@@ -343,7 +343,7 @@ public class JdkClassWriter extends ClassVisitor {
         private final String signature;
         private final Object value;
 
-        private final List<CustomAttribute<?>> attributes = new ArrayList<>();
+        private final List<FieldElement> attributes = new ArrayList<>();
         private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
         private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
 
@@ -366,7 +366,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitAttribute(Attribute attribute) {
-            attributes.add(AsmAttribute.of(attribute));
+            attributes.add(AsmWrappedAttribute.unwrap(attribute, FieldElement.class));
         }
 
         @Override
@@ -397,7 +397,7 @@ public class JdkClassWriter extends ClassVisitor {
                 if (signature != null) {
                     fieldBuilder.with(SignatureAttribute.of(classBuilder.constantPool().utf8Entry(signature)));
                 }
-                for (CustomAttribute<?> attribute : attributes) {
+                for (FieldElement attribute : attributes) {
                     fieldBuilder.with(attribute);
                 }
                 if (!visibleAnnotations.isEmpty()) {
@@ -434,7 +434,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         private List<Consumer<CodeBuilder>> codeConsumers;
 
-        private final List<CustomAttribute<?>> attributes = new ArrayList<>();
+        private final List<MethodElement> attributes = new ArrayList<>();
         private AnnotationValue defaultValue;
         private int catchCount = -1;
         private Label currentLocation;
@@ -493,7 +493,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitAttribute(Attribute attribute) {
-            attributes.add(AsmAttribute.of(attribute));
+            attributes.add(AsmWrappedAttribute.unwrap(attribute, MethodElement.class));
         }
 
         @Override
@@ -1011,7 +1011,7 @@ public class JdkClassWriter extends ClassVisitor {
                     }
                     methodBuilder.with(ExceptionsAttribute.ofSymbols(entries));
                 }
-                for (CustomAttribute<?> attribute : attributes) {
+                for (MethodElement attribute : attributes) {
                     methodBuilder.with(attribute);
                 }
                 if (defaultValue != null) {

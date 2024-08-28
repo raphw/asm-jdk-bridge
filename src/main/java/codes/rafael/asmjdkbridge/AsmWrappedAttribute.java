@@ -13,6 +13,12 @@ abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> e
         this.attribute = attribute;
     }
 
+    static <T> T unwrap(Attribute attribute, Class<T> type) {
+        return type.cast(attribute instanceof AsmWrappedAttribute<?> wrappedAttribute
+                ? type.cast(wrappedAttribute.attribute)
+                : type.cast(AsmAttribute.of(attribute)));
+    }
+
     @Override
     protected Attribute read(ClassReader classReader, int offset, int length, char[] charBuffer, int codeAttributeOffset, Label[] labels) {
         throw new UnsupportedOperationException();
