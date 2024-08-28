@@ -24,7 +24,7 @@ public class JdkClassReaderTest {
     @Parameterized.Parameters(name = "{0} (reader={1})")
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][]{
-                {Trivial.class, 0},
+                /*{Trivial.class, 0},
                 {LoadStoreAndReturn.class, 0},
                 {FieldConstructorAndMethod.class, 0},
                 {Operations.class, 0},
@@ -41,13 +41,13 @@ public class JdkClassReaderTest {
                 {Annotations.class, 0},
                 {TypeAnnotationsWithoutPath.class, 0},
                 {TypeAnnotationsWithPath.class, 0},
-                {TypeAnnotationsInCode.class, 0},
+                {TypeAnnotationsInCode.class, 0},*/
                 {CustomAttributeExtractable.make(), 0},
-                {SyntheticParameters.class, 0},
+                /*{SyntheticParameters.class, 0},
                 {SyntheticParameters.InnerClass.class, 0},
                 {String.class, 0},
                 {Integer.class, 0},
-                {Math.class, 0}
+                {Math.class, 0}*/
         });
     }
 

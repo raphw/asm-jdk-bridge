@@ -248,7 +248,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitAttribute(Attribute attribute) {
-        attributes.add(new AsmAttribute(attribute));
+        attributes.add(AsmAttribute.of(attribute));
     }
 
     @Override
@@ -289,7 +289,7 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public void visitAttribute(Attribute attribute) {
-                attributes.add(new AsmAttribute(attribute));
+                attributes.add(AsmAttribute.of(attribute));
             }
 
             @Override
@@ -366,7 +366,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitAttribute(Attribute attribute) {
-            attributes.add(new AsmAttribute(attribute));
+            attributes.add(AsmAttribute.of(attribute));
         }
 
         @Override
@@ -493,7 +493,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitAttribute(Attribute attribute) {
-            attributes.add(new AsmAttribute(attribute));
+            attributes.add(AsmAttribute.of(attribute));
         }
 
         @Override

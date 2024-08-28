@@ -29,9 +29,11 @@ public class JdkClassReader {
             SAME_EXTENDED = 251;
 
     private final ClassModel classModel;
+    private final AttributeFunction attributes;
 
     public JdkClassReader(byte[] classFile, Attribute... attributePrototypes) {
-        classModel = ClassFile.of(ClassFile.AttributeMapperOption.of(new AttributeFunction(attributePrototypes))).parse(classFile);
+        attributes = new AttributeFunction(attributePrototypes);
+        classModel = ClassFile.of(ClassFile.AttributeMapperOption.of(attributes)).parse(classFile);
     }
 
     public JdkClassReader(InputStream inputStream, Attribute... attributePrototypes) throws IOException {
@@ -39,7 +41,8 @@ public class JdkClassReader {
     }
 
     public JdkClassReader(String className, Attribute... attributePrototypes) throws IOException {
-        ClassFile classFile = ClassFile.of(ClassFile.AttributeMapperOption.of(new AttributeFunction(attributePrototypes)));
+        attributes = new AttributeFunction(attributePrototypes);
+        ClassFile classFile = ClassFile.of(ClassFile.AttributeMapperOption.of(attributes));
         try (InputStream inputStream = ClassLoader.getSystemResourceAsStream(className.replace('.', '/') + ".class")) {
             classModel = classFile.parse(inputStream.readAllBytes());
         }
@@ -107,10 +110,10 @@ public class JdkClassReader {
                 enclosingMethod.enclosingMethod().map(value -> value.name().stringValue()).orElse(null),
                 enclosingMethod.enclosingMethod().map(value -> value.type().stringValue()).orElse(null)));
         acceptAnnotations(classModel, classVisitor::visitAnnotation, classVisitor::visitTypeAnnotation);
-        classModel.findAttribute(Attributes.sourceId()).ifPresent(sourceIDAttribute -> classVisitor.visitAttribute(new AsmSourceIdAttribute(sourceIDAttribute)));
-        classModel.findAttribute(Attributes.compilationId()).ifPresent(sourceIDAttribute -> classVisitor.visitAttribute(new AsmCompilationIdAttribute(sourceIDAttribute)));
-        classModel.findAttribute(Attributes.moduleResolution()).ifPresent(moduleResolutionAttribute -> classVisitor.visitAttribute(new AsmModuleResolutionAttribute(moduleResolutionAttribute)));
-        classModel.findAttribute(Attributes.moduleHashes()).ifPresent(moduleResolutionAttribute -> classVisitor.visitAttribute(new AsmModuleHashesAttribute(moduleResolutionAttribute)));
+        classModel.findAttribute(Attributes.sourceId()).ifPresent(sourceIDAttribute -> classVisitor.visitAttribute(new AsmWrappedAttribute.AsmSourceIdAttribute(sourceIDAttribute)));
+        classModel.findAttribute(Attributes.compilationId()).ifPresent(sourceIDAttribute -> classVisitor.visitAttribute(new AsmWrappedAttribute.AsmCompilationIdAttribute(sourceIDAttribute)));
+        classModel.findAttribute(Attributes.moduleResolution()).ifPresent(moduleResolutionAttribute -> classVisitor.visitAttribute(new AsmWrappedAttribute.AsmModuleResolutionAttribute(moduleResolutionAttribute)));
+        classModel.findAttribute(Attributes.moduleHashes()).ifPresent(moduleResolutionAttribute -> classVisitor.visitAttribute(new AsmWrappedAttribute.AsmModuleHashesAttribute(moduleResolutionAttribute)));
         acceptAttributes(classModel, classVisitor::visitAttribute);
         classModel.findAttribute(Attributes.nestMembers()).stream()
                 .flatMap(nestMembers -> nestMembers.nestMembers().stream())
@@ -176,7 +179,7 @@ public class JdkClassReader {
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
                 acceptAttributes(methodModel, methodVisitor::visitAttribute);
                 methodModel.code().filter(_ -> (flags & ClassReader.SKIP_CODE) == 0).map(code -> (CodeAttribute) code).ifPresent(code -> {
-                    code.findAttribute(Attributes.characterRangeTable()).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new AsmCharacterRangeTableAttribute(characterRangeTable)));
+                    code.findAttribute(Attributes.characterRangeTable()).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new AsmWrappedAttribute.AsmCharacterRangeTableAttribute(characterRangeTable)));
                     int localVariablesSize = Type.getMethodType(methodModel.methodType().stringValue()).getArgumentTypes().length + (methodModel.flags().has(AccessFlag.STATIC) ? 0 : 1);
                     Map<Label, StackMapFrameInfo> frames = (flags & ClassReader.SKIP_FRAMES) == 0 ? code.findAttribute(Attributes.stackMapTable())
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapFrameInfo::target, Function.identity())))
@@ -414,9 +417,12 @@ public class JdkClassReader {
     }
 
     private void acceptAttributes(AttributedElement element, Consumer<Attribute> consumer) {
+        attributes.mappers.entrySet().stream().forEach(entry -> element
+                .findAttributes(entry.getValue().attributeMapper())
+                .forEach(attribute -> consumer.accept(attribute.attribute)));
         element.attributes().stream()
                 .filter(attribute -> attribute instanceof java.lang.classfile.attribute.UnknownAttribute)
-                .forEach(attribute -> consumer.accept(new AsmUnknownAttribute(((UnknownAttribute) attribute))));
+                .forEach(attribute -> consumer.accept(new AsmWrappedAttribute.AsmUnknownAttribute(((UnknownAttribute) attribute))));
     }
 
     private void appendAnnotationValues(AnnotationVisitor annotationVisitor, List<AnnotationElement> elements) {
@@ -668,18 +674,19 @@ public class JdkClassReader {
 
     private static class AttributeFunction implements Function<Utf8Entry, AttributeMapper<?>> {
 
-        private final Map<String, AttributeMapper<?>> mappers;
+        private final Map<String, AsmAttribute> mappers;
 
         private AttributeFunction(Attribute[] attributePrototypes) {
             mappers = Stream.of(attributePrototypes).collect(Collectors.toMap(
                     prototype -> prototype.type,
-                    prototype -> new AsmAttribute(prototype).attributeMapper()
+                    prototype -> AsmAttribute.of(prototype)
             ));
         }
 
         @Override
         public AttributeMapper<?> apply(Utf8Entry entry) {
-            return mappers.get(entry.stringValue());
+            AsmAttribute attribute = mappers.get(entry.stringValue());
+            return attribute == null ? null : attribute.attributeMapper();
         }
     }
 }

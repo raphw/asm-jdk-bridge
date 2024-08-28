@@ -54,8 +54,9 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
 
     final Attribute attribute;
 
-    AsmAttribute(Attribute attribute) {
-        super(new AttributeMapper<>() {
+    static AsmAttribute of(Attribute attribute) {
+        AttributeMapper<AsmAttribute> mapper = new AttributeMapper<>() {
+            
             @Override
             public String name() {
                 return attribute.type;
@@ -65,7 +66,7 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
             public AsmAttribute readAttribute(AttributedElement attributedElement, ClassReader classReader, int payloadStart) {
                 int length = classReader.readInt(payloadStart - 4);
                 try {
-                    return new AsmAttribute((Attribute) READ_ATTRIBUTE.invoke(attribute,
+                    return new AsmAttribute(this, (Attribute) READ_ATTRIBUTE.invoke(attribute,
                             new DelegatingClassReader(classReader.readBytes(0, classReader.classfileLength()), classReader),
                             payloadStart,
                             length,
@@ -86,7 +87,7 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
                     ByteVector vector = (ByteVector) WRITE_ATTRIBUTE.invoke(asmAttribute.attribute,
                             new DelegatingClassWriter(bufWriter),
                             null,
-                            -1,
+                            0,
                             -1,
                             -1);
                     bytes = (byte[]) GET_BYTES.invoke(vector);
@@ -102,7 +103,12 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
             public AttributeStability stability() {
                 return attribute.isUnknown() ? AttributeStability.UNKNOWN : AttributeStability.UNSTABLE;
             }
-        });
+        };
+        return new AsmAttribute(mapper, attribute);
+    }
+
+    private AsmAttribute(AttributeMapper<AsmAttribute> mapper, Attribute attribute) {
+        super(mapper);
         this.attribute = attribute;
     }
 
