@@ -62,15 +62,15 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
             }
 
             @Override
-            public AsmAttribute readAttribute(AttributedElement attributedElement, ClassReader classReader, int offset) {
+            public AsmAttribute readAttribute(AttributedElement attributedElement, ClassReader classReader, int payloadStart) {
+                int length = classReader.readInt(payloadStart - 4);
                 try {
                     return new AsmAttribute((Attribute) READ_ATTRIBUTE.invoke(attribute,
-                            new DelegatingClassReader(classReader),
-                            offset,
-                            -1,
+                            new DelegatingClassReader(classReader.readBytes(0, classReader.classfileLength()), classReader),
+                            payloadStart,
+                            length,
                             null,
                             -1,
-                            null,
                             null));
                 } catch (Throwable t) {
                     throw new RuntimeException(t);
@@ -100,7 +100,7 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
 
             @Override
             public AttributeStability stability() {
-                return AttributeStability.UNKNOWN;
+                return attribute.isUnknown() ? AttributeStability.UNKNOWN : AttributeStability.UNSTABLE;
             }
         });
         this.attribute = attribute;
@@ -108,12 +108,10 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
 
     private static class DelegatingClassReader extends org.objectweb.asm.ClassReader {
 
-        private static final byte[] FAKE = new byte[10];
-
         private final java.lang.classfile.ClassReader delegate;
 
-        private DelegatingClassReader(java.lang.classfile.ClassReader delegate) {
-            super(FAKE);
+        private DelegatingClassReader(byte[] bytes, java.lang.classfile.ClassReader delegate) {
+            super(bytes);
             this.delegate = delegate;
         }
 
@@ -169,11 +167,17 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
 
         @Override
         public int readUnsignedShort(int offset) {
+            if (delegate == null) {
+                return 0;
+            }
             return delegate.readU2(offset);
         }
 
         @Override
         public short readShort(int offset) {
+            if (delegate == null) {
+                return 0;
+            }
             return (short) delegate.readS2(offset);
         }
 

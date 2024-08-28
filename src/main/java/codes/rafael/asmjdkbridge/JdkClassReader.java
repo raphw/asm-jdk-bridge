@@ -24,45 +24,32 @@ import java.util.stream.Stream;
 @SuppressWarnings("ALL")
 public class JdkClassReader {
 
-    private static final Attribute[] NO_ATTRIBUTES = new Attribute[0];
-
     private static final int
             SAME_LOCALS_1_STACK_ITEM_EXTENDED = 247,
             SAME_EXTENDED = 251;
 
     private final ClassModel classModel;
 
-    public JdkClassReader(byte[] classFile) {
-        this(ClassFile.of().parse(classFile));
+    public JdkClassReader(byte[] classFile, Attribute... attributePrototypes) {
+        classModel = ClassFile.of(ClassFile.AttributeMapperOption.of(new AttributeFunction(attributePrototypes))).parse(classFile);
     }
 
-    public JdkClassReader(InputStream inputStream) throws IOException {
-        this(inputStream.readAllBytes());
+    public JdkClassReader(InputStream inputStream, Attribute... attributePrototypes) throws IOException {
+        this(inputStream.readAllBytes(), attributePrototypes);
     }
 
-    public JdkClassReader(String className) throws IOException {
+    public JdkClassReader(String className, Attribute... attributePrototypes) throws IOException {
+        ClassFile classFile = ClassFile.of(ClassFile.AttributeMapperOption.of(new AttributeFunction(attributePrototypes)));
         try (InputStream inputStream = ClassLoader.getSystemResourceAsStream(className.replace('.', '/') + ".class")) {
-            classModel = ClassFile.of().parse(inputStream.readAllBytes());
+            classModel = classFile.parse(inputStream.readAllBytes());
         }
     }
 
-    public JdkClassReader(ClassModel classModel) {
-        this.classModel = classModel;
-    }
-
-    public ClassModel getClassModel() {
+    ClassModel getClassModel() {
         return classModel;
     }
 
     public void accept(ClassVisitor classVisitor, int flags) {
-        accept(classVisitor, NO_ATTRIBUTES, flags);
-    }
-
-    public void accept(ClassVisitor classVisitor, Attribute[] attributePrototypes, int flags) {
-        Map<String, AsmAttribute> prototypes = Stream.of(attributePrototypes).collect(Collectors.toMap(
-                attribute -> attribute.type,
-                attribute -> new AsmAttribute(attribute)
-        ));
         Map<Label, org.objectweb.asm.Label> labels = new HashMap<>();
         classVisitor.visit(classModel.minorVersion() << 16 | classModel.majorVersion(),
                 classModel.flags().flagsMask()
@@ -124,7 +111,7 @@ public class JdkClassReader {
         classModel.findAttribute(Attributes.compilationId()).ifPresent(sourceIDAttribute -> classVisitor.visitAttribute(new AsmCompilationIdAttribute(sourceIDAttribute)));
         classModel.findAttribute(Attributes.moduleResolution()).ifPresent(moduleResolutionAttribute -> classVisitor.visitAttribute(new AsmModuleResolutionAttribute(moduleResolutionAttribute)));
         classModel.findAttribute(Attributes.moduleHashes()).ifPresent(moduleResolutionAttribute -> classVisitor.visitAttribute(new AsmModuleHashesAttribute(moduleResolutionAttribute)));
-        acceptAttributes(classModel, prototypes, classVisitor::visitAttribute);
+        acceptAttributes(classModel, classVisitor::visitAttribute);
         classModel.findAttribute(Attributes.nestMembers()).stream()
                 .flatMap(nestMembers -> nestMembers.nestMembers().stream())
                 .forEach(nestMember -> classVisitor.visitNestMember(nestMember.asInternalName()));
@@ -145,7 +132,7 @@ public class JdkClassReader {
                             recordComponent.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null));
                     if (recordComponentVisitor != null) {
                         acceptAnnotations(recordComponent, recordComponentVisitor::visitAnnotation, recordComponentVisitor::visitTypeAnnotation);
-                        acceptAttributes(recordComponent, prototypes, recordComponentVisitor::visitAttribute);
+                        acceptAttributes(recordComponent, recordComponentVisitor::visitAttribute);
                         recordComponentVisitor.visitEnd();
                     }
                 });
@@ -159,7 +146,7 @@ public class JdkClassReader {
                 writingFieldVisitor.add(fieldModel);
             } else if (fieldVisitor != null) {
                 acceptAnnotations(fieldModel, fieldVisitor::visitAnnotation, fieldVisitor::visitTypeAnnotation);
-                acceptAttributes(fieldModel, prototypes, fieldVisitor::visitAttribute);
+                acceptAttributes(fieldModel, fieldVisitor::visitAttribute);
                 fieldVisitor.visitEnd();
             }
         }
@@ -187,7 +174,7 @@ public class JdkClassReader {
                 acceptAnnotations(methodModel, methodVisitor::visitAnnotation, methodVisitor::visitTypeAnnotation);
                 acceptParameterAnnotations(methodModel, methodVisitor, true);
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
-                acceptAttributes(methodModel, prototypes, methodVisitor::visitAttribute);
+                acceptAttributes(methodModel, methodVisitor::visitAttribute);
                 methodModel.code().filter(_ -> (flags & ClassReader.SKIP_CODE) == 0).map(code -> (CodeAttribute) code).ifPresent(code -> {
                     code.findAttribute(Attributes.characterRangeTable()).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new AsmCharacterRangeTableAttribute(characterRangeTable)));
                     int localVariablesSize = Type.getMethodType(methodModel.methodType().stringValue()).getArgumentTypes().length + (methodModel.flags().has(AccessFlag.STATIC) ? 0 : 1);
@@ -426,15 +413,10 @@ public class JdkClassReader {
         });
     }
 
-    private void acceptAttributes(AttributedElement element, Map<String, AsmAttribute> prototypes, Consumer<Attribute> consumer) {
+    private void acceptAttributes(AttributedElement element, Consumer<Attribute> consumer) {
         element.attributes().stream()
                 .filter(attribute -> attribute instanceof java.lang.classfile.attribute.UnknownAttribute)
-                .forEach(attribute -> {
-                    AsmAttribute prototype = prototypes.get(attribute.attributeName());
-                    consumer.accept(prototype == null
-                            ? new AsmUnknownAttribute(((UnknownAttribute) attribute))
-                            : element.findAttribute(prototype.attributeMapper()).map(x -> x.attribute).orElseGet(() -> new AsmUnknownAttribute(((UnknownAttribute) attribute))));
-                });
+                .forEach(attribute -> consumer.accept(new AsmUnknownAttribute(((UnknownAttribute) attribute))));
     }
 
     private void appendAnnotationValues(AnnotationVisitor annotationVisitor, List<AnnotationElement> elements) {
@@ -681,6 +663,23 @@ public class JdkClassReader {
                 value = null;
                 return next;
             }
+        }
+    }
+
+    private static class AttributeFunction implements Function<Utf8Entry, AttributeMapper<?>> {
+
+        private final Map<String, AttributeMapper<?>> mappers;
+
+        private AttributeFunction(Attribute[] attributePrototypes) {
+            mappers = Stream.of(attributePrototypes).collect(Collectors.toMap(
+                    prototype -> prototype.type,
+                    prototype -> new AsmAttribute(prototype).attributeMapper()
+            ));
+        }
+
+        @Override
+        public AttributeMapper<?> apply(Utf8Entry entry) {
+            return mappers.get(entry.stringValue());
         }
     }
 }

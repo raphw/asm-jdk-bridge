@@ -64,17 +64,13 @@ public class JdkClassWriter extends ClassVisitor {
     private byte[] bytes;
 
     public JdkClassWriter(int flags) {
-        this(flags, (ClassModel) null);
+        this(flags, null);
     }
 
     public JdkClassWriter(int flags, JdkClassReader classReader) {
-        this(flags, classReader == null ? null : classReader.getClassModel());
-    }
-
-    public JdkClassWriter(int flags, ClassModel classModel) {
         super(Opcodes.ASM9);
         this.flags = flags;
-        this.classModel = classModel;
+        this.classModel = classReader == null ? null : classReader.getClassModel();
     }
 
     @Override

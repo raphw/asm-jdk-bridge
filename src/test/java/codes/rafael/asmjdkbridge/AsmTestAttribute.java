@@ -17,7 +17,6 @@ public class AsmTestAttribute extends Attribute {
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     protected Attribute read(ClassReader classReader, int offset, int length, char[] charBuffer, int codeAttributeOffset, Label[] labels) {
         AsmTestAttribute attribute = new AsmTestAttribute(new byte[length]);
         System.arraycopy(classReader.b, offset, attribute.bytes, 0, length);
