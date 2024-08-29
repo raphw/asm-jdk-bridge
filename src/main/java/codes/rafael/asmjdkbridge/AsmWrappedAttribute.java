@@ -36,11 +36,6 @@ abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> e
         }
 
         @Override
-        protected Attribute read(ClassReader classReader, int offset, int length, char[] charBuffer, int codeAttributeOffset, Label[] labels) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         protected ByteVector write(ClassWriter classWriter, byte[] code, int codeLength, int maxStack, int maxLocals) {
             ByteVector byteVector = new ByteVector(2 + 8 * attribute.characterRangeTable().size());
             byteVector.putShort(attribute.characterRangeTable().size());
