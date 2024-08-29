@@ -114,7 +114,7 @@ public class JdkClassReader {
         classModel.findAttribute(Attributes.compilationId()).ifPresent(sourceIDAttribute -> classVisitor.visitAttribute(new AsmWrappedAttribute.AsmCompilationIdAttribute(sourceIDAttribute)));
         classModel.findAttribute(Attributes.moduleResolution()).ifPresent(moduleResolutionAttribute -> classVisitor.visitAttribute(new AsmWrappedAttribute.AsmModuleResolutionAttribute(moduleResolutionAttribute)));
         classModel.findAttribute(Attributes.moduleHashes()).ifPresent(moduleResolutionAttribute -> classVisitor.visitAttribute(new AsmWrappedAttribute.AsmModuleHashesAttribute(moduleResolutionAttribute)));
-        acceptAttributes(classModel, classVisitor::visitAttribute);
+        acceptAttributes(classModel, false, classVisitor::visitAttribute);
         classModel.findAttribute(Attributes.nestMembers()).stream()
                 .flatMap(nestMembers -> nestMembers.nestMembers().stream())
                 .forEach(nestMember -> classVisitor.visitNestMember(nestMember.asInternalName()));
@@ -135,7 +135,7 @@ public class JdkClassReader {
                             recordComponent.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null));
                     if (recordComponentVisitor != null) {
                         acceptAnnotations(recordComponent, recordComponentVisitor::visitAnnotation, recordComponentVisitor::visitTypeAnnotation);
-                        acceptAttributes(recordComponent, recordComponentVisitor::visitAttribute);
+                        acceptAttributes(recordComponent, false, recordComponentVisitor::visitAttribute);
                         recordComponentVisitor.visitEnd();
                     }
                 });
@@ -149,7 +149,7 @@ public class JdkClassReader {
                 writingFieldVisitor.add(fieldModel);
             } else if (fieldVisitor != null) {
                 acceptAnnotations(fieldModel, fieldVisitor::visitAnnotation, fieldVisitor::visitTypeAnnotation);
-                acceptAttributes(fieldModel, fieldVisitor::visitAttribute);
+                acceptAttributes(fieldModel, false, fieldVisitor::visitAttribute);
                 fieldVisitor.visitEnd();
             }
         }
@@ -177,9 +177,10 @@ public class JdkClassReader {
                 acceptAnnotations(methodModel, methodVisitor::visitAnnotation, methodVisitor::visitTypeAnnotation);
                 acceptParameterAnnotations(methodModel, methodVisitor, true);
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
-                acceptAttributes(methodModel, methodVisitor::visitAttribute);
+                acceptAttributes(methodModel, false, methodVisitor::visitAttribute);
                 methodModel.code().filter(_ -> (flags & ClassReader.SKIP_CODE) == 0).map(code -> (CodeAttribute) code).ifPresent(code -> {
                     code.findAttribute(Attributes.characterRangeTable()).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new AsmWrappedAttribute.AsmCharacterRangeTableAttribute(characterRangeTable)));
+                    acceptAttributes(code, true, methodVisitor::visitAttribute);
                     int localVariablesSize = Type.getMethodType(methodModel.methodType().stringValue()).getArgumentTypes().length + (methodModel.flags().has(AccessFlag.STATIC) ? 0 : 1);
                     Map<Label, StackMapFrameInfo> frames = (flags & ClassReader.SKIP_FRAMES) == 0 ? code.findAttribute(Attributes.stackMapTable())
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapFrameInfo::target, Function.identity())))
@@ -416,13 +417,13 @@ public class JdkClassReader {
         });
     }
 
-    private void acceptAttributes(AttributedElement element, Consumer<Attribute> consumer) {
+    private void acceptAttributes(AttributedElement element, boolean code, Consumer<Attribute> consumer) {
         attributes.mappers.entrySet().stream().forEach(entry -> element
                 .findAttributes(entry.getValue().attributeMapper())
                 .forEach(attribute -> consumer.accept(attribute.attribute)));
         element.attributes().stream()
                 .filter(attribute -> attribute instanceof java.lang.classfile.attribute.UnknownAttribute)
-                .forEach(attribute -> consumer.accept(new AsmWrappedAttribute.AsmUnknownAttribute(((UnknownAttribute) attribute))));
+                .forEach(attribute -> consumer.accept(new AsmWrappedAttribute.AsmUnknownAttribute((UnknownAttribute) attribute, code)));
     }
 
     private void appendAnnotationValues(AnnotationVisitor annotationVisitor, List<AnnotationElement> elements) {

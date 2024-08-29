@@ -121,8 +121,11 @@ abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> e
 
     static class AsmUnknownAttribute extends AsmWrappedAttribute<UnknownAttribute> {
 
-        AsmUnknownAttribute(UnknownAttribute attribute) {
+        private final boolean code;
+
+        AsmUnknownAttribute(UnknownAttribute attribute, boolean code) {
             super(attribute);
+            this.code = code;
         }
 
         @Override
@@ -130,6 +133,11 @@ abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> e
             ByteVector vector = new ByteVector(attribute.contents().length);
             vector.putByteArray(attribute.contents(), 0, attribute.contents().length);
             return vector;
+        }
+
+        @Override
+        public boolean isCodeAttribute() {
+            return code;
         }
     }
 }

@@ -435,6 +435,7 @@ public class JdkClassWriter extends ClassVisitor {
         private List<Consumer<CodeBuilder>> codeConsumers;
 
         private final List<MethodElement> attributes = new ArrayList<>();
+        private final List<CodeElement> codeAttributes = new ArrayList<>();
         private AnnotationValue defaultValue;
         private int catchCount = -1;
         private Label currentLocation;
@@ -493,7 +494,11 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitAttribute(Attribute attribute) {
-            attributes.add(AsmWrappedAttribute.unwrap(attribute, MethodElement.class));
+            if (attribute.isCodeAttribute()) {
+                codeAttributes.add(AsmWrappedAttribute.unwrap(attribute, CodeElement.class));
+            } else {
+                attributes.add(AsmWrappedAttribute.unwrap(attribute, MethodElement.class));
+            }
         }
 
         @Override
@@ -1051,6 +1056,9 @@ public class JdkClassWriter extends ClassVisitor {
                         codeConsumers.forEach(codeConsumer -> codeConsumer.accept(codeBuilder));
                         if (!stackMapFrames.isEmpty()) {
                             codeBuilder.with(StackMapTableAttribute.of(stackMapFrames));
+                        }
+                        for (CodeElement attribute : codeAttributes) {
+                            codeBuilder.with(attribute);
                         }
                     });
                 }
