@@ -5,6 +5,7 @@ import org.objectweb.asm.*;
 
 import java.lang.classfile.ClassReader;
 import java.lang.classfile.*;
+import java.lang.classfile.attribute.RecordComponentInfo;
 import java.lang.classfile.constantpool.*;
 import java.lang.constant.*;
 import java.lang.invoke.MethodHandle;
@@ -12,6 +13,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 
 class AsmAttribute extends CustomAttribute<AsmAttribute> {
 
@@ -67,7 +69,15 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
                 int length = classReader.readInt(payloadStart - 4);
                 try {
                     return new AsmAttribute(this, (Attribute) READ_ATTRIBUTE.invoke(attribute,
-                            new DelegatingClassReader(classReader.readBytes(0, classReader.classfileLength()), classReader),
+                            new DelegatingClassReader(classReader.readBytes(0, classReader.classfileLength()),
+                                    classReader,
+                                    () -> switch (attributedElement) {
+                                        case ClassModel model -> model;
+                                        case CodeModel model -> model.parent().orElseThrow(IllegalStateException::new).parent().orElseThrow(IllegalStateException::new);
+                                        case FieldModel model -> model.parent().orElseThrow(IllegalStateException::new);
+                                        case MethodModel model -> model.parent().orElseThrow(IllegalStateException::new);
+                                        case RecordComponentInfo _ -> throw new IllegalStateException();
+                                    }),
                             payloadStart,
                             length,
                             null,
@@ -115,10 +125,12 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
     private static class DelegatingClassReader extends org.objectweb.asm.ClassReader {
 
         private final java.lang.classfile.ClassReader delegate;
+        private final Supplier<ClassModel> model;
 
-        private DelegatingClassReader(byte[] bytes, java.lang.classfile.ClassReader delegate) {
+        private DelegatingClassReader(byte[] bytes, java.lang.classfile.ClassReader delegate, Supplier<ClassModel> model) {
             super(bytes);
             this.delegate = delegate;
+            this.model = model;
         }
 
         @Override
@@ -138,7 +150,7 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
 
         @Override
         public String[] getInterfaces() {
-            throw new UnsupportedOperationException();
+            return model.get().interfaces().stream().map(ClassEntry::asInternalName).toArray(String[]::new);
         }
 
         @Override
