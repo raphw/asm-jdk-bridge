@@ -40,7 +40,7 @@ abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> e
 
         @Override
         protected ByteVector write(ClassWriter classWriter, byte[] code, int codeLength, int maxStack, int maxLocals) {
-            ByteVector byteVector = new ByteVector(2 + 8 * attribute.characterRangeTable().size());
+            ByteVector byteVector = new ByteVector(2 + 14 * attribute.characterRangeTable().size());
             byteVector.putShort(attribute.characterRangeTable().size());
             for (CharacterRangeInfo characterRangeInfo : attribute.characterRangeTable()) {
                 byteVector.putShort(characterRangeInfo.startPc());
