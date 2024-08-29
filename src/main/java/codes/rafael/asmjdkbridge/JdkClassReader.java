@@ -179,8 +179,6 @@ public class JdkClassReader {
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
                 acceptAttributes(methodModel, false, methodVisitor::visitAttribute);
                 methodModel.findAttribute(Attributes.code()).filter(_ -> (flags & ClassReader.SKIP_CODE) == 0).ifPresent(code -> {
-                    code.findAttribute(Attributes.characterRangeTable()).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new AsmWrappedAttribute.AsmCharacterRangeTableAttribute(characterRangeTable)));
-                    acceptAttributes(code, true, methodVisitor::visitAttribute);
                     int localVariablesSize = Type.getMethodType(methodModel.methodType().stringValue()).getArgumentTypes().length + (methodModel.flags().has(AccessFlag.STATIC) ? 0 : 1);
                     Map<Label, StackMapFrameInfo> frames = (flags & ClassReader.SKIP_FRAMES) == 0 ? code.findAttribute(Attributes.stackMapTable())
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapFrameInfo::target, Function.identity())))
@@ -188,6 +186,7 @@ public class JdkClassReader {
                     Map<MergedLocalVariableKey, MergedLocalVariableValue> localVariables = new LinkedHashMap<>();
                     Map<org.objectweb.asm.Label, List<Map.Entry<TypeAnnotation, Boolean>>> offsetTypeAnnotations = new HashMap<>();
                     List<Map.Entry<TypeAnnotation, Boolean>> localVariableAnnotations = new ArrayList<>();
+                    List<CharacterRange> characterRanges = new ArrayList<>();
                     methodVisitor.visitCode();
                     org.objectweb.asm.Label currentPositionLabel = null;
                     PushbackIterator<CodeElement> it = new PushbackIterator<>(code.iterator());
@@ -336,7 +335,7 @@ public class JdkClassReader {
                                     }
                                 }
                             }
-                            case CharacterRange ignored -> { /* ASM's contract requires to process this attribute before visiting instructions */ }
+                            case CharacterRange characterRange -> characterRanges.add(characterRange);
                             case RuntimeVisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), true, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
                             case RuntimeInvisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), false, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
                             case DiscontinuedInstruction.JsrInstruction value -> methodVisitor.visitJumpInsn(value.opcode().bytecode(), labels.computeIfAbsent(value.target(), _ -> new org.objectweb.asm.Label()));
@@ -371,6 +370,10 @@ public class JdkClassReader {
                                 entry.getKey().annotation().className().stringValue(),
                                 entry.getValue()), entry.getKey().annotation().elements());
                     });
+                    if (!characterRanges.isEmpty()) { // labels cannot be translated to BCIs at the moment.
+                        code.findAttribute(Attributes.characterRangeTable()).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new AsmWrappedAttribute.AsmCharacterRangeTableAttribute(characterRangeTable)));
+                    }
+                    acceptAttributes(code, true, methodVisitor::visitAttribute);
                     methodVisitor.visitMaxs(code.maxStack(), code.maxLocals());
                 });
                 methodVisitor.visitEnd();

@@ -19,11 +19,15 @@ public class CustomAttributeExtractable {
                 Type.getInternalName(Object.class),
                 null);
         classWriter.visitAttribute(new AsmTestAttribute(new byte[]{1}));
-        FieldVisitor fieldVisitor = classWriter.visitField(Opcodes.ACC_PUBLIC, "f", Type.getDescriptor(Object.class), null, null);
+        FieldVisitor fieldVisitor = classWriter.visitField(Opcodes.ACC_PUBLIC, "f", "Ljava/lang/Object;", null, null);
         fieldVisitor.visitAttribute(new AsmTestAttribute(new byte[]{2}));
         classWriter.visitEnd();
-        MethodVisitor methodVisitor = classWriter.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_ABSTRACT, "f", Type.getMethodType(Type.VOID_TYPE).getDescriptor(), null, null);
+        MethodVisitor methodVisitor = classWriter.visitMethod(Opcodes.ACC_PUBLIC, "f", "()V", null, null);
         methodVisitor.visitAttribute(new AsmTestAttribute(new byte[]{3}));
+        methodVisitor.visitAttribute(new AsmTestAttribute.AsmCodeTestAttribute(new byte[]{4}));
+        methodVisitor.visitCode();
+        methodVisitor.visitInsn(Opcodes.RETURN);
+        methodVisitor.visitMaxs(1, 1);
         methodVisitor.visitEnd();
         byte[] classFile = classWriter.toByteArray();
         try {
