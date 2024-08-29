@@ -178,7 +178,7 @@ public class JdkClassReader {
                 acceptParameterAnnotations(methodModel, methodVisitor, true);
                 acceptParameterAnnotations(methodModel, methodVisitor, false);
                 acceptAttributes(methodModel, false, methodVisitor::visitAttribute);
-                methodModel.code().filter(_ -> (flags & ClassReader.SKIP_CODE) == 0).map(code -> (CodeAttribute) code).ifPresent(code -> {
+                methodModel.findAttribute(Attributes.code()).filter(_ -> (flags & ClassReader.SKIP_CODE) == 0).ifPresent(code -> {
                     code.findAttribute(Attributes.characterRangeTable()).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new AsmWrappedAttribute.AsmCharacterRangeTableAttribute(characterRangeTable)));
                     acceptAttributes(code, true, methodVisitor::visitAttribute);
                     int localVariablesSize = Type.getMethodType(methodModel.methodType().stringValue()).getArgumentTypes().length + (methodModel.flags().has(AccessFlag.STATIC) ? 0 : 1);
