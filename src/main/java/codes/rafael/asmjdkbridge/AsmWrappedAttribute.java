@@ -25,6 +25,9 @@ abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> e
     }
 
     @Override
+    protected abstract ByteVector write(ClassWriter classWriter, byte[] code, int codeLength, int maxStack, int maxLocals);
+
+    @Override
     public boolean isUnknown() {
         return false;
     }
