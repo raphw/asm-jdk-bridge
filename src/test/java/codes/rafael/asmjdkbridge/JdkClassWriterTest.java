@@ -72,8 +72,8 @@ public class JdkClassWriterTest {
         StringWriter asm = new StringWriter(), jdk = new StringWriter();
         toClassReader(classFile).accept(toVisitor(asm), readerFlags);
         JdkClassWriter writer = new JdkClassWriter(writerFlags);
-        toClassReader(classFile).accept(writer, new Attribute[]{ new AsmTestAttribute() }, readerFlags);
-        toClassReader(writer.toByteArray()).accept(toVisitor(jdk), new Attribute[]{ new AsmTestAttribute() }, readerFlags);
+        toClassReader(classFile).accept(writer, new Attribute[]{ new AsmTestAttribute(), new AsmTestAttribute.AsmCodeTestAttribute() }, readerFlags);
+        toClassReader(writer.toByteArray()).accept(toVisitor(jdk), new Attribute[]{ new AsmTestAttribute(), new AsmTestAttribute.AsmCodeTestAttribute() }, readerFlags);
         assertEquals(asm.toString(), jdk.toString());
     }
 

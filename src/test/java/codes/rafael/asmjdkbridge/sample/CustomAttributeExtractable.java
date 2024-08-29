@@ -27,7 +27,7 @@ public class CustomAttributeExtractable {
         methodVisitor.visitAttribute(new AsmTestAttribute.AsmCodeTestAttribute(new byte[]{4}));
         methodVisitor.visitCode();
         methodVisitor.visitInsn(Opcodes.RETURN);
-        methodVisitor.visitMaxs(1, 1);
+        methodVisitor.visitMaxs(0, 1);
         methodVisitor.visitEnd();
         byte[] classFile = classWriter.toByteArray();
         try {
