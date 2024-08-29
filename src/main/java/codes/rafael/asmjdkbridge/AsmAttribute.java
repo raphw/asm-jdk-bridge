@@ -163,7 +163,7 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
 
         @Override
         public int getMaxStringLength() {
-            throw new UnsupportedOperationException();
+            return 0; // no need for buffers, keep size minimal.
         }
 
         @Override
@@ -199,36 +199,36 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
 
         @Override
         public String readUTF8(int offset, char[] charBuffer) {
-            return delegate.readEntry(delegate.readU2(offset), Utf8Entry.class).stringValue();
+            return delegate.readEntry(offset, Utf8Entry.class).stringValue();
         }
 
         @Override
         public String readClass(int offset, char[] charBuffer) {
-            return delegate.readEntry(delegate.readU2(offset), ClassEntry.class).name().stringValue();
+            return delegate.readEntry(offset, ClassEntry.class).name().stringValue();
         }
 
         @Override
         public String readModule(int offset, char[] charBuffer) {
-            return delegate.readEntry(delegate.readU2(offset), ModuleEntry.class).name().stringValue();
+            return delegate.readEntry(offset, ModuleEntry.class).name().stringValue();
         }
 
         @Override
         public String readPackage(int offset, char[] charBuffer) {
-            return delegate.readEntry(delegate.readU2(offset), PackageEntry.class).name().stringValue();
+            return delegate.readEntry(offset, PackageEntry.class).name().stringValue();
         }
 
         @Override
         public Object readConst(int constantPoolEntryIndex, char[] charBuffer) {
-            return switch (delegate.readEntry(constantPoolEntryIndex)) {
+            return switch (delegate.entryByIndex(constantPoolEntryIndex)) {
                 case IntegerEntry entry -> entry.intValue();
                 case LongEntry entry -> entry.longValue();
                 case FloatEntry entry -> entry.floatValue();
                 case DoubleEntry entry -> entry.doubleValue();
-                case Utf8Entry entry -> entry.stringValue();
+                case StringEntry entry -> entry.stringValue();
                 case ClassEntry entry -> Type.getType("L" + entry.asInternalName() + ";");
                 case MethodHandleEntry entry -> JdkClassReader.toAsmConstant(entry.asSymbol());
                 case ConstantDynamicEntry entry -> JdkClassReader.toAsmConstant(entry.asSymbol());
-                default -> throw new IllegalStateException();
+                default -> throw new IllegalArgumentException();
             };
         }
     }
