@@ -196,11 +196,11 @@ public class JdkClassReader {
                             case MonitorInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case TypeCheckInstruction value -> methodVisitor.visitTypeInsn(value.opcode().bytecode(), value.type().asInternalName());
                             case LoadInstruction value -> methodVisitor.visitVarInsn(switch (value.typeKind()) {
-                                case BooleanType, ByteType, CharType, ShortType, IntType -> Opcodes.ILOAD;
-                                case LongType -> Opcodes.LLOAD;
-                                case FloatType -> Opcodes.FLOAD;
-                                case DoubleType -> Opcodes.DLOAD;
-                                case ReferenceType -> Opcodes.ALOAD;
+                                case BOOLEAN, BYTE, CHAR, SHORT, INT -> Opcodes.ILOAD;
+                                case LONG -> Opcodes.LLOAD;
+                                case FLOAT -> Opcodes.FLOAD;
+                                case DOUBLE -> Opcodes.DLOAD;
+                                case REFERENCE -> Opcodes.ALOAD;
                                 default -> throw new IllegalStateException("Unexpected type: " + value.typeKind());
                             }, value.slot());
                             case OperatorInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
@@ -223,11 +223,11 @@ public class JdkClassReader {
                                     value.opcode() == Opcode.GOTO_W ? Opcodes.GOTO : value.opcode().bytecode(),
                                     labels.computeIfAbsent(value.target(), _ -> new org.objectweb.asm.Label()));
                             case StoreInstruction value -> methodVisitor.visitVarInsn(switch (value.typeKind()) {
-                                case BooleanType, ByteType, CharType, ShortType, IntType -> Opcodes.ISTORE;
-                                case LongType -> Opcodes.LSTORE;
-                                case FloatType -> Opcodes.FSTORE;
-                                case DoubleType -> Opcodes.DSTORE;
-                                case ReferenceType -> Opcodes.ASTORE;
+                                case BOOLEAN, BYTE, CHAR, SHORT, INT -> Opcodes.ISTORE;
+                                case LONG -> Opcodes.LSTORE;
+                                case FLOAT -> Opcodes.FSTORE;
+                                case DOUBLE -> Opcodes.DSTORE;
+                                case REFERENCE -> Opcodes.ASTORE;
                                 default -> throw new IllegalStateException("Unexpected type: " + value.typeKind());
                             }, value.slot());
                             case NewReferenceArrayInstruction value -> methodVisitor.visitTypeInsn(value.opcode().bytecode(), value.componentType().asInternalName());
