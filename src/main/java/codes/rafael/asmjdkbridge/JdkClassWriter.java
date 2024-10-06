@@ -476,16 +476,16 @@ public class JdkClassWriter extends ClassVisitor {
             if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
                 if ((access & Opcodes.ACC_STATIC) == 0) {
                     locals.add(name.equals("<init>")
-                            ? StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_UNINITIALIZED_THIS
+                            ? StackMapFrameInfo.SimpleVerificationTypeInfo.UNINITIALIZED_THIS
                             : StackMapFrameInfo.ObjectVerificationTypeInfo.of(thisClass));
                 }
                 Type type = Type.getMethodType(descriptor);
                 for (Type argumentType : type.getArgumentTypes()) {
                     locals.add(switch (argumentType.getSort()) {
-                        case Type.BOOLEAN, Type.BYTE, Type.SHORT, Type.CHAR, Type.INT -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_INTEGER;
-                        case Type.LONG -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_LONG;
-                        case Type.FLOAT -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_FLOAT;
-                        case Type.DOUBLE -> StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_DOUBLE;
+                        case Type.BOOLEAN, Type.BYTE, Type.SHORT, Type.CHAR, Type.INT -> StackMapFrameInfo.SimpleVerificationTypeInfo.INTEGER;
+                        case Type.LONG -> StackMapFrameInfo.SimpleVerificationTypeInfo.LONG;
+                        case Type.FLOAT -> StackMapFrameInfo.SimpleVerificationTypeInfo.FLOAT;
+                        case Type.DOUBLE -> StackMapFrameInfo.SimpleVerificationTypeInfo.DOUBLE;
                         default -> StackMapFrameInfo.ObjectVerificationTypeInfo.of(ClassDesc.ofDescriptor(argumentType.getDescriptor()));
                     });
                 }
@@ -641,19 +641,19 @@ public class JdkClassWriter extends ClassVisitor {
 
         private static StackMapFrameInfo.VerificationTypeInfo toVerificationTypeInfo(Object value, Function<Label, java.lang.classfile.Label> labels) {
             if (value == Opcodes.TOP) {
-                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_TOP;
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.TOP;
             } else if (value == Opcodes.INTEGER) {
-                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_INTEGER;
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.INTEGER;
             } else if (value == Opcodes.LONG) {
-                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_LONG;
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.LONG;
             } else if (value == Opcodes.FLOAT) {
-                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_FLOAT;
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.FLOAT;
             } else if (value == Opcodes.DOUBLE) {
-                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_DOUBLE;
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.DOUBLE;
             } else if (value == Opcodes.NULL) {
-                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_NULL;
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.NULL;
             } else if (value == Opcodes.UNINITIALIZED_THIS) {
-                return StackMapFrameInfo.SimpleVerificationTypeInfo.ITEM_UNINITIALIZED_THIS;
+                return StackMapFrameInfo.SimpleVerificationTypeInfo.UNINITIALIZED_THIS;
             } else if (value instanceof Label label) {
                 return StackMapFrameInfo.UninitializedVerificationTypeInfo.of(labels.apply(label));
             } else if (value instanceof String name) {
