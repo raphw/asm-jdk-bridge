@@ -8,51 +8,10 @@ import java.lang.classfile.*;
 import java.lang.classfile.attribute.RecordComponentInfo;
 import java.lang.classfile.constantpool.*;
 import java.lang.constant.*;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 class AsmAttribute extends CustomAttribute<AsmAttribute> {
-
-    private static final MethodHandle READ_ATTRIBUTE, WRITE_ATTRIBUTE, GET_BYTES;
-
-    static {
-        try {
-            Method method = Attribute.class.getDeclaredMethod("read",
-                    org.objectweb.asm.ClassReader.class,
-                    int.class,
-                    int.class,
-                    char[].class,
-                    int.class,
-                    org.objectweb.asm.Label[].class);
-            method.setAccessible(true);
-            READ_ATTRIBUTE = MethodHandles.lookup().unreflect(method);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        try {
-            Method method = Attribute.class.getDeclaredMethod("write",
-                    ClassWriter.class,
-                    byte[].class,
-                    int.class,
-                    int.class,
-                    int.class);
-            method.setAccessible(true);
-            WRITE_ATTRIBUTE = MethodHandles.lookup().unreflect(method);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        try {
-            Field field = ByteVector.class.getDeclaredField("data");
-            field.setAccessible(true);
-            GET_BYTES = MethodHandles.lookup().unreflectGetter(field);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     final Attribute attribute;
 
@@ -66,47 +25,34 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
 
             @Override
             public AsmAttribute readAttribute(AttributedElement attributedElement, ClassReader classReader, int payloadStart) {
-                int length = classReader.readInt(payloadStart - 4);
-                try {
-                    return new AsmAttribute(this, (Attribute) READ_ATTRIBUTE.invoke(attribute,
-                            new DelegatingClassReader(classReader.readBytes(0, classReader.classfileLength()),
-                                    classReader,
-                                    () -> switch (attributedElement) {
-                                        case ClassModel model -> model;
-                                        case CodeModel model -> model.parent().orElseThrow(IllegalStateException::new).parent().orElseThrow(IllegalStateException::new);
-                                        case FieldModel model -> model.parent().orElseThrow(IllegalStateException::new);
-                                        case MethodModel model -> model.parent().orElseThrow(IllegalStateException::new);
-                                        case RecordComponentInfo _ -> throw new IllegalStateException();
-                                    }),
-                            payloadStart,
-                            length,
-                            null,
-                            -1,
-                            null));
-                } catch (Throwable t) {
-                    throw new RuntimeException(t);
-                }
+                return new AsmAttribute(this, Attribute.read(attribute,
+                        new DelegatingClassReader(classReader.readBytes(0, classReader.classfileLength()),
+                                classReader,
+                                () -> switch (attributedElement) {
+                                    case ClassModel model -> model;
+                                    case CodeModel model -> model.parent().orElseThrow(IllegalStateException::new).parent().orElseThrow(IllegalStateException::new);
+                                    case FieldModel model -> model.parent().orElseThrow(IllegalStateException::new);
+                                    case MethodModel model -> model.parent().orElseThrow(IllegalStateException::new);
+                                    case RecordComponentInfo _ -> throw new IllegalStateException();
+                                }),
+                        payloadStart,
+                        classReader.readInt(payloadStart - 4),
+                        null,
+                        -1,
+                        null));
             }
 
             @Override
             public void writeAttribute(BufWriter bufWriter, AsmAttribute asmAttribute) {
                 bufWriter.writeIndex(bufWriter.constantPool().utf8Entry(asmAttribute.attribute.type));
-                byte[] bytes;
-                int length;
-                try {
-                    ByteVector vector = (ByteVector) WRITE_ATTRIBUTE.invoke(asmAttribute.attribute,
-                            new DelegatingClassWriter(bufWriter),
-                            null,
-                            0,
-                            -1,
-                            -1);
-                    bytes = (byte[]) GET_BYTES.invoke(vector);
-                    length = vector.size();
-                } catch (Throwable t) {
-                    throw new RuntimeException(t);
-                }
-                bufWriter.writeInt(length);
-                bufWriter.writeBytes(bytes, 0, length);
+                byte[] bytes = Attribute.write(asmAttribute.attribute,
+                        new DelegatingClassWriter(bufWriter),
+                        null,
+                        0,
+                        -1,
+                        -1);
+                bufWriter.writeInt(bytes.length);
+                bufWriter.writeBytes(bytes);
             }
 
             @Override
