@@ -11,7 +11,7 @@ abstract class ProbingResolver {
         try {
             int candidate = 25;
             while (!Thread.interrupted()) {
-                version = (Integer) Opcodes.class.getField("V" + candidate).get(null);
+                version = (Integer) Opcodes.class.getField("V" + candidate++).get(null);
             }
         } catch (Throwable ignored) {
         }
