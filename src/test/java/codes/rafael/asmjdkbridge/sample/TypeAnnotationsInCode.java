@@ -8,13 +8,13 @@ import java.util.ArrayList;
 
 public class TypeAnnotationsInCode {
 
-    /*void i() {
+    void i() {
         Object o = new @A(0) @B(0) Object();
     }
 
     void t() {
         Object o = new ArrayList<@A(0) @B(0) Object>();
-    }*/
+    }
 
     void c() {
         try {
@@ -23,9 +23,9 @@ public class TypeAnnotationsInCode {
         }
     }
 
-    /*void v() {
+    void v() {
         @A(2) @B(2) Object v = new Object();
-    }*/
+    }
 
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE_USE)

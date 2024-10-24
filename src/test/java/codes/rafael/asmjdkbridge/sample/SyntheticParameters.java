@@ -7,19 +7,13 @@ public enum SyntheticParameters {
 
     INSTANCE(null);
 
-    SyntheticParameters(@SampleAnnotation Void ignored) {
-        /* empty */
-    }
+    SyntheticParameters(@SampleAnnotation Void ignored) { }
 
     @Retention(RetentionPolicy.RUNTIME)
-    private @interface SampleAnnotation {
-        /* empty */
-    }
+    private @interface SampleAnnotation { }
 
     public class InnerClass {
 
-        public InnerClass(@SampleAnnotation Void unused) {
-            /* empty */
-        }
+        public InnerClass(@SampleAnnotation Void unused) { }
     }
 }
