@@ -64,10 +64,10 @@ public class JdkClassWriter extends ClassVisitor {
     private byte[] bytes;
 
     public JdkClassWriter(int flags) {
-        this(flags, null);
+        this(null, flags);
     }
 
-    public JdkClassWriter(int flags, JdkClassReader classReader) {
+    public JdkClassWriter(JdkClassReader classReader, int flags) {
         super(Opcodes.ASM9);
         this.flags = flags;
         this.classModel = classReader == null ? null : classReader.getClassModel();

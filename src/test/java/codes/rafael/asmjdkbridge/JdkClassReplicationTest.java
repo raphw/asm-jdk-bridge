@@ -69,7 +69,7 @@ public class JdkClassReplicationTest {
         }
         StringWriter original = new StringWriter(), replicated = new StringWriter();
         JdkClassReader classReader = new JdkClassReader(classFile);
-        JdkClassWriter classWriter = new JdkClassWriter(0, classReader);
+        JdkClassWriter classWriter = new JdkClassWriter(classReader, 0);
         classReader.accept(classWriter, 0);
         toClassReader(classFile).accept(toVisitor(original), flags);
         toClassReader(classWriter.toByteArray()).accept(toVisitor(replicated), flags);
