@@ -135,7 +135,7 @@ public class JdkClassWriter extends ClassVisitor {
         }
 
         boolean has(ClassModel classModel) {
-            return JdkClassWriter.this.classModel.equals(classModel);
+            return Objects.equals(JdkClassWriter.this.classModel, classModel);
         }
 
         void add(ClassElement element) {
@@ -357,7 +357,7 @@ public class JdkClassWriter extends ClassVisitor {
         }
 
         boolean has(ClassModel classModel) {
-            return JdkClassWriter.this.classModel.equals(classModel);
+            return Objects.equals(JdkClassWriter.this.classModel, classModel);
         }
 
         void add(FieldModel field) {
@@ -473,7 +473,7 @@ public class JdkClassWriter extends ClassVisitor {
         }
 
         boolean has(ClassModel classModel) {
-            return JdkClassWriter.this.classModel.equals(classModel);
+            return Objects.equals(JdkClassWriter.this.classModel, classModel);
         }
 
         void add(MethodModel model) {
@@ -1298,7 +1298,7 @@ public class JdkClassWriter extends ClassVisitor {
         }
 
         boolean has(ClassModel classModel) {
-            return JdkClassWriter.this.classModel.equals(classModel);
+            return Objects.equals(JdkClassWriter.this.classModel, classModel);
         }
 
         void add(String name, AnnotationValue annotationValue) {
