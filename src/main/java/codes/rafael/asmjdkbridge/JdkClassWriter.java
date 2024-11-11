@@ -448,9 +448,19 @@ public class JdkClassWriter extends ClassVisitor {
 
         private List<StackMapFrameInfo> stackMapFrames;
         private Map<Label, java.lang.classfile.Label> labels;
-        private java.lang.classfile.Label previous;
-        
-        private final Consumer<CodeBuilder> onPrevious = codeBuilder -> previous = codeBuilder.newBoundLabel();
+        private Consumer<CodeBuilder> dalayedInstruction;
+
+        private void addInstruction(Consumer<CodeBuilder> consumer) {
+            undelayInstruction();
+            dalayedInstruction = consumer;
+        }
+
+        private void undelayInstruction() {
+            if (dalayedInstruction != null) {
+                codeConsumers.add(dalayedInstruction);
+                dalayedInstruction = null;
+            }
+        }
 
         private WritingMethodVisitor(int access, String name, String descriptor, String signature, String[] exceptions) {
             super(Opcodes.ASM9);
@@ -475,7 +485,7 @@ public class JdkClassWriter extends ClassVisitor {
             codeConsumers.add(_ -> {
                 stackMapFrames = new ArrayList<>();
                 labels = new HashMap<>();
-                previous = null;
+                dalayedInstruction = null;
             });
             if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
                 if ((access & Opcodes.ACC_STATIC) == 0) {
@@ -570,7 +580,7 @@ public class JdkClassWriter extends ClassVisitor {
                     typeRef,
                     typePath,
                     function -> codeConsumers.add(codeBuilder -> {
-                        TypeAnnotation annotation = function.apply(previous == null ? codeBuilder.newBoundLabel() : previous);
+                        TypeAnnotation annotation = function.apply(codeBuilder.newBoundLabel());
                         codeBuilder.with(visible
                                 ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation)
                                 : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
@@ -585,6 +595,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public AnnotationVisitor visitLocalVariableAnnotation(int typeRef, TypePath typePath, Label[] start, Label[] end, int[] indices, String descriptor, boolean visible) {
+            undelayInstruction();
             return WritingAnnotationVisitor.ofTargetedTypeAnnotation(
                     JdkClassWriter.this,
                     descriptor,
@@ -608,6 +619,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitFrame(int type, int numLocal, Object[] local, int numStack, Object[] stack) {
+            undelayInstruction();
             if ((flags & ClassWriter.COMPUTE_FRAMES) != 0) {
                 return;
             }
@@ -780,8 +792,7 @@ public class JdkClassWriter extends ClassVisitor {
                 case Opcodes.MONITOREXIT -> CodeBuilder::monitorexit;
                 default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
             };
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
@@ -792,8 +803,7 @@ public class JdkClassWriter extends ClassVisitor {
                 case Opcodes.NEWARRAY -> codeBuilder -> codeBuilder.newarray(TypeKind.fromNewarrayCode(operand));
                 default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
             };
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
@@ -812,8 +822,7 @@ public class JdkClassWriter extends ClassVisitor {
                 case Opcodes.RET -> codeBuilder -> codeBuilder.with(DiscontinuedInstruction.RetInstruction.of(varIndex));
                 default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
             };
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
@@ -829,8 +838,7 @@ public class JdkClassWriter extends ClassVisitor {
                     ClassDesc.ofInternalName(owner),
                     name,
                     ClassDesc.ofDescriptor(descriptor));
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
@@ -849,8 +857,7 @@ public class JdkClassWriter extends ClassVisitor {
                     name,
                     MethodTypeDesc.ofDescriptor(descriptor),
                     isInterface);
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
@@ -868,8 +875,7 @@ public class JdkClassWriter extends ClassVisitor {
                     name,
                     MethodTypeDesc.ofDescriptor(descriptor),
                     constants));
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
@@ -895,31 +901,27 @@ public class JdkClassWriter extends ClassVisitor {
                 case Opcodes.JSR -> codeBuilder -> codeBuilder.with(DiscontinuedInstruction.JsrInstruction.of(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
                 default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
             };
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
         public void visitLdcInsn(Object value) {
             ConstantDesc constant = toConstantDesc(value);
             Consumer<CodeBuilder> codeConsumer = codeBuilder -> codeBuilder.ldc(constant);
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
         public void visitIincInsn(int varIndex, int increment) {
             Consumer<CodeBuilder> codeConsumer = codeBuilder -> codeBuilder.iinc(varIndex, increment);
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
         public void visitLabel(Label label) {
             currentLocation = label;
             Consumer<CodeBuilder> codeConsumer = codeBuilder -> codeBuilder.labelBinding(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
@@ -935,8 +937,7 @@ public class JdkClassWriter extends ClassVisitor {
                         this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()),
                         List.of(switchCases));
             };
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
@@ -950,8 +951,7 @@ public class JdkClassWriter extends ClassVisitor {
                         this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()),
                         List.of(switchCases));
             };
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
@@ -966,15 +966,13 @@ public class JdkClassWriter extends ClassVisitor {
                 case Opcodes.INSTANCEOF -> codeBuilder -> codeBuilder.instanceOf(description);
                 default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
             };
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
         public void visitMultiANewArrayInsn(String descriptor, int numDimensions) {
             Consumer<CodeBuilder> codeConsumer = codeBuilder -> codeBuilder.multianewarray(ClassDesc.ofDescriptor(descriptor), numDimensions);
-            codeConsumers.add(onPrevious);
-            codeConsumers.add(codeConsumer);
+            addInstruction(codeConsumer);
         }
 
         @Override
@@ -982,11 +980,13 @@ public class JdkClassWriter extends ClassVisitor {
 //                if (currentLocation != start) {
 //                    throw new IllegalStateException("JDK class writer requires to visit line numbers at current location");
 //                }
+            undelayInstruction();
             codeConsumers.add(codeBuilder -> codeBuilder.lineNumber(line));
         }
 
         @Override
         public void visitLocalVariable(String name, String descriptor, String signature, Label start, Label end, int index) {
+            undelayInstruction();
             codeConsumers.add(codeBuilder -> {
                 if (descriptor != null) {
                     codeBuilder.localVariable(
@@ -1009,6 +1009,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitTryCatchBlock(Label start, Label end, Label handler, String type) {
+            undelayInstruction();
             catchCount += 1;
             codeConsumers.add(codeBuilder -> {
                 if (type == null) {
@@ -1029,6 +1030,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitEnd() {
+            undelayInstruction();
             classConsumers.add(classBuilder -> classBuilder.withMethod(name, MethodTypeDesc.ofDescriptor(descriptor), access & ~Opcodes.ACC_DEPRECATED, methodBuilder -> {
                 if ((access & Opcodes.ACC_DEPRECATED) != 0) {
                     methodBuilder.with(DeprecatedAttribute.of());
