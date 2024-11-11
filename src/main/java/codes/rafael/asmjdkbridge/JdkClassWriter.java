@@ -438,13 +438,14 @@ public class JdkClassWriter extends ClassVisitor {
         private final List<CodeElement> codeAttributes = new ArrayList<>();
         private AnnotationValue defaultValue;
         private int catchCount = -1;
-        private Label currentLocation;
         private final List<StackMapFrameInfo.VerificationTypeInfo> locals = new ArrayList<>();
         private final List<MethodParameterInfo> methodParameters = new ArrayList<>();
         private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
         private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
         private final Map<Integer, List<Annotation>> visibleParameterAnnotations = new HashMap<>(), invisibleParameterAnnotations = new HashMap<>();
         private int visibleParameterAnnotationsCount, invisibleParameterAnnotationsCount;
+
+        private Map<Label, Integer> lines;
 
         private List<StackMapFrameInfo> stackMapFrames;
         private Map<Label, java.lang.classfile.Label> labels;
@@ -482,6 +483,7 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public void visitCode() {
             codeConsumers = new ArrayList<>();
+            lines = new HashMap<>();
             codeConsumers.add(_ -> {
                 stackMapFrames = new ArrayList<>();
                 labels = new HashMap<>();
@@ -919,8 +921,13 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitLabel(Label label) {
-            currentLocation = label;
-            Consumer<CodeBuilder> codeConsumer = codeBuilder -> codeBuilder.labelBinding(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+            Consumer<CodeBuilder> codeConsumer = codeBuilder -> {
+                codeBuilder.labelBinding(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                Integer line = lines.remove(label);
+                if (line != null) {
+                    codeBuilder.lineNumber(line);
+                }
+            };
             addInstruction(codeConsumer);
         }
 
@@ -977,11 +984,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitLineNumber(int line, Label start) {
-//                if (currentLocation != start) {
-//                    throw new IllegalStateException("JDK class writer requires to visit line numbers at current location");
-//                }
-            undelayInstruction();
-            codeConsumers.add(codeBuilder -> codeBuilder.lineNumber(line));
+            lines.put(start, line);
         }
 
         @Override
@@ -1030,7 +1033,6 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitEnd() {
-            undelayInstruction();
             classConsumers.add(classBuilder -> classBuilder.withMethod(name, MethodTypeDesc.ofDescriptor(descriptor), access & ~Opcodes.ACC_DEPRECATED, methodBuilder -> {
                 if ((access & Opcodes.ACC_DEPRECATED) != 0) {
                     methodBuilder.with(DeprecatedAttribute.of());
@@ -1081,8 +1083,12 @@ public class JdkClassWriter extends ClassVisitor {
                     methodBuilder.with(RuntimeInvisibleParameterAnnotationsAttribute.of(annotations));
                 }
                 if (codeConsumers != null) {
+                    undelayInstruction();
                     methodBuilder.withCode(codeBuilder -> {
                         codeConsumers.forEach(codeConsumer -> codeConsumer.accept(codeBuilder));
+                        if (!lines.isEmpty()) {
+                            throw new IllegalStateException("Unmapped line numbers: " + lines);
+                        }
                         if (!stackMapFrames.isEmpty()) {
                             codeBuilder.with(StackMapTableAttribute.of(stackMapFrames));
                         }
