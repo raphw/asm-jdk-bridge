@@ -445,7 +445,7 @@ public class JdkClassWriter extends ClassVisitor {
         private final Map<Integer, List<Annotation>> visibleParameterAnnotations = new HashMap<>(), invisibleParameterAnnotations = new HashMap<>();
         private int visibleParameterAnnotationsCount, invisibleParameterAnnotationsCount;
 
-        private Map<Label, Integer> lines;
+        private Map<Label, Integer> lineNumbers;
 
         private List<StackMapFrameInfo> stackMapFrames;
         private Map<Label, java.lang.classfile.Label> labels;
@@ -483,10 +483,10 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public void visitCode() {
             codeConsumers = new ArrayList<>();
-            lines = new HashMap<>();
+            lineNumbers = new IdentityHashMap<>();
             codeConsumers.add(_ -> {
                 stackMapFrames = new ArrayList<>();
-                labels = new HashMap<>();
+                labels = new IdentityHashMap<>();
                 dalayedInstruction = null;
             });
             if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
@@ -923,9 +923,9 @@ public class JdkClassWriter extends ClassVisitor {
         public void visitLabel(Label label) {
             Consumer<CodeBuilder> codeConsumer = codeBuilder -> {
                 codeBuilder.labelBinding(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                Integer line = lines.remove(label);
-                if (line != null) {
-                    codeBuilder.lineNumber(line);
+                Integer lineNumber = lineNumbers.remove(label);
+                if (lineNumber != null) {
+                    codeBuilder.lineNumber(lineNumber);
                 }
             };
             addInstruction(codeConsumer);
@@ -984,7 +984,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitLineNumber(int line, Label start) {
-            lines.put(start, line);
+            lineNumbers.put(start, line);
         }
 
         @Override
@@ -1086,8 +1086,8 @@ public class JdkClassWriter extends ClassVisitor {
                     undelayInstruction();
                     methodBuilder.withCode(codeBuilder -> {
                         codeConsumers.forEach(codeConsumer -> codeConsumer.accept(codeBuilder));
-                        if (!lines.isEmpty()) {
-                            throw new IllegalStateException("Unmapped line numbers: " + lines);
+                        if (!lineNumbers.isEmpty()) {
+                            throw new IllegalStateException("Unmapped line numbers: " + lineNumbers);
                         }
                         if (!stackMapFrames.isEmpty()) {
                             codeBuilder.with(StackMapTableAttribute.of(stackMapFrames));

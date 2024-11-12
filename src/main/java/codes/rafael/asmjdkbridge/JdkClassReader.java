@@ -184,7 +184,7 @@ public class JdkClassReader {
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapFrameInfo::target, Function.identity())))
                             .orElse(Collections.emptyMap()) : Map.of();
                     Map<MergedLocalVariableKey, MergedLocalVariableValue> localVariables = new LinkedHashMap<>();
-                    Map<org.objectweb.asm.Label, List<Map.Entry<TypeAnnotation, Boolean>>> offsetTypeAnnotations = new HashMap<>();
+                    Map<org.objectweb.asm.Label, List<Map.Entry<TypeAnnotation, Boolean>>> offsetTypeAnnotations = new IdentityHashMap<>();
                     List<Map.Entry<TypeAnnotation, Boolean>> localVariableAnnotations = new ArrayList<>();
                     List<CharacterRange> characterRanges = new ArrayList<>();
                     methodVisitor.visitCode();
@@ -284,7 +284,7 @@ public class JdkClassReader {
                                 methodVisitor.visitLabel(currentPositionLabel);
                                 StackMapFrameInfo frame = frames.get(value.label());
                                 if (frame != null) {
-                                    if (it.hasNext()) { // Assure same ordering of ASM and JDK class reader with respect to line numbers and frames.
+                                    if ((flags & ClassReader.SKIP_DEBUG) == 0 && it.hasNext()) { // Assure same ordering of ASM and JDK class reader with respect to line numbers and frames.
                                         CodeElement next = it.next();
                                         if (next instanceof LineNumber line) {
                                             methodVisitor.visitLineNumber(line.line(), currentPositionLabel);
