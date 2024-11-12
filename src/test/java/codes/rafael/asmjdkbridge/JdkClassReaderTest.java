@@ -36,6 +36,8 @@ public class JdkClassReaderTest {
                 {Invokedynamic.class, 0},
                 {BranchesAndStackMapFrames.class, 0},
                 {BranchesAndStackMapFrames.class, ClassReader.EXPAND_FRAMES},
+                {BranchesAndStackMapFrames.class, ClassReader.SKIP_FRAMES},
+                {BranchesAndStackMapFrames.class, ClassReader.SKIP_CODE},
                 {Switches.class, 0},
                 {TryThrowCatch.class, 0},
                 {RecordComponents.class, 0},

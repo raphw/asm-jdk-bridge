@@ -1086,9 +1086,6 @@ public class JdkClassWriter extends ClassVisitor {
                     undelayInstruction();
                     methodBuilder.withCode(codeBuilder -> {
                         codeConsumers.forEach(codeConsumer -> codeConsumer.accept(codeBuilder));
-                        if (!lineNumbers.isEmpty()) {
-                            throw new IllegalStateException("Unmapped line numbers: " + lineNumbers);
-                        }
                         if (!stackMapFrames.isEmpty()) {
                             codeBuilder.with(StackMapTableAttribute.of(stackMapFrames));
                         }
@@ -1175,7 +1172,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     public byte[] toByteArray() {
         if (bytes == null) {
-            throw new IllegalStateException();
+            throw new IllegalStateException("Did not visitEnd, and no byte array was created");
         }
         return bytes;
     }
