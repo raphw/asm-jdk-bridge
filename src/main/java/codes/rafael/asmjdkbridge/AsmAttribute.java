@@ -17,7 +17,7 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
 
     static AsmAttribute of(Attribute attribute) {
         AttributeMapper<AsmAttribute> mapper = new AttributeMapper<>() {
-            
+
             @Override
             public String name() {
                 return attribute.type;
@@ -30,7 +30,8 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
                                 classReader,
                                 () -> switch (attributedElement) {
                                     case ClassModel model -> model;
-                                    case CodeModel model -> model.parent().orElseThrow(IllegalStateException::new).parent().orElseThrow(IllegalStateException::new);
+                                    case CodeModel model ->
+                                            model.parent().orElseThrow(IllegalStateException::new).parent().orElseThrow(IllegalStateException::new);
                                     case FieldModel model -> model.parent().orElseThrow(IllegalStateException::new);
                                     case MethodModel model -> model.parent().orElseThrow(IllegalStateException::new);
                                     case RecordComponentInfo _ -> throw new IllegalStateException();

@@ -3,12 +3,14 @@ package codes.rafael.asmjdkbridge;
 import org.objectweb.asm.*;
 
 import java.lang.classfile.attribute.*;
+import java.lang.classfile.instruction.CharacterRange;
+import java.util.List;
 
-abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> extends Attribute {
+public abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> extends Attribute {
 
     final A attribute;
 
-    AsmWrappedAttribute(A attribute) {
+    protected AsmWrappedAttribute(A attribute) {
         super(attribute.attributeName().stringValue());
         this.attribute = attribute;
     }
@@ -20,7 +22,7 @@ abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> e
     }
 
     @Override
-    protected Attribute read(ClassReader classReader, int offset, int length, char[] charBuffer, int codeAttributeOffset, Label[] labels) {
+    protected final Attribute read(ClassReader classReader, int offset, int length, char[] charBuffer, int codeAttributeOffset, Label[] labels) {
         throw new UnsupportedOperationException();
     }
 
@@ -28,34 +30,8 @@ abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> e
     protected abstract ByteVector write(ClassWriter classWriter, byte[] code, int codeLength, int maxStack, int maxLocals);
 
     @Override
-    public boolean isUnknown() {
+    public final boolean isUnknown() {
         return false;
-    }
-
-    static class AsmCharacterRangeTableAttribute extends AsmWrappedAttribute<CharacterRangeTableAttribute> {
-
-        AsmCharacterRangeTableAttribute(CharacterRangeTableAttribute attribute) {
-            super(attribute);
-        }
-
-        @Override
-        protected ByteVector write(ClassWriter classWriter, byte[] code, int codeLength, int maxStack, int maxLocals) {
-            ByteVector byteVector = new ByteVector(2 + 14 * attribute.characterRangeTable().size());
-            byteVector.putShort(attribute.characterRangeTable().size());
-            for (CharacterRangeInfo characterRangeInfo : attribute.characterRangeTable()) {
-                byteVector.putShort(characterRangeInfo.startPc());
-                byteVector.putShort(characterRangeInfo.endPc());
-                byteVector.putInt(characterRangeInfo.characterRangeStart());
-                byteVector.putInt(characterRangeInfo.characterRangeEnd());
-                byteVector.putShort(characterRangeInfo.flags());
-            }
-            return byteVector;
-        }
-
-        @Override
-        public boolean isCodeAttribute() {
-            return true;
-        }
     }
 
     static class AsmCompilationIdAttribute extends AsmWrappedAttribute<CompilationIDAttribute> {
@@ -119,6 +95,42 @@ abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> e
             ByteVector byteVector = new ByteVector(2);
             byteVector.putShort(index);
             return byteVector;
+        }
+    }
+
+    static class AsmCharacterRangeTableAttribute extends AsmWrappedAttribute<CharacterRangeTableAttribute> { // Can never be retained as instructions might change BCIs.
+
+        AsmCharacterRangeTableAttribute(CharacterRangeTableAttribute attribute) {
+            super(attribute);
+        }
+
+        // Must be recalculated as label BCIs might change when code instructions are altered.
+        static AsmWrappedAttribute<CharacterRangeTableAttribute> of(List<CharacterRange> characterRanges, CodeAttribute codeAttribute) {
+            return new AsmCharacterRangeTableAttribute(CharacterRangeTableAttribute.of(characterRanges.stream().map(characterRange -> CharacterRangeInfo.of(
+                    codeAttribute.labelToBci(characterRange.startScope()),
+                    codeAttribute.labelToBci(characterRange.endScope()),
+                    characterRange.characterRangeStart(),
+                    characterRange.characterRangeEnd(),
+                    characterRange.flags())).toList()));
+        }
+
+        @Override
+        protected ByteVector write(ClassWriter classWriter, byte[] code, int codeLength, int maxStack, int maxLocals) {
+            ByteVector byteVector = new ByteVector(2 + 14 * attribute.characterRangeTable().size());
+            byteVector.putShort(attribute.characterRangeTable().size());
+            for (CharacterRangeInfo characterRangeInfo : attribute.characterRangeTable()) {
+                byteVector.putShort(characterRangeInfo.startPc());
+                byteVector.putShort(characterRangeInfo.endPc());
+                byteVector.putInt(characterRangeInfo.characterRangeStart());
+                byteVector.putInt(characterRangeInfo.characterRangeEnd());
+                byteVector.putShort(characterRangeInfo.flags());
+            }
+            return byteVector;
+        }
+
+        @Override
+        public boolean isCodeAttribute() {
+            return true;
         }
     }
 

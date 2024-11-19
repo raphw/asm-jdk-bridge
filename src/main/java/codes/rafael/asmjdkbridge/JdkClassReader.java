@@ -21,7 +21,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-@SuppressWarnings("ALL")
 public class JdkClassReader {
 
     private static final int
@@ -370,9 +369,7 @@ public class JdkClassReader {
                                 entry.getKey().annotation().className().stringValue(),
                                 entry.getValue()), entry.getKey().annotation().elements());
                     });
-                    if (!characterRanges.isEmpty()) { // labels cannot be translated to BCIs at the moment.
-                        code.findAttribute(Attributes.characterRangeTable()).ifPresent(characterRangeTable -> methodVisitor.visitAttribute(new AsmWrappedAttribute.AsmCharacterRangeTableAttribute(characterRangeTable)));
-                    }
+                    code.findAttribute(Attributes.characterRangeTable()).ifPresent(_ -> methodVisitor.visitAttribute(AsmWrappedAttribute.AsmCharacterRangeTableAttribute.of(characterRanges, code)));
                     acceptAttributes(code, true, methodVisitor::visitAttribute);
                     methodVisitor.visitMaxs(code.maxStack(), code.maxLocals());
                 });
@@ -683,7 +680,7 @@ public class JdkClassReader {
         private AttributeFunction(Attribute[] attributePrototypes) {
             mappers = Stream.of(attributePrototypes).collect(Collectors.toMap(
                     prototype -> prototype.type,
-                    prototype -> AsmAttribute.of(prototype)
+                    AsmAttribute::of
             ));
         }
 
