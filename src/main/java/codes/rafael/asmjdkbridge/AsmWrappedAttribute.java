@@ -9,7 +9,7 @@ abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> e
     final A attribute;
 
     AsmWrappedAttribute(A attribute) {
-        super(attribute.attributeName());
+        super(attribute.attributeName().stringValue());
         this.attribute = attribute;
     }
 
