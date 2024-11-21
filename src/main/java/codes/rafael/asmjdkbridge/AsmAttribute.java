@@ -16,7 +16,7 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
     final Attribute attribute;
 
     static AsmAttribute of(Attribute attribute) {
-        AttributeMapper<AsmAttribute> mapper = new AttributeMapper<>() {
+        return new AsmAttribute(new AttributeMapper<>() {
 
             @Override
             public String name() {
@@ -60,8 +60,7 @@ class AsmAttribute extends CustomAttribute<AsmAttribute> {
             public AttributeStability stability() {
                 return attribute.isUnknown() ? AttributeStability.UNKNOWN : AttributeStability.UNSTABLE;
             }
-        };
-        return new AsmAttribute(mapper, attribute);
+        }, attribute);
     }
 
     private AsmAttribute(AttributeMapper<AsmAttribute> mapper, Attribute attribute) {

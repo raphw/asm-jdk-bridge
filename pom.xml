@@ -90,19 +90,6 @@
                 <configuration>
                     <release>24</release>
                     <encoding>utf-8</encoding>
-                    <compilerArgs>
-                        <arg>--enable-preview</arg>
-                    </compilerArgs>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.2.5</version>
-                <configuration>
-                    <argLine>
-                        --enable-preview
-                    </argLine>
                 </configuration>
             </plugin>
             <plugin>

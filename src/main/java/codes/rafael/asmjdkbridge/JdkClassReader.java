@@ -306,13 +306,13 @@ public class JdkClassReader {
                                     } else if (frame.frameType() < 128) {
                                         methodVisitor.visitFrame(Opcodes.F_SAME1,
                                                 0, null,
-                                                1, new Object[]{toAsmFrameValue(frame.stack().get(0), labels)});
+                                                1, new Object[]{toAsmFrameValue(frame.stack().getFirst(), labels)});
                                     } else if (frame.frameType() < SAME_LOCALS_1_STACK_ITEM_EXTENDED) {
                                         throw new IllegalArgumentException("Invalid stackmap frame type: " + frame.frameType());
                                     } else if (frame.frameType() == SAME_LOCALS_1_STACK_ITEM_EXTENDED) {
                                         methodVisitor.visitFrame(Opcodes.F_SAME1,
                                                 0, null,
-                                                1, new Object[]{toAsmFrameValue(frame.stack().get(0), labels)});
+                                                1, new Object[]{toAsmFrameValue(frame.stack().getFirst(), labels)});
                                     } else if (frame.frameType() < SAME_EXTENDED) {
                                         methodVisitor.visitFrame(Opcodes.F_CHOP,
                                                 localVariablesSize - frame.locals().size(), null,
@@ -418,8 +418,8 @@ public class JdkClassReader {
     }
 
     private void acceptAttributes(AttributedElement element, boolean code, Consumer<Attribute> consumer) {
-        attributes.mappers.entrySet().stream().forEach(entry -> element
-                .findAttributes(entry.getValue().attributeMapper())
+        attributes.mappers.forEach((_, value) -> element
+                .findAttributes(value.attributeMapper())
                 .forEach(attribute -> consumer.accept(attribute.attribute)));
         element.attributes().stream()
                 .filter(attribute -> attribute instanceof java.lang.classfile.attribute.UnknownAttribute)
@@ -612,7 +612,6 @@ public class JdkClassReader {
             case StackMapFrameInfo.SimpleVerificationTypeInfo value -> value.tag();
             case StackMapFrameInfo.ObjectVerificationTypeInfo value -> value.className().asInternalName();
             case StackMapFrameInfo.UninitializedVerificationTypeInfo value -> labels.computeIfAbsent(value.newTarget(), ignored -> new org.objectweb.asm.Label());
-            default -> throw new UnsupportedOperationException("Unknown verification type info: " + verificationTypeInfo);
         };
     }
 

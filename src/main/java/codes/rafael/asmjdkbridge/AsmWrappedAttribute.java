@@ -104,7 +104,7 @@ public abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribut
             super(attribute);
         }
 
-        // Must be recalculated as label BCIs might change when code instructions are altered.
+        // Must be recalculated as label BCIs might change when code instructions are altered. Should be delayed to option to resolve by righter
         static AsmWrappedAttribute<CharacterRangeTableAttribute> of(List<CharacterRange> characterRanges, CodeAttribute codeAttribute) {
             return new AsmCharacterRangeTableAttribute(CharacterRangeTableAttribute.of(characterRanges.stream().map(characterRange -> CharacterRangeInfo.of(
                     codeAttribute.labelToBci(characterRange.startScope()),

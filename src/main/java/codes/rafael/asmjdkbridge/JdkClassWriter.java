@@ -31,7 +31,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     private ClassDesc thisClass;
     private boolean isRecord;
-    private List<Consumer<ClassBuilder>> classConsumers = new ArrayList<>(List.of(classBuilder -> {
+    private final List<Consumer<ClassBuilder>> classConsumers = new ArrayList<>(List.of(classBuilder -> {
         for (ClassElement attribute : attributes) {
             classBuilder.with(attribute);
         }
@@ -123,9 +123,9 @@ public class JdkClassWriter extends ClassVisitor {
         private final String version;
 
         private String mainClass;
-        private List<PackageDesc> packages = new ArrayList<>();
+        private final List<PackageDesc> packages = new ArrayList<>();
 
-        private List<Consumer<ModuleAttribute.ModuleAttributeBuilder>> moduleAttributeConsumers = new ArrayList<>();
+        private final List<Consumer<ModuleAttribute.ModuleAttributeBuilder>> moduleAttributeConsumers = new ArrayList<>();
 
         private WritingModuleVisitor(String name, int access, String version) {
             super(Opcodes.ASM9);
@@ -1117,7 +1117,7 @@ public class JdkClassWriter extends ClassVisitor {
                                 ? ClassHierarchyResolver.ClassHierarchyInfo.ofInterface()
                                 : ClassHierarchyResolver.ClassHierarchyInfo.ofClass(ClassDesc.ofInternalName(superClass));
                     }));
-        };
+        }
         if (classModel == null) {
             bytes = classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
         } else {
@@ -1129,45 +1129,39 @@ public class JdkClassWriter extends ClassVisitor {
     }
 
     static ConstantDesc toConstantDesc(Object asm) {
-        if (asm instanceof Integer value) {
-            return value;
-        } else if (asm instanceof Long value) {
-            return value;
-        } else if (asm instanceof Float value) {
-            return value;
-        } else if (asm instanceof Double value) {
-            return value;
-        } else if (asm instanceof String value) {
-            return value;
-        } else if (asm instanceof Type value) {
-            return switch (value.getSort()) {
+        return switch (asm) {
+            case Integer value -> value;
+            case Long value -> value;
+            case Float value -> value;
+            case Double value -> value;
+            case String value -> value;
+            case Type value -> switch (value.getSort()) {
                 case Type.OBJECT, Type.ARRAY -> ClassDesc.ofDescriptor(value.getDescriptor());
                 case Type.METHOD -> MethodTypeDesc.ofDescriptor(value.getDescriptor());
                 default -> throw new IllegalArgumentException("Unexpected type sort: " + value.getSort());
             };
-        } else if (asm instanceof Handle value) {
-            return MethodHandleDesc.of(
+            case Handle value -> MethodHandleDesc.of(
                     DirectMethodHandleDesc.Kind.valueOf(value.getTag(), value.isInterface()),
                     ClassDesc.ofInternalName(value.getOwner()),
                     value.getName(),
                     value.getDesc());
-        } else if (asm instanceof ConstantDynamic value) {
-            ConstantDesc[] constants = new ConstantDesc[value.getBootstrapMethodArgumentCount()];
-            for (int index = 0; index < value.getBootstrapMethodArgumentCount(); index++) {
-                constants[index] = toConstantDesc(value.getBootstrapMethodArgument(index));
+            case ConstantDynamic value -> {
+                ConstantDesc[] constants = new ConstantDesc[value.getBootstrapMethodArgumentCount()];
+                for (int index = 0; index < value.getBootstrapMethodArgumentCount(); index++) {
+                    constants[index] = toConstantDesc(value.getBootstrapMethodArgument(index));
+                }
+                yield DynamicConstantDesc.ofNamed(
+                        MethodHandleDesc.of(
+                                DirectMethodHandleDesc.Kind.valueOf(value.getBootstrapMethod().getTag(), value.getBootstrapMethod().isInterface()),
+                                ClassDesc.ofInternalName(value.getBootstrapMethod().getOwner()),
+                                value.getBootstrapMethod().getName(),
+                                value.getBootstrapMethod().getDesc()),
+                        value.getName(),
+                        ClassDesc.ofDescriptor(value.getDescriptor()),
+                        constants);
             }
-            return DynamicConstantDesc.ofNamed(
-                    MethodHandleDesc.of(
-                            DirectMethodHandleDesc.Kind.valueOf(value.getBootstrapMethod().getTag(), value.getBootstrapMethod().isInterface()),
-                            ClassDesc.ofInternalName(value.getBootstrapMethod().getOwner()),
-                            value.getBootstrapMethod().getName(),
-                            value.getBootstrapMethod().getDesc()),
-                    value.getName(),
-                    ClassDesc.ofDescriptor(value.getDescriptor()),
-                    constants);
-        } else {
-            throw new IllegalArgumentException("Unexpected constant: " + asm);
-        }
+            case null, default -> throw new IllegalArgumentException("Unexpected constant: " + asm);
+        };
     }
 
     public byte[] toByteArray() {
@@ -1304,85 +1298,82 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visit(String name, Object asm) {
-            AnnotationValue annotation;
-            if (asm instanceof Boolean value) {
-                annotation = AnnotationValue.ofBoolean(value);
-            } else if (asm instanceof Byte value) {
-                annotation = AnnotationValue.ofByte(value);
-            } else if (asm instanceof Short value) {
-                annotation = AnnotationValue.ofShort(value);
-            } else if (asm instanceof Character value) {
-                annotation = AnnotationValue.ofChar(value);
-            } else if (asm instanceof Integer value) {
-                annotation = AnnotationValue.ofInt(value);
-            } else if (asm instanceof Long value) {
-                annotation = AnnotationValue.ofLong(value);
-            } else if (asm instanceof Float value) {
-                annotation = AnnotationValue.ofFloat(value);
-            } else if (asm instanceof Double value) {
-                annotation = AnnotationValue.ofDouble(value);
-            } else if (asm instanceof String value) {
-                annotation = AnnotationValue.ofString(value);
-            } else if (asm instanceof boolean[] array) {
-                AnnotationValue[] values = new AnnotationValue[array.length];
-                for (int index = 0; index < array.length; index++) {
-                    values[index] = AnnotationValue.ofBoolean(array[index]);
+            consumer.accept(name, switch (asm) {
+                case Boolean value -> AnnotationValue.ofBoolean(value);
+                case Byte value -> AnnotationValue.ofByte(value);
+                case Short value -> AnnotationValue.ofShort(value);
+                case Character value -> AnnotationValue.ofChar(value);
+                case Integer value -> AnnotationValue.ofInt(value);
+                case Long value -> AnnotationValue.ofLong(value);
+                case Float value -> AnnotationValue.ofFloat(value);
+                case Double value -> AnnotationValue.ofDouble(value);
+                case String value ->  AnnotationValue.ofString(value);
+                case boolean[] array -> {
+                    AnnotationValue[] values = new AnnotationValue[array.length];
+                    for (int index = 0; index < array.length; index++) {
+                        values[index] = AnnotationValue.ofBoolean(array[index]);
+                    }
+                    yield AnnotationValue.ofArray(values);
                 }
-                annotation = AnnotationValue.ofArray(values);
-            } else if (asm instanceof byte[] array) {
-                AnnotationValue[] values = new AnnotationValue[array.length];
-                for (int index = 0; index < array.length; index++) {
-                    values[index] = AnnotationValue.ofByte(array[index]);
+                case byte[] array -> {
+                    AnnotationValue[] values = new AnnotationValue[array.length];
+                    for (int index = 0; index < array.length; index++) {
+                        values[index] = AnnotationValue.ofByte(array[index]);
+                    }
+                    yield AnnotationValue.ofArray(values);
                 }
-                annotation = AnnotationValue.ofArray(values);
-            } else if (asm instanceof short[] array) {
-                AnnotationValue[] values = new AnnotationValue[array.length];
-                for (int index = 0; index < array.length; index++) {
-                    values[index] = AnnotationValue.ofShort(array[index]);
+                case short[] array -> {
+                    AnnotationValue[] values = new AnnotationValue[array.length];
+                    for (int index = 0; index < array.length; index++) {
+                        values[index] = AnnotationValue.ofShort(array[index]);
+                    }
+                    yield AnnotationValue.ofArray(values);
                 }
-                annotation = AnnotationValue.ofArray(values);
-            } else if (asm instanceof char[] array) {
-                AnnotationValue[] values = new AnnotationValue[array.length];
-                for (int index = 0; index < array.length; index++) {
-                    values[index] = AnnotationValue.ofChar(array[index]);
+                case char[] array -> {
+                    AnnotationValue[] values = new AnnotationValue[array.length];
+                    for (int index = 0; index < array.length; index++) {
+                        values[index] = AnnotationValue.ofChar(array[index]);
+                    }
+                    yield AnnotationValue.ofArray(values);
                 }
-                annotation = AnnotationValue.ofArray(values);
-            } else if (asm instanceof int[] array) {
-                AnnotationValue[] values = new AnnotationValue[array.length];
-                for (int index = 0; index < array.length; index++) {
-                    values[index] = AnnotationValue.ofInt(array[index]);
+                case int[] array -> {
+                    AnnotationValue[] values = new AnnotationValue[array.length];
+                    for (int index = 0; index < array.length; index++) {
+                        values[index] = AnnotationValue.ofInt(array[index]);
+                    }
+                    yield AnnotationValue.ofArray(values);
                 }
-                annotation = AnnotationValue.ofArray(values);
-            } else if (asm instanceof long[] array) {
-                AnnotationValue[] values = new AnnotationValue[array.length];
-                for (int index = 0; index < array.length; index++) {
-                    values[index] = AnnotationValue.ofLong(array[index]);
+                case long[] array -> {
+                    AnnotationValue[] values = new AnnotationValue[array.length];
+                    for (int index = 0; index < array.length; index++) {
+                        values[index] = AnnotationValue.ofLong(array[index]);
+                    }
+                    yield AnnotationValue.ofArray(values);
                 }
-                annotation = AnnotationValue.ofArray(values);
-            } else if (asm instanceof float[] array) {
-                AnnotationValue[] values = new AnnotationValue[array.length];
-                for (int index = 0; index < array.length; index++) {
-                    values[index] = AnnotationValue.ofFloat(array[index]);
+                case float[] array -> {
+                    AnnotationValue[] values = new AnnotationValue[array.length];
+                    for (int index = 0; index < array.length; index++) {
+                        values[index] = AnnotationValue.ofFloat(array[index]);
+                    }
+                    yield AnnotationValue.ofArray(values);
                 }
-                annotation = AnnotationValue.ofArray(values);
-            } else if (asm instanceof double[] array) {
-                AnnotationValue[] values = new AnnotationValue[array.length];
-                for (int index = 0; index < array.length; index++) {
-                    values[index] = AnnotationValue.ofDouble(array[index]);
+                case double[] array -> {
+                    AnnotationValue[] values = new AnnotationValue[array.length];
+                    for (int index = 0; index < array.length; index++) {
+                        values[index] = AnnotationValue.ofDouble(array[index]);
+                    }
+                    yield AnnotationValue.ofArray(values);
                 }
-                annotation = AnnotationValue.ofArray(values);
-            } else if (asm instanceof String[] array) {
-                AnnotationValue[] values = new AnnotationValue[array.length];
-                for (int index = 0; index < array.length; index++) {
-                    values[index] = AnnotationValue.ofString(array[index]);
+                case String[] array -> {
+                    AnnotationValue[] values = new AnnotationValue[array.length];
+                    for (int index = 0; index < array.length; index++) {
+                        values[index] = AnnotationValue.ofString(array[index]);
+                    }
+                    yield AnnotationValue.ofArray(values);
                 }
-                annotation = AnnotationValue.ofArray(values);
-            } else if (asm instanceof Type type) {
-                annotation = AnnotationValue.ofClass(ClassDesc.ofDescriptor(type.getDescriptor()));
-            } else {
-                throw new IllegalArgumentException("Unknown annotation value: " + asm);
-            }
-            consumer.accept(name, annotation);
+                case Type type -> AnnotationValue.ofClass(ClassDesc.ofDescriptor(type.getDescriptor()));
+                case null, default -> throw new IllegalArgumentException("Unknown annotation value: " + asm);
+            });
         }
 
         @Override
