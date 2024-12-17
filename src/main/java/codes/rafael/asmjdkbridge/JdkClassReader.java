@@ -452,10 +452,10 @@ public class JdkClassReader {
             case AnnotationValue.OfAnnotation value -> appendAnnotationValues(annotationVisitor.visitAnnotation(name, value.annotation().className().stringValue()), value.annotation().elements());
             case AnnotationValue.OfEnum value -> annotationVisitor.visitEnum(name, value.className().stringValue(), value.constantName().stringValue());
             case AnnotationValue.OfArray value -> {
-                Set<Character> tags = value.values().stream().map(AnnotationValue::tag).collect(Collectors.toSet());
+                Set<Integer> tags = value.values().stream().map(AnnotationValue::tag).collect(Collectors.toSet());
                 if (tags.size() == 1) { // Handle arrays of primitive types as direct values.
                     switch (tags.iterator().next()) {
-                        case 'Z': {
+                        case AnnotationValue.TAG_BOOLEAN: {
                             boolean[] array = new boolean[value.values().size()];
                             for (int index = 0; index < value.values().size(); index++) {
                                 array[index] = ((AnnotationValue.OfConstant.OfBoolean) value.values().get(index)).booleanValue();
@@ -463,7 +463,7 @@ public class JdkClassReader {
                             annotationVisitor.visit(name, array);
                             return;
                         }
-                        case 'B': {
+                        case AnnotationValue.TAG_BYTE: {
                             byte[] array = new byte[value.values().size()];
                             for (int index = 0; index < value.values().size(); index++) {
                                 array[index] = ((AnnotationValue.OfConstant.OfByte) value.values().get(index)).byteValue();
@@ -471,7 +471,7 @@ public class JdkClassReader {
                             annotationVisitor.visit(name, array);
                             return;
                         }
-                        case 'S': {
+                        case AnnotationValue.TAG_SHORT: {
                             short[] array = new short[value.values().size()];
                             for (int index = 0; index < value.values().size(); index++) {
                                 array[index] = ((AnnotationValue.OfConstant.OfShort) value.values().get(index)).shortValue();
@@ -479,7 +479,7 @@ public class JdkClassReader {
                             annotationVisitor.visit(name, array);
                             return;
                         }
-                        case 'C': {
+                        case AnnotationValue.TAG_CHAR: {
                             char[] array = new char[value.values().size()];
                             for (int index = 0; index < value.values().size(); index++) {
                                 array[index] = ((AnnotationValue.OfConstant.OfChar) value.values().get(index)).charValue();
@@ -487,7 +487,7 @@ public class JdkClassReader {
                             annotationVisitor.visit(name, array);
                             return;
                         }
-                        case 'I': {
+                        case AnnotationValue.TAG_INT: {
                             int[] array = new int[value.values().size()];
                             for (int index = 0; index < value.values().size(); index++) {
                                 array[index] = ((AnnotationValue.OfConstant.OfInt) value.values().get(index)).intValue();
@@ -495,7 +495,7 @@ public class JdkClassReader {
                             annotationVisitor.visit(name, array);
                             return;
                         }
-                        case 'L': {
+                        case AnnotationValue.TAG_LONG: {
                             long[] array = new long[value.values().size()];
                             for (int index = 0; index < value.values().size(); index++) {
                                 array[index] = ((AnnotationValue.OfConstant.OfLong) value.values().get(index)).longValue();
@@ -503,7 +503,7 @@ public class JdkClassReader {
                             annotationVisitor.visit(name, array);
                             return;
                         }
-                        case 'F': {
+                        case AnnotationValue.TAG_FLOAT: {
                             float[] array = new float[value.values().size()];
                             for (int index = 0; index < value.values().size(); index++) {
                                 array[index] = ((AnnotationValue.OfConstant.OfFloat) value.values().get(index)).floatValue();
@@ -511,7 +511,7 @@ public class JdkClassReader {
                             annotationVisitor.visit(name, array);
                             return;
                         }
-                        case 'D': {
+                        case AnnotationValue.TAG_DOUBLE: {
                             double[] array = new double[value.values().size()];
                             for (int index = 0; index < value.values().size(); index++) {
                                 array[index] = ((AnnotationValue.OfConstant.OfDouble) value.values().get(index)).doubleValue();
