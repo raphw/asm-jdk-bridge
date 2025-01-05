@@ -1,8 +1,11 @@
 package codes.rafael.asmjdkbridge.sample;
 
 import codes.rafael.asmjdkbridge.AsmTestAttribute;
-import codes.rafael.asmjdkbridge.JdkClassWriterTest;
-import org.objectweb.asm.*;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.FieldVisitor;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;

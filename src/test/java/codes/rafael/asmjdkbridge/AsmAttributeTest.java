@@ -2,7 +2,14 @@ package codes.rafael.asmjdkbridge;
 
 import codes.rafael.asmjdkbridge.sample.CustomAttributeExtractable;
 import org.junit.Test;
-import org.objectweb.asm.*;
+import org.objectweb.asm.Attribute;
+import org.objectweb.asm.ByteVector;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Handle;
+import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 
 import java.io.InputStream;
 import java.util.function.Consumer;
@@ -30,7 +37,7 @@ public class AsmAttributeTest {
     public void can_write_attribute() {
         StringBuilder asm = new StringBuilder(), jdk = new StringBuilder();
         apply(new ClassWriter(0), asm, ClassWriter::toByteArray);
-        apply(new JdkClassWriter(0), jdk, _ -> { });
+        apply(new JdkClassWriter(0), jdk, ignored -> { });
         assertEquals(asm.toString(), jdk.toString());
     }
 

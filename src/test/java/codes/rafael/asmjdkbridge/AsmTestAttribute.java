@@ -1,6 +1,10 @@
 package codes.rafael.asmjdkbridge;
 
-import org.objectweb.asm.*;
+import org.objectweb.asm.Attribute;
+import org.objectweb.asm.ByteVector;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
 
 public class AsmTestAttribute extends Attribute {
 

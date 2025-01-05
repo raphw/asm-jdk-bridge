@@ -1,6 +1,24 @@
 package codes.rafael.asmjdkbridge;
 
-import codes.rafael.asmjdkbridge.sample.*;
+import codes.rafael.asmjdkbridge.sample.Annotations;
+import codes.rafael.asmjdkbridge.sample.ArrayInstructions;
+import codes.rafael.asmjdkbridge.sample.BranchesAndStackMapFrames;
+import codes.rafael.asmjdkbridge.sample.CustomAttributeExtractable;
+import codes.rafael.asmjdkbridge.sample.DeprecatedClass;
+import codes.rafael.asmjdkbridge.sample.FieldConstructorAndMethod;
+import codes.rafael.asmjdkbridge.sample.Invokedynamic;
+import codes.rafael.asmjdkbridge.sample.LoadStoreAndReturn;
+import codes.rafael.asmjdkbridge.sample.NoRecordComponents;
+import codes.rafael.asmjdkbridge.sample.Operations;
+import codes.rafael.asmjdkbridge.sample.RecordComponents;
+import codes.rafael.asmjdkbridge.sample.Switches;
+import codes.rafael.asmjdkbridge.sample.SyntheticConstructor;
+import codes.rafael.asmjdkbridge.sample.SyntheticParameters;
+import codes.rafael.asmjdkbridge.sample.Trivial;
+import codes.rafael.asmjdkbridge.sample.TryThrowCatch;
+import codes.rafael.asmjdkbridge.sample.TypeAnnotationsInCode;
+import codes.rafael.asmjdkbridge.sample.TypeAnnotationsWithPath;
+import codes.rafael.asmjdkbridge.sample.TypeAnnotationsWithoutPath;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;

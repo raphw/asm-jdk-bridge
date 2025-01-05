@@ -13,6 +13,11 @@
     <description>Implements adapters to translate between ASM visitors and the OpenJDK class file API.</description>
     <url>https://github.com/raphw/asm-jdk-bridge</url>
 
+    <properties>
+        <maven.compiler.release>17</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
     <licenses>
         <license>
             <name>The Apache Software License, Version 2.0</name>
@@ -89,23 +94,12 @@
                 <version>3.13.0</version>
                 <executions>
                     <execution>
-                        <id>default-compile</id>
-                        <goals>
-                            <goal>compile</goal>
-                        </goals>
-                        <configuration>
-                            <encoding>UTF-8</encoding>
-                            <release>17</release>
-                        </configuration>
-                    </execution>
-                    <execution>
                         <id>java24-compile</id>
                         <phase>compile</phase>
                         <goals>
                             <goal>compile</goal>
                         </goals>
                         <configuration>
-                            <encoding>UTF-8</encoding>
                             <release>24</release>
                             <compileSourceRoots>
                                 <compileSourceRoot>${project.basedir}/src/main/java-24</compileSourceRoot>
