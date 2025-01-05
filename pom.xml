@@ -4,10 +4,15 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>codes.rafael.asmjdkbridge</groupId>
-    <artifactId>asm-jdk-bridge</artifactId>
+    <artifactId>asm-jdk-bridge-parent</artifactId>
     <version>0.0.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
 
     <inceptionYear>2022</inceptionYear>
+    <modules>
+        <module>asm-jdk-bridge</module>
+        <module>asm-jdk-bridge-test</module>
+    </modules>
 
     <name>A bridge to translate ASM from and to the OpenJDK class file API</name>
     <description>Implements adapters to translate between ASM visitors and the OpenJDK class file API.</description>
@@ -40,27 +45,6 @@
         </developer>
     </developers>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.ow2.asm</groupId>
-            <artifactId>asm</artifactId>
-            <version>9.7.1</version>
-        </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.13.2</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.ow2.asm</groupId>
-            <artifactId>asm-util</artifactId>
-            <version>9.7</version>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
-
-    <!-- OSS parent for deployment to Maven Central -->
     <parent>
         <groupId>org.sonatype.oss</groupId>
         <artifactId>oss-parent</artifactId>
@@ -85,56 +69,4 @@
             <url>https://api.bintray.com/maven/raphw/maven/asm-jdk-bridge</url>
         </repository>
     </distributionManagement>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version>
-                <executions>
-                    <execution>
-                        <id>java24-compile</id>
-                        <phase>compile</phase>
-                        <goals>
-                            <goal>compile</goal>
-                        </goals>
-                        <configuration>
-                            <release>24</release>
-                            <compileSourceRoots>
-                                <compileSourceRoot>${project.basedir}/src/main/java-24</compileSourceRoot>
-                            </compileSourceRoots>
-                            <outputDirectory>${project.build.outputDirectory}/META-INF/versions/24</outputDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>3.4.2</version>
-                <configuration>
-                    <archive>
-                        <manifestEntries>
-                            <Multi-Release>true</Multi-Release>
-                        </manifestEntries>
-                    </archive>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-source-plugin</artifactId>
-                <version>3.3.1</version>
-                <executions>
-                    <execution>
-                        <id>attach-sources</id>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>jar-no-fork</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
 </project>

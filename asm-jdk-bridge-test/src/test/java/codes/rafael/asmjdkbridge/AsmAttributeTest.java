@@ -19,6 +19,11 @@ import static org.junit.Assert.assertEquals;
 public class AsmAttributeTest {
 
     @Test
+    public void name() {
+        System.out.println(Runtime.version().toString());
+    }
+
+    @Test
     public void can_read_attribute_properties() throws Exception {
         Class<?> target = CustomAttributeExtractable.make();
         byte[] classFile;
