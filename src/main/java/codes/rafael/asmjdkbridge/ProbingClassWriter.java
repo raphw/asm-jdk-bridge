@@ -20,11 +20,16 @@ public class ProbingClassWriter extends ClassVisitor {
     }
 
     public byte[] toByteArray() {
-        return switch (cv) {
-            case JdkClassWriter classWriter -> classWriter.toByteArray();
-            case ClassWriter classWriter -> classWriter.toByteArray();
-            case null -> throw new IllegalStateException("No version discovered");
-            default -> throw new IllegalStateException("Unexpected type: " + cv.getClass().getTypeName());
-        };
+        if (cv instanceof JdkClassWriter) {
+            return ((JdkClassWriter) cv).toByteArray();
+        } else if (cv instanceof ClassWriter) {
+            return ((ClassWriter) cv).toByteArray();
+        } else if (cv instanceof ProbingClassWriter) {
+            return ((ProbingClassWriter) cv).toByteArray();
+        } else if (cv == null) {
+            throw new IllegalStateException("No version discovered");
+        } else {
+            throw new IllegalStateException("Unexpected type: " + cv.getClass().getTypeName());
+        }
     }
 }
