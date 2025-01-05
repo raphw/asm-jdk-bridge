@@ -14,8 +14,6 @@
         <module>asm-jdk-bridge-test</module>
     </modules>
 
-    <name>A bridge to translate ASM from and to the OpenJDK class file API</name>
-    <description>Implements adapters to translate between ASM visitors and the OpenJDK class file API.</description>
     <url>https://github.com/raphw/asm-jdk-bridge</url>
 
     <properties>
@@ -69,4 +67,23 @@
             <url>https://api.bintray.com/maven/raphw/maven/asm-jdk-bridge</url>
         </repository>
     </distributionManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>3.2.4</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>install</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

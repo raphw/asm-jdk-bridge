@@ -18,7 +18,7 @@ import java.lang.classfile.attribute.UnknownAttribute;
 import java.lang.classfile.instruction.CharacterRange;
 import java.util.List;
 
-public abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> extends Attribute {
+abstract class AsmWrappedAttribute<A extends java.lang.classfile.Attribute<?>> extends Attribute {
 
     final A attribute;
 

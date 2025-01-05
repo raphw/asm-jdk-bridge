@@ -87,6 +87,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * A class visitor that creates a class file.
+ */
 public class JdkClassWriter extends ClassVisitor {
 
     private final int flags;
@@ -134,10 +137,21 @@ public class JdkClassWriter extends ClassVisitor {
 
     private byte[] bytes;
 
+    /**
+     * Creates a class writer.
+     *
+     * @param flags The ASM flags to consider.
+     */
     public JdkClassWriter(int flags) {
         this(null, flags);
     }
 
+    /**
+     * Creates a class writer.
+     *
+     * @param classReader A class reader of which to retain the constant pool, if possible.
+     * @param flags       The ASM flags to consider.
+     */
     public JdkClassWriter(JdkClassReader classReader, int flags) {
         super(Opcodes.ASM9);
         this.flags = flags;
@@ -1235,6 +1249,11 @@ public class JdkClassWriter extends ClassVisitor {
         };
     }
 
+    /**
+     * Returns the generated class file.
+     *
+     * @return The class file as a byte array.
+     */
     public byte[] toByteArray() {
         if (bytes == null) {
             throw new IllegalStateException("Did not visitEnd, and no byte array was created");

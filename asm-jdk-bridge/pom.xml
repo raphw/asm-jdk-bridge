@@ -11,6 +11,9 @@
 
     <artifactId>asm-jdk-bridge</artifactId>
 
+    <name>A bridge to translate ASM from and to the OpenJDK class file API</name>
+    <description>Implements adapters to translate between ASM visitors and the OpenJDK class file API.</description>
+
     <dependencies>
         <dependency>
             <groupId>org.ow2.asm</groupId>
@@ -65,6 +68,22 @@
                         <goals>
                             <goal>jar-no-fork</goal>
                         </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.10.1</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <additionalOptions>-package</additionalOptions>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

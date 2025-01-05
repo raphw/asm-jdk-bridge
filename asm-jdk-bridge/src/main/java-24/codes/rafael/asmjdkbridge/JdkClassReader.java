@@ -98,6 +98,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * A reader for class files that uses the JDK class file API. The created class reader is immutable.
+ */
 public class JdkClassReader {
 
     private static final int
@@ -107,15 +110,35 @@ public class JdkClassReader {
     private final ClassModel classModel;
     private final AttributeFunction attributes;
 
+    /**
+     * Creates a new class reader.
+     *
+     * @param classFile           The class file to represent.
+     * @param attributePrototypes Prototypes of ASM attributes to map if discovered.
+     */
     public JdkClassReader(byte[] classFile, Attribute... attributePrototypes) {
         attributes = new AttributeFunction(attributePrototypes);
         classModel = ClassFile.of(ClassFile.AttributeMapperOption.of(attributes)).parse(classFile);
     }
 
+    /**
+     * Creates a new class reader.
+     *
+     * @param inputStream         An input stream of the class file to represent.
+     * @param attributePrototypes Prototypes of ASM attributes to map if discovered.
+     * @throws IOException If the stream cannot be read.
+     */
     public JdkClassReader(InputStream inputStream, Attribute... attributePrototypes) throws IOException {
         this(inputStream.readAllBytes(), attributePrototypes);
     }
 
+    /**
+     * Creates a new class reader.
+     *
+     * @param className           The name of the class to represent. The class must be resolvable from the system loader.
+     * @param attributePrototypes Prototypes of ASM attributes to map if discovered.
+     * @throws IOException If the class file cannot be read.
+     */
     public JdkClassReader(String className, Attribute... attributePrototypes) throws IOException {
         attributes = new AttributeFunction(attributePrototypes);
         ClassFile classFile = ClassFile.of(ClassFile.AttributeMapperOption.of(attributes));
@@ -128,6 +151,12 @@ public class JdkClassReader {
         return classModel;
     }
 
+    /**
+     * Accepts a class visitor for the represented class file.
+     *
+     * @param classVisitor The class visitor to delegate calls to.
+     * @param flags        The ASM flags to consider when visiting the class file.
+     */
     public void accept(ClassVisitor classVisitor, int flags) {
         Map<Label, org.objectweb.asm.Label> labels = new HashMap<>();
         classVisitor.visit(classModel.minorVersion() << 16 | classModel.majorVersion(),
