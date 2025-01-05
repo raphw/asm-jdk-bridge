@@ -1,8 +1,20 @@
 package codes.rafael.asmjdkbridge;
 
-import org.objectweb.asm.*;
+import org.objectweb.asm.Attribute;
+import org.objectweb.asm.ByteVector;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
 
-import java.lang.classfile.attribute.*;
+import java.lang.classfile.attribute.CharacterRangeInfo;
+import java.lang.classfile.attribute.CharacterRangeTableAttribute;
+import java.lang.classfile.attribute.CodeAttribute;
+import java.lang.classfile.attribute.CompilationIDAttribute;
+import java.lang.classfile.attribute.ModuleHashInfo;
+import java.lang.classfile.attribute.ModuleHashesAttribute;
+import java.lang.classfile.attribute.ModuleResolutionAttribute;
+import java.lang.classfile.attribute.SourceIDAttribute;
+import java.lang.classfile.attribute.UnknownAttribute;
 import java.lang.classfile.instruction.CharacterRange;
 import java.util.List;
 

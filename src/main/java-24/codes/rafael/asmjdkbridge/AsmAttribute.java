@@ -1,12 +1,33 @@
 package codes.rafael.asmjdkbridge;
 
 import org.objectweb.asm.Attribute;
-import org.objectweb.asm.*;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.ConstantDynamic;
+import org.objectweb.asm.Handle;
+import org.objectweb.asm.Type;
 
+import java.lang.classfile.AttributeMapper;
+import java.lang.classfile.AttributedElement;
+import java.lang.classfile.BufWriter;
+import java.lang.classfile.ClassModel;
 import java.lang.classfile.ClassReader;
-import java.lang.classfile.*;
+import java.lang.classfile.CodeModel;
+import java.lang.classfile.CustomAttribute;
+import java.lang.classfile.FieldModel;
+import java.lang.classfile.MethodModel;
 import java.lang.classfile.attribute.RecordComponentInfo;
-import java.lang.classfile.constantpool.*;
+import java.lang.classfile.constantpool.ClassEntry;
+import java.lang.classfile.constantpool.ConstantDynamicEntry;
+import java.lang.classfile.constantpool.DoubleEntry;
+import java.lang.classfile.constantpool.FloatEntry;
+import java.lang.classfile.constantpool.IntegerEntry;
+import java.lang.classfile.constantpool.LongEntry;
+import java.lang.classfile.constantpool.MethodHandleEntry;
+import java.lang.classfile.constantpool.ModuleEntry;
+import java.lang.classfile.constantpool.PackageEntry;
+import java.lang.classfile.constantpool.StringEntry;
+import java.lang.classfile.constantpool.Utf8Entry;
 import java.lang.constant.*;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
