@@ -76,8 +76,8 @@ public class AsmAttributeTest {
             sb.append(classReader.readLong(10)).append("\n");
             sb.append(classReader.getItemCount()).append("\n");
             sb.append(classReader.readConst(2, charBuffer)).append("\n");
-            sb.append(classReader.readClass(139, charBuffer)).append("\n");
-            sb.append(classReader.readUTF8(177, charBuffer)).append("\n");
+            sb.append(classReader.readClass(137, charBuffer)).append("\n");
+            sb.append(classReader.readUTF8(175, charBuffer)).append("\n");
             return super.read(classReader, offset, length, charBuffer, codeAttributeOffset, labels);
         }
 
