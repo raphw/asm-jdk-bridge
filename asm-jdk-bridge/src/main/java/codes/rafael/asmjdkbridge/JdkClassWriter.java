@@ -2,7 +2,6 @@ package codes.rafael.asmjdkbridge;
 
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
 
 /**
  * A class visitor that creates a class file which is based upon the JDK Class File API.
@@ -50,18 +49,7 @@ public class JdkClassWriter extends ClassVisitor {
      * @return The name of the resolved super class.
      */
     protected String getSuperClass(String name) {
-        ClassLoader classLoader = getClassLoader();
-        Class<?> type;
-        try {
-            type = Class.forName(name.replace('/', '.'), false, classLoader);
-        } catch (ClassNotFoundException e) {
-            throw new TypeNotPresentException(name.replace('/', '.'), e);
-        }
-        if (type.isInterface()) {
-            return null;
-        } else {
-            return Type.getInternalName(type.getSuperclass());
-        }
+        throw new UnsupportedOperationException();
     }
 
     /**
@@ -70,6 +58,6 @@ public class JdkClassWriter extends ClassVisitor {
      * @return The class loader to use for resolving a super class's name.
      */
     protected ClassLoader getClassLoader() {
-        return getClass().getClassLoader();
+        throw new UnsupportedOperationException();
     }
 }
