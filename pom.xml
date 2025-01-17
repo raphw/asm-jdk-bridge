@@ -4,10 +4,10 @@
 
     <groupId>codes.rafael.asmjdkbridge</groupId>
     <artifactId>asm-jdk-bridge-parent</artifactId>
-    <version>0.0.2-SNAPSHOT</version>
+    <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <inceptionYear>2022</inceptionYear>
+    <inceptionYear>2025</inceptionYear>
     <modules>
         <module>asm-jdk-bridge</module>
         <module>asm-jdk-bridge-test</module>
@@ -62,8 +62,8 @@
 
     <distributionManagement>
         <repository>
-            <id>bintray</id>
-            <url>https://api.bintray.com/maven/raphw/maven/asm-jdk-bridge</url>
+            <id>central</id>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2</url>
         </repository>
     </distributionManagement>
 
