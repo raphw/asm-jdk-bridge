@@ -13,7 +13,6 @@ import java.util.function.Function;
 public class ProbingClassWriter extends ClassVisitor {
 
     private final int flags;
-
     private final Function<String, String> getSuperClass;
 
     /**
