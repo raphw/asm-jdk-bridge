@@ -4,6 +4,8 @@ import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.function.Function;
 
 /**
@@ -24,6 +26,27 @@ public class ProbingClassWriter extends ClassVisitor {
         super(Opcodes.ASM9);
         this.flags = flags;
         getSuperClass = null;
+    }
+
+    /**
+     * Creates a class writer.
+     *
+     * @param flags         The ASM flags to consider.
+     * @param getSuperClass A resolver for the supplied internal class name's internal super class name. If
+     *                      a class is an interface, {@code null} should be returned. As a method to allow
+     *                      pre-Java 8 code to call this constructor via reflection.
+     * @param target        The target to invoke the reflective method on.
+     */
+    public ProbingClassWriter(int flags, Method getSuperClass, Object target) {
+        super(Opcodes.ASM9);
+        this.flags = flags;
+        this.getSuperClass = getSuperClass == null ? null : name -> {
+            try {
+                return (String) getSuperClass.invoke(target, name);
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw new RuntimeException(e);
+            }
+        };
     }
 
     /**

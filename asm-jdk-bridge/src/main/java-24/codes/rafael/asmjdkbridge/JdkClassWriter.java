@@ -10,6 +10,8 @@ import java.lang.classfile.constantpool.ConstantPoolBuilder;
 import java.lang.classfile.instruction.DiscontinuedInstruction;
 import java.lang.classfile.instruction.SwitchCase;
 import java.lang.constant.*;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.BiConsumer;
@@ -90,6 +92,51 @@ public class JdkClassWriter extends ClassVisitor {
         this.flags = flags;
         classModel = classReader == null ? null : classReader.getClassModel();
         getSuperClass = null;
+    }
+
+    /**
+     * Creates a class writer.
+     *
+     * @param flags         The ASM flags to consider.
+     * @param getSuperClass A resolver for the supplied internal class name's internal super class name. If
+     *                      a class is an interface, {@code null} should be returned. As a method to allow
+     *                      pre-Java 8 code to call this constructor via reflection.
+     * @param target        The target to invoke the reflective method on.
+     */
+    public JdkClassWriter(int flags, Method getSuperClass, Object target) {
+        super(Opcodes.ASM9);
+        this.flags = flags;
+        classModel = null;
+        this.getSuperClass = getSuperClass == null ? null : name -> {
+            try {
+                return (String) getSuperClass.invoke(target, name);
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw new RuntimeException(e);
+            }
+        };
+    }
+
+    /**
+     * Creates a class writer.
+     *
+     * @param classReader   A class reader of which to retain the constant pool, if possible.
+     * @param flags         The ASM flags to consider.
+     * @param getSuperClass A resolver for the supplied internal class name's internal super class name. If
+     *                      a class is an interface, {@code null} should be returned. As a method to allow
+     *                      pre-Java 8 code to call this constructor via reflection.
+     * @param target        The target to invoke the reflective method on.
+     */
+    public JdkClassWriter(JdkClassReader classReader, int flags, Method getSuperClass, Object target) {
+        super(Opcodes.ASM9);
+        this.flags = flags;
+        classModel = classReader == null ? null : classReader.getClassModel();
+        this.getSuperClass = getSuperClass == null ? null : name -> {
+            try {
+                return (String) getSuperClass.invoke(target, name);
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw new RuntimeException(e);
+            }
+        };
     }
 
     /**
