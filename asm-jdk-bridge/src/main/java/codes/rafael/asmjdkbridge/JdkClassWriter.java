@@ -3,6 +3,8 @@ package codes.rafael.asmjdkbridge;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
 
+import java.util.function.Function;
+
 /**
  * A class visitor that creates a class file which is based upon the JDK Class File API.
  */
@@ -25,6 +27,26 @@ public class JdkClassWriter extends ClassVisitor {
      * @param flags       The ASM flags to consider.
      */
     public JdkClassWriter(JdkClassReader classReader, int flags) {
+        super(Opcodes.ASM9);
+        throw new UnsupportedOperationException();
+    }
+    /**
+     * Creates a class writer.
+     *
+     * @param flags The ASM flags to consider.
+     */
+    public JdkClassWriter(int flags, Function<String, String> getSuperClass) {
+        super(Opcodes.ASM9);
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Creates a class writer.
+     *
+     * @param classReader A class reader of which to retain the constant pool, if possible.
+     * @param flags       The ASM flags to consider.
+     */
+    public JdkClassWriter(JdkClassReader classReader, int flags, Function<String, String> getSuperClass) {
         super(Opcodes.ASM9);
         throw new UnsupportedOperationException();
     }

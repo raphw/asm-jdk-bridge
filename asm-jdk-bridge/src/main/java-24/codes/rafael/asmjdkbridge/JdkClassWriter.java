@@ -22,6 +22,7 @@ import java.util.function.Function;
 public class JdkClassWriter extends ClassVisitor {
 
     private final int flags;
+    private final Function<String, String> getSuperClass;
     private final ClassModel classModel;
 
     private final List<ClassDesc> nestMembers = new ArrayList<>();
@@ -72,7 +73,10 @@ public class JdkClassWriter extends ClassVisitor {
      * @param flags The ASM flags to consider.
      */
     public JdkClassWriter(int flags) {
-        this(null, flags);
+        super(Opcodes.ASM9);
+        this.flags = flags;
+        classModel = null;
+        getSuperClass = null;
     }
 
     /**
@@ -84,7 +88,35 @@ public class JdkClassWriter extends ClassVisitor {
     public JdkClassWriter(JdkClassReader classReader, int flags) {
         super(Opcodes.ASM9);
         this.flags = flags;
-        this.classModel = classReader == null ? null : classReader.getClassModel();
+        classModel = classReader == null ? null : classReader.getClassModel();
+        getSuperClass = null;
+    }
+
+    /**
+     * Creates a class writer.
+     *
+     * @param flags         The ASM flags to consider.
+     * @param getSuperClass A resolver for the super class of a class name.
+     */
+    public JdkClassWriter(int flags, Function<String, String> getSuperClass) {
+        super(Opcodes.ASM9);
+        this.flags = flags;
+        classModel = null;
+        this.getSuperClass = getSuperClass;
+    }
+
+    /**
+     * Creates a class writer.
+     *
+     * @param classReader   A class reader of which to retain the constant pool, if possible.
+     * @param flags         The ASM flags to consider.
+     * @param getSuperClass A resolver for the super class of a class name.
+     */
+    public JdkClassWriter(JdkClassReader classReader, int flags, Function<String, String> getSuperClass) {
+        super(Opcodes.ASM9);
+        this.flags = flags;
+        classModel = classReader == null ? null : classReader.getClassModel();
+        this.getSuperClass = getSuperClass;
     }
 
     @Override
@@ -1078,13 +1110,16 @@ public class JdkClassWriter extends ClassVisitor {
      * Returns the super class of the class that is provided by name. The default implementation
      * resolves the super class from this instance's class' {@link ClassLoader}, unless
      * {@link #getClassLoader()} is overridden.
-     *
+     * <p>
      * This is used for generating stack map frames.
      *
      * @param name The name of the class for which to resolve the super class.
      * @return The name of the resolved super class.
      */
     protected String getSuperClass(String name) {
+        if (getSuperClass != null) {
+            return getSuperClass.apply(name);
+        }
         ClassLoader classLoader = getClassLoader();
         Class<?> type;
         try {
