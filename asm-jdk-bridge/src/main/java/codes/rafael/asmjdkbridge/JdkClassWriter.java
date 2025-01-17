@@ -34,6 +34,8 @@ public class JdkClassWriter extends ClassVisitor {
      * Creates a class writer.
      *
      * @param flags The ASM flags to consider.
+     * @param getSuperClass A resolver for the supplied internal class name's internal super class name. If
+     *                      a class is an interface, {@code null} should be returned.
      */
     public JdkClassWriter(int flags, Function<String, String> getSuperClass) {
         super(Opcodes.ASM9);
@@ -45,6 +47,8 @@ public class JdkClassWriter extends ClassVisitor {
      *
      * @param classReader A class reader of which to retain the constant pool, if possible.
      * @param flags       The ASM flags to consider.
+     * @param getSuperClass A resolver for the supplied internal class name's internal super class name. If
+     *                      a class is an interface, {@code null} should be returned.
      */
     public JdkClassWriter(JdkClassReader classReader, int flags, Function<String, String> getSuperClass) {
         super(Opcodes.ASM9);

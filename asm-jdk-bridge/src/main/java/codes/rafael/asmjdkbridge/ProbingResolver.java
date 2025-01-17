@@ -6,7 +6,11 @@ import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 
+import java.util.function.Function;
+
 abstract class ProbingResolver {
+
+    private static final String OBJECT = "java/lang/Object";
 
     private static final int SUPPORTED;
 
@@ -22,11 +26,39 @@ abstract class ProbingResolver {
         SUPPORTED = version & 0xFFFF;
     }
 
-    static ClassVisitor ofVersion(int flags, int version) {
+    static ClassVisitor ofVersion(int flags, int version, Function<String, String> getSuperClass) {
         if (version > SUPPORTED) {
-            return new JdkClassWriter(flags);
+            return new JdkClassWriter(flags, getSuperClass);
         } else {
-            return new ClassWriter(flags);
+            return new ClassWriter(flags) {
+                @Override
+                protected String getCommonSuperClass(String type1, String type2) {
+                    if (getSuperClass == null) {
+                        return super.getCommonSuperClass(type1, type2);
+                    }
+                    if (type1.equals(type2)) {
+                        return type1;
+                    }
+                    String class1 = getSuperClass.apply(type1), class2 = getSuperClass.apply(type2);
+                    if (class1 == null || class2 == null) {
+                        return OBJECT;
+                    } else {
+                        while (!class1.equals(OBJECT)) {
+                            if (class1.equals(type2)) {
+                                return type2;
+                            }
+                            class1 = getSuperClass.apply(class1);
+                        }
+                        while (!class2.equals(OBJECT)) {
+                            if (class2.equals(type1)) {
+                                return type1;
+                            }
+                            class2 = getSuperClass.apply(class2);
+                        }
+                        return OBJECT;
+                    }
+                }
+            };
         }
     }
 
