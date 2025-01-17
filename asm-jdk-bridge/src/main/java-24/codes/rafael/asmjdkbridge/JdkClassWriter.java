@@ -1,88 +1,17 @@
 package codes.rafael.asmjdkbridge;
 
-import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.Attribute;
-import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.ConstantDynamic;
-import org.objectweb.asm.FieldVisitor;
-import org.objectweb.asm.Handle;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.ModuleVisitor;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.RecordComponentVisitor;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.TypePath;
-import org.objectweb.asm.TypeReference;
+import org.objectweb.asm.*;
 
-import java.lang.classfile.Annotation;
-import java.lang.classfile.AnnotationElement;
-import java.lang.classfile.AnnotationValue;
-import java.lang.classfile.ClassBuilder;
-import java.lang.classfile.ClassElement;
-import java.lang.classfile.ClassFile;
-import java.lang.classfile.ClassHierarchyResolver;
-import java.lang.classfile.ClassModel;
-import java.lang.classfile.CodeBuilder;
-import java.lang.classfile.CodeElement;
-import java.lang.classfile.FieldElement;
-import java.lang.classfile.FieldModel;
-import java.lang.classfile.MethodElement;
-import java.lang.classfile.MethodModel;
-import java.lang.classfile.Opcode;
-import java.lang.classfile.Signature;
-import java.lang.classfile.TypeAnnotation;
-import java.lang.classfile.TypeKind;
-import java.lang.classfile.attribute.AnnotationDefaultAttribute;
-import java.lang.classfile.attribute.ConstantValueAttribute;
-import java.lang.classfile.attribute.DeprecatedAttribute;
-import java.lang.classfile.attribute.EnclosingMethodAttribute;
-import java.lang.classfile.attribute.ExceptionsAttribute;
-import java.lang.classfile.attribute.InnerClassInfo;
-import java.lang.classfile.attribute.InnerClassesAttribute;
-import java.lang.classfile.attribute.MethodParameterInfo;
-import java.lang.classfile.attribute.MethodParametersAttribute;
-import java.lang.classfile.attribute.ModuleAttribute;
-import java.lang.classfile.attribute.ModuleMainClassAttribute;
-import java.lang.classfile.attribute.ModulePackagesAttribute;
-import java.lang.classfile.attribute.NestHostAttribute;
-import java.lang.classfile.attribute.NestMembersAttribute;
-import java.lang.classfile.attribute.PermittedSubclassesAttribute;
-import java.lang.classfile.attribute.RecordAttribute;
-import java.lang.classfile.attribute.RecordComponentInfo;
-import java.lang.classfile.attribute.RuntimeInvisibleAnnotationsAttribute;
-import java.lang.classfile.attribute.RuntimeInvisibleParameterAnnotationsAttribute;
-import java.lang.classfile.attribute.RuntimeInvisibleTypeAnnotationsAttribute;
-import java.lang.classfile.attribute.RuntimeVisibleAnnotationsAttribute;
-import java.lang.classfile.attribute.RuntimeVisibleParameterAnnotationsAttribute;
-import java.lang.classfile.attribute.RuntimeVisibleTypeAnnotationsAttribute;
-import java.lang.classfile.attribute.SignatureAttribute;
-import java.lang.classfile.attribute.SourceDebugExtensionAttribute;
-import java.lang.classfile.attribute.SourceFileAttribute;
-import java.lang.classfile.attribute.StackMapFrameInfo;
-import java.lang.classfile.attribute.StackMapTableAttribute;
+import java.lang.classfile.*;
+import java.lang.classfile.attribute.*;
 import java.lang.classfile.constantpool.ConstantPoolBuilder;
 import java.lang.classfile.instruction.DiscontinuedInstruction;
 import java.lang.classfile.instruction.SwitchCase;
-import java.lang.constant.ClassDesc;
-import java.lang.constant.ConstantDesc;
-import java.lang.constant.ConstantDescs;
-import java.lang.constant.DirectMethodHandleDesc;
-import java.lang.constant.DynamicCallSiteDesc;
-import java.lang.constant.DynamicConstantDesc;
-import java.lang.constant.MethodHandleDesc;
-import java.lang.constant.MethodTypeDesc;
-import java.lang.constant.ModuleDesc;
-import java.lang.constant.PackageDesc;
+import java.lang.constant.*;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -239,10 +168,7 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitRequire(String module, int access, String version) {
-            moduleAttributeConsumers.add(moduleAttributeBuilder -> moduleAttributeBuilder.requires(
-                    ModuleDesc.of(module),
-                    access,
-                    version));
+            moduleAttributeConsumers.add(moduleAttributeBuilder -> moduleAttributeBuilder.requires(ModuleDesc.of(module), access, version));
         }
 
         @Override
@@ -252,9 +178,7 @@ public class JdkClassWriter extends ClassVisitor {
                 for (int index = 0; index < modules.length; index++) {
                     descriptions[index] = ModuleDesc.of(modules[index]);
                 }
-                moduleAttributeBuilder.exports(PackageDesc.ofInternalName(packaze),
-                        access,
-                        descriptions);
+                moduleAttributeBuilder.exports(PackageDesc.ofInternalName(packaze), access, descriptions);
             });
         }
 
@@ -265,16 +189,13 @@ public class JdkClassWriter extends ClassVisitor {
                 for (int index = 0; index < modules.length; index++) {
                     descriptions[index] = ModuleDesc.of(modules[index]);
                 }
-                moduleAttributeBuilder.opens(PackageDesc.ofInternalName(packaze),
-                        access,
-                        descriptions);
+                moduleAttributeBuilder.opens(PackageDesc.ofInternalName(packaze), access, descriptions);
             });
         }
 
         @Override
         public void visitUse(String service) {
-            moduleAttributeConsumers.add(moduleAttributeBuilder ->
-                    moduleAttributeBuilder.uses(ClassDesc.ofInternalName(service)));
+            moduleAttributeConsumers.add(moduleAttributeBuilder -> moduleAttributeBuilder.uses(ClassDesc.ofInternalName(service)));
         }
 
         @Override
@@ -291,15 +212,13 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public void visitEnd() {
             classConsumers.add(classBuilder -> {
-                classBuilder.with(ModuleAttribute.of(
-                        ModuleDesc.of(name),
-                        moduleAttributeBuilder -> {
-                            moduleAttributeBuilder.moduleFlags(access & ~Opcodes.ACC_DEPRECATED);
-                            if (version != null) {
-                                moduleAttributeBuilder.moduleVersion(version);
-                            }
-                            moduleAttributeConsumers.forEach(moduleAttributeConsumer -> moduleAttributeConsumer.accept(moduleAttributeBuilder));
-                        }));
+                classBuilder.with(ModuleAttribute.of(ModuleDesc.of(name), moduleAttributeBuilder -> {
+                    moduleAttributeBuilder.moduleFlags(access & ~Opcodes.ACC_DEPRECATED);
+                    if (version != null) {
+                        moduleAttributeBuilder.moduleVersion(version);
+                    }
+                    moduleAttributeConsumers.forEach(moduleAttributeConsumer -> moduleAttributeConsumer.accept(moduleAttributeBuilder));
+                }));
                 if (mainClass != null) {
                     classBuilder.with(ModuleMainClassAttribute.of(ClassDesc.ofInternalName(mainClass)));
                 }
@@ -317,18 +236,12 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitOuterClass(String owner, String name, String descriptor) {
-        classConsumers.add(classBuilder -> classBuilder.with(EnclosingMethodAttribute.of(
-                ClassDesc.ofInternalName(owner),
-                Optional.ofNullable(name),
-                Optional.ofNullable(descriptor).map(MethodTypeDesc::ofDescriptor))));
+        classConsumers.add(classBuilder -> classBuilder.with(EnclosingMethodAttribute.of(ClassDesc.ofInternalName(owner), Optional.ofNullable(name), Optional.ofNullable(descriptor).map(MethodTypeDesc::ofDescriptor))));
     }
 
     @Override
     public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-        return WritingAnnotationVisitor.of(
-                this,
-                descriptor,
-                (visible ? visibleAnnotations : invisibleAnnotations)::add);
+        return WritingAnnotationVisitor.of(this, descriptor, (visible ? visibleAnnotations : invisibleAnnotations)::add);
     }
 
     @Override
@@ -338,12 +251,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-        return WritingAnnotationVisitor.ofTypeAnnotation(
-                this,
-                descriptor,
-                typeRef,
-                typePath,
-                (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
+        return WritingAnnotationVisitor.ofTypeAnnotation(this, descriptor, typeRef, typePath, (visible ? visibleTypeAnnotations : invisibleTypeAnnotations)::add);
     }
 
     @Override
@@ -358,10 +266,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitInnerClass(String name, String outerName, String innerName, int access) {
-        innerClasses.add(InnerClassInfo.of(ClassDesc.ofInternalName(name),
-                Optional.ofNullable(outerName).map(ClassDesc::ofInternalName),
-                Optional.ofNullable(innerName),
-                access));
+        innerClasses.add(InnerClassInfo.of(ClassDesc.ofInternalName(name), Optional.ofNullable(outerName).map(ClassDesc::ofInternalName), Optional.ofNullable(innerName), access));
     }
 
     @Override
@@ -379,20 +284,12 @@ public class JdkClassWriter extends ClassVisitor {
 
             @Override
             public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-                return WritingAnnotationVisitor.of(
-                        JdkClassWriter.this,
-                        descriptor,
-                        (visible ? visibleAnnotations : invisibleAnnotations)::add);
+                return WritingAnnotationVisitor.of(JdkClassWriter.this, descriptor, (visible ? visibleAnnotations : invisibleAnnotations)::add);
             }
 
             @Override
             public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-                return WritingAnnotationVisitor.ofTypeAnnotation(
-                        JdkClassWriter.this,
-                        descriptor,
-                        typeRef,
-                        typePath,
-                        (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
+                return WritingAnnotationVisitor.ofTypeAnnotation(JdkClassWriter.this, descriptor, typeRef, typePath, (visible ? visibleTypeAnnotations : invisibleTypeAnnotations)::add);
             }
 
             @Override
@@ -456,20 +353,12 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-            return WritingAnnotationVisitor.of(
-                    JdkClassWriter.this,
-                    descriptor,
-                    (visible ? visibleAnnotations : invisibleAnnotations)::add);
+            return WritingAnnotationVisitor.of(JdkClassWriter.this, descriptor, (visible ? visibleAnnotations : invisibleAnnotations)::add);
         }
 
         @Override
         public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-            return WritingAnnotationVisitor.ofTypeAnnotation(
-                    JdkClassWriter.this,
-                    descriptor,
-                    typeRef,
-                    typePath,
-                    (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
+            return WritingAnnotationVisitor.ofTypeAnnotation(JdkClassWriter.this, descriptor, typeRef, typePath, (visible ? visibleTypeAnnotations : invisibleTypeAnnotations)::add);
         }
 
         @Override
@@ -576,18 +465,18 @@ public class JdkClassWriter extends ClassVisitor {
             });
             if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
                 if ((access & Opcodes.ACC_STATIC) == 0) {
-                    locals.add(name.equals("<init>")
-                            ? StackMapFrameInfo.SimpleVerificationTypeInfo.UNINITIALIZED_THIS
-                            : StackMapFrameInfo.ObjectVerificationTypeInfo.of(thisClass));
+                    locals.add(name.equals("<init>") ? StackMapFrameInfo.SimpleVerificationTypeInfo.UNINITIALIZED_THIS : StackMapFrameInfo.ObjectVerificationTypeInfo.of(thisClass));
                 }
                 Type type = Type.getMethodType(descriptor);
                 for (Type argumentType : type.getArgumentTypes()) {
                     locals.add(switch (argumentType.getSort()) {
-                        case Type.BOOLEAN, Type.BYTE, Type.SHORT, Type.CHAR, Type.INT -> StackMapFrameInfo.SimpleVerificationTypeInfo.INTEGER;
+                        case Type.BOOLEAN, Type.BYTE, Type.SHORT, Type.CHAR, Type.INT ->
+                                StackMapFrameInfo.SimpleVerificationTypeInfo.INTEGER;
                         case Type.LONG -> StackMapFrameInfo.SimpleVerificationTypeInfo.LONG;
                         case Type.FLOAT -> StackMapFrameInfo.SimpleVerificationTypeInfo.FLOAT;
                         case Type.DOUBLE -> StackMapFrameInfo.SimpleVerificationTypeInfo.DOUBLE;
-                        default -> StackMapFrameInfo.ObjectVerificationTypeInfo.of(ClassDesc.ofDescriptor(argumentType.getDescriptor()));
+                        default ->
+                                StackMapFrameInfo.ObjectVerificationTypeInfo.of(ClassDesc.ofDescriptor(argumentType.getDescriptor()));
                     });
                 }
             }
@@ -604,20 +493,12 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-            return WritingAnnotationVisitor.of(
-                    JdkClassWriter.this,
-                    descriptor,
-                    (visible ? visibleAnnotations : invisibleAnnotations)::add);
+            return WritingAnnotationVisitor.of(JdkClassWriter.this, descriptor, (visible ? visibleAnnotations : invisibleAnnotations)::add);
         }
 
         @Override
         public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-            return WritingAnnotationVisitor.ofTypeAnnotation(
-                    JdkClassWriter.this,
-                    descriptor,
-                    typeRef,
-                    typePath,
-                    (visible ? visibleTypeAnnotations: invisibleTypeAnnotations)::add);
+            return WritingAnnotationVisitor.ofTypeAnnotation(JdkClassWriter.this, descriptor, typeRef, typePath, (visible ? visibleTypeAnnotations : invisibleTypeAnnotations)::add);
         }
 
         @Override
@@ -636,43 +517,26 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public AnnotationVisitor visitParameterAnnotation(int parameter, String descriptor, boolean visible) {
-            return WritingAnnotationVisitor.of(
-                    JdkClassWriter.this,
-                    descriptor,
-                    (visible ? visibleParameterAnnotations : invisibleParameterAnnotations).computeIfAbsent(parameter, _ -> new ArrayList<>())::add);
+            return WritingAnnotationVisitor.of(JdkClassWriter.this, descriptor, (visible ? visibleParameterAnnotations : invisibleParameterAnnotations).computeIfAbsent(parameter, _ -> new ArrayList<>())::add);
         }
 
         @Override
         public AnnotationVisitor visitTryCatchAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
             int catchCount = this.catchCount;
-            return WritingAnnotationVisitor.ofExceptionTypeAnnotation(
-                    JdkClassWriter.this,
-                    descriptor,
-                    typeRef,
-                    typePath,
-                    function -> codeConsumers.add(codeBuilder -> {
-                        TypeAnnotation annotation = function.apply(catchCount);
-                        codeBuilder.with(visible
-                                ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation)
-                                : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
+            return WritingAnnotationVisitor.ofExceptionTypeAnnotation(JdkClassWriter.this, descriptor, typeRef, typePath, function -> codeConsumers.add(codeBuilder -> {
+                TypeAnnotation annotation = function.apply(catchCount);
+                codeBuilder.with(visible ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation) : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
 
-                    }));
+            }));
         }
 
         @Override
         public AnnotationVisitor visitInsnAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-            return WritingAnnotationVisitor.ofLabeledTypeAnnotation(
-                    JdkClassWriter.this,
-                    descriptor,
-                    typeRef,
-                    typePath,
-                    function -> codeConsumers.add(codeBuilder -> {
-                        TypeAnnotation annotation = function.apply(codeBuilder.newBoundLabel());
-                        codeBuilder.with(visible
-                                ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation)
-                                : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
+            return WritingAnnotationVisitor.ofLabeledTypeAnnotation(JdkClassWriter.this, descriptor, typeRef, typePath, function -> codeConsumers.add(codeBuilder -> {
+                TypeAnnotation annotation = function.apply(codeBuilder.newBoundLabel());
+                codeBuilder.with(visible ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation) : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
 
-                    }));
+            }));
         }
 
         @Override
@@ -683,25 +547,15 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public AnnotationVisitor visitLocalVariableAnnotation(int typeRef, TypePath typePath, Label[] start, Label[] end, int[] indices, String descriptor, boolean visible) {
             undelayInstruction();
-            return WritingAnnotationVisitor.ofTargetedTypeAnnotation(
-                    JdkClassWriter.this,
-                    descriptor,
-                    typeRef,
-                    typePath,
-                    function -> codeConsumers.add(codeBuilder -> {
-                        List<TypeAnnotation.LocalVarTargetInfo> targets = new ArrayList<>();
-                        for (int index = 0; index < start.length; index++) {
-                            targets.add(TypeAnnotation.LocalVarTargetInfo.of(
-                                    labels.computeIfAbsent(start[index], _ -> codeBuilder.newLabel()),
-                                    labels.computeIfAbsent(end[index], _ -> codeBuilder.newLabel()),
-                                    indices[index]));
-                        }
-                        TypeAnnotation annotation = function.apply(targets);
-                        codeBuilder.with(visible
-                                ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation)
-                                : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
+            return WritingAnnotationVisitor.ofTargetedTypeAnnotation(JdkClassWriter.this, descriptor, typeRef, typePath, function -> codeConsumers.add(codeBuilder -> {
+                List<TypeAnnotation.LocalVarTargetInfo> targets = new ArrayList<>();
+                for (int index = 0; index < start.length; index++) {
+                    targets.add(TypeAnnotation.LocalVarTargetInfo.of(labels.computeIfAbsent(start[index], _ -> codeBuilder.newLabel()), labels.computeIfAbsent(end[index], _ -> codeBuilder.newLabel()), indices[index]));
+                }
+                TypeAnnotation annotation = function.apply(targets);
+                codeBuilder.with(visible ? RuntimeVisibleTypeAnnotationsAttribute.of(annotation) : RuntimeInvisibleTypeAnnotationsAttribute.of(annotation));
 
-                    }));
+            }));
         }
 
         @Override
@@ -760,9 +614,7 @@ public class JdkClassWriter extends ClassVisitor {
             } else if (value instanceof Label label) {
                 return StackMapFrameInfo.UninitializedVerificationTypeInfo.of(labels.apply(label));
             } else if (value instanceof String name) {
-                return StackMapFrameInfo.ObjectVerificationTypeInfo.of(name.startsWith("[")
-                        ? ClassDesc.ofDescriptor(name)
-                        : ClassDesc.ofInternalName(name));
+                return StackMapFrameInfo.ObjectVerificationTypeInfo.of(name.startsWith("[") ? ClassDesc.ofDescriptor(name) : ClassDesc.ofInternalName(name));
             } else {
                 throw new IllegalArgumentException("Unsupported type: " + value);
             }
@@ -906,7 +758,8 @@ public class JdkClassWriter extends ClassVisitor {
                 case Opcodes.FSTORE -> codeBuilder -> codeBuilder.fstore(varIndex);
                 case Opcodes.DSTORE -> codeBuilder -> codeBuilder.dstore(varIndex);
                 case Opcodes.ASTORE -> codeBuilder -> codeBuilder.astore(varIndex);
-                case Opcodes.RET -> codeBuilder -> codeBuilder.with(DiscontinuedInstruction.RetInstruction.of(varIndex));
+                case Opcodes.RET ->
+                        codeBuilder -> codeBuilder.with(DiscontinuedInstruction.RetInstruction.of(varIndex));
                 default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
             };
             addInstruction(codeConsumer);
@@ -914,36 +767,25 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitFieldInsn(int opcode, String owner, String name, String descriptor) {
-            Consumer<CodeBuilder> codeConsumer = codeBuilder -> codeBuilder.fieldAccess(
-                    switch (opcode) {
-                        case Opcodes.GETFIELD -> Opcode.GETFIELD;
-                        case Opcodes.PUTFIELD -> Opcode.PUTFIELD;
-                        case Opcodes.GETSTATIC -> Opcode.GETSTATIC;
-                        case Opcodes.PUTSTATIC -> Opcode.PUTSTATIC;
-                        default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
-                    },
-                    ClassDesc.ofInternalName(owner),
-                    name,
-                    ClassDesc.ofDescriptor(descriptor));
+            Consumer<CodeBuilder> codeConsumer = codeBuilder -> codeBuilder.fieldAccess(switch (opcode) {
+                case Opcodes.GETFIELD -> Opcode.GETFIELD;
+                case Opcodes.PUTFIELD -> Opcode.PUTFIELD;
+                case Opcodes.GETSTATIC -> Opcode.GETSTATIC;
+                case Opcodes.PUTSTATIC -> Opcode.PUTSTATIC;
+                default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
+            }, ClassDesc.ofInternalName(owner), name, ClassDesc.ofDescriptor(descriptor));
             addInstruction(codeConsumer);
         }
 
         @Override
         public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
-            Consumer<CodeBuilder> codeConsumer = codeBuilder -> codeBuilder.invoke(
-                    switch (opcode) {
-                        case Opcodes.INVOKEVIRTUAL -> Opcode.INVOKEVIRTUAL;
-                        case Opcodes.INVOKEINTERFACE -> Opcode.INVOKEINTERFACE;
-                        case Opcodes.INVOKESPECIAL -> Opcode.INVOKESPECIAL;
-                        case Opcodes.INVOKESTATIC -> Opcode.INVOKESTATIC;
-                        default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
-                    },
-                    owner.startsWith("[")
-                            ? ClassDesc.ofDescriptor(owner)
-                            : ClassDesc.ofInternalName(owner),
-                    name,
-                    MethodTypeDesc.ofDescriptor(descriptor),
-                    isInterface);
+            Consumer<CodeBuilder> codeConsumer = codeBuilder -> codeBuilder.invoke(switch (opcode) {
+                case Opcodes.INVOKEVIRTUAL -> Opcode.INVOKEVIRTUAL;
+                case Opcodes.INVOKEINTERFACE -> Opcode.INVOKEINTERFACE;
+                case Opcodes.INVOKESPECIAL -> Opcode.INVOKESPECIAL;
+                case Opcodes.INVOKESTATIC -> Opcode.INVOKESTATIC;
+                default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
+            }, owner.startsWith("[") ? ClassDesc.ofDescriptor(owner) : ClassDesc.ofInternalName(owner), name, MethodTypeDesc.ofDescriptor(descriptor), isInterface);
             addInstruction(codeConsumer);
         }
 
@@ -953,39 +795,49 @@ public class JdkClassWriter extends ClassVisitor {
             for (int index = 0; index < bootstrapMethodArguments.length; index++) {
                 constants[index] = toConstantDesc(bootstrapMethodArguments[index]);
             }
-            Consumer<CodeBuilder> codeConsumer = codeBuilder -> codeBuilder.invokedynamic(DynamicCallSiteDesc.of(
-                    MethodHandleDesc.of(
-                            DirectMethodHandleDesc.Kind.valueOf(bootstrapMethodHandle.getTag(), bootstrapMethodHandle.isInterface()),
-                            ClassDesc.ofInternalName(bootstrapMethodHandle.getOwner()),
-                            bootstrapMethodHandle.getName(),
-                            bootstrapMethodHandle.getDesc()),
-                    name,
-                    MethodTypeDesc.ofDescriptor(descriptor),
-                    constants));
+            Consumer<CodeBuilder> codeConsumer = codeBuilder -> codeBuilder.invokedynamic(DynamicCallSiteDesc.of(MethodHandleDesc.of(DirectMethodHandleDesc.Kind.valueOf(bootstrapMethodHandle.getTag(), bootstrapMethodHandle.isInterface()), ClassDesc.ofInternalName(bootstrapMethodHandle.getOwner()), bootstrapMethodHandle.getName(), bootstrapMethodHandle.getDesc()), name, MethodTypeDesc.ofDescriptor(descriptor), constants));
             addInstruction(codeConsumer);
         }
 
         @Override
         public void visitJumpInsn(int opcode, Label label) {
             Consumer<CodeBuilder> codeConsumer = switch (opcode) {
-                case Opcodes.IFEQ -> codeBuilder -> codeBuilder.ifeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFNE -> codeBuilder -> codeBuilder.ifne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFLT -> codeBuilder -> codeBuilder.iflt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFGE -> codeBuilder -> codeBuilder.ifge(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFGT -> codeBuilder -> codeBuilder.ifgt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFLE -> codeBuilder -> codeBuilder.ifle(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ICMPEQ -> codeBuilder -> codeBuilder.if_icmpeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ICMPNE -> codeBuilder -> codeBuilder.if_icmpne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ICMPLT -> codeBuilder -> codeBuilder.if_icmplt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ICMPGE -> codeBuilder -> codeBuilder.if_icmpge(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ICMPGT -> codeBuilder -> codeBuilder.if_icmpgt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ICMPLE -> codeBuilder -> codeBuilder.if_icmple(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ACMPEQ -> codeBuilder -> codeBuilder.if_acmpeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ACMPNE -> codeBuilder -> codeBuilder.if_acmpne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.GOTO -> codeBuilder -> codeBuilder.goto_(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFNULL -> codeBuilder -> codeBuilder.ifnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFNONNULL -> codeBuilder -> codeBuilder.ifnonnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.JSR -> codeBuilder -> codeBuilder.with(DiscontinuedInstruction.JsrInstruction.of(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
+                case Opcodes.IFEQ ->
+                        codeBuilder -> codeBuilder.ifeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFNE ->
+                        codeBuilder -> codeBuilder.ifne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFLT ->
+                        codeBuilder -> codeBuilder.iflt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFGE ->
+                        codeBuilder -> codeBuilder.ifge(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFGT ->
+                        codeBuilder -> codeBuilder.ifgt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFLE ->
+                        codeBuilder -> codeBuilder.ifle(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPEQ ->
+                        codeBuilder -> codeBuilder.if_icmpeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPNE ->
+                        codeBuilder -> codeBuilder.if_icmpne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPLT ->
+                        codeBuilder -> codeBuilder.if_icmplt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPGE ->
+                        codeBuilder -> codeBuilder.if_icmpge(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPGT ->
+                        codeBuilder -> codeBuilder.if_icmpgt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPLE ->
+                        codeBuilder -> codeBuilder.if_icmple(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ACMPEQ ->
+                        codeBuilder -> codeBuilder.if_acmpeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ACMPNE ->
+                        codeBuilder -> codeBuilder.if_acmpne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.GOTO ->
+                        codeBuilder -> codeBuilder.goto_(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFNULL ->
+                        codeBuilder -> codeBuilder.ifnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFNONNULL ->
+                        codeBuilder -> codeBuilder.ifnonnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.JSR ->
+                        codeBuilder -> codeBuilder.with(DiscontinuedInstruction.JsrInstruction.of(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
                 default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
             };
             addInstruction(codeConsumer);
@@ -1023,11 +875,7 @@ public class JdkClassWriter extends ClassVisitor {
                 for (int index = 0; index < labels.length; index++) {
                     switchCases[index] = SwitchCase.of(min + index, this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel()));
                 }
-                codeBuilder.tableswitch(
-                        min,
-                        max,
-                        this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()),
-                        List.of(switchCases));
+                codeBuilder.tableswitch(min, max, this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()), List.of(switchCases));
             };
             addInstruction(codeConsumer);
         }
@@ -1039,18 +887,14 @@ public class JdkClassWriter extends ClassVisitor {
                 for (int index = 0; index < labels.length; index++) {
                     switchCases[index] = SwitchCase.of(keys[index], this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel()));
                 }
-                codeBuilder.lookupswitch(
-                        this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()),
-                        List.of(switchCases));
+                codeBuilder.lookupswitch(this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()), List.of(switchCases));
             };
             addInstruction(codeConsumer);
         }
 
         @Override
         public void visitTypeInsn(int opcode, String type) {
-            ClassDesc description = type.startsWith("[")
-                    ? ClassDesc.ofDescriptor(type)
-                    : ClassDesc.ofInternalName(type);
+            ClassDesc description = type.startsWith("[") ? ClassDesc.ofDescriptor(type) : ClassDesc.ofInternalName(type);
             Consumer<CodeBuilder> codeConsumer = switch (opcode) {
                 case Opcodes.NEW -> codeBuilder -> codeBuilder.new_(description);
                 case Opcodes.ANEWARRAY -> codeBuilder -> codeBuilder.anewarray(description);
@@ -1077,20 +921,10 @@ public class JdkClassWriter extends ClassVisitor {
             undelayInstruction();
             codeConsumers.add(codeBuilder -> {
                 if (descriptor != null) {
-                    codeBuilder.localVariable(
-                            index,
-                            name,
-                            ClassDesc.ofDescriptor(descriptor),
-                            labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
-                            labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()));
+                    codeBuilder.localVariable(index, name, ClassDesc.ofDescriptor(descriptor), labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()), labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()));
                 }
                 if (signature != null) {
-                    codeBuilder.localVariableType(
-                            index,
-                            name,
-                            Signature.parseFrom(signature),
-                            labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
-                            labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()));
+                    codeBuilder.localVariableType(index, name, Signature.parseFrom(signature), labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()), labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()));
                 }
             });
         }
@@ -1101,20 +935,16 @@ public class JdkClassWriter extends ClassVisitor {
             catchCount += 1;
             codeConsumers.add(codeBuilder -> {
                 if (type == null) {
-                    codeBuilder.exceptionCatchAll(labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
-                            labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()),
-                            labels.computeIfAbsent(handler, _ -> codeBuilder.newLabel()));
+                    codeBuilder.exceptionCatchAll(labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()), labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()), labels.computeIfAbsent(handler, _ -> codeBuilder.newLabel()));
                 } else {
-                    codeBuilder.exceptionCatch(labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()),
-                            labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()),
-                            labels.computeIfAbsent(handler, _ -> codeBuilder.newLabel()),
-                            ClassDesc.ofInternalName(type));
+                    codeBuilder.exceptionCatch(labels.computeIfAbsent(start, _ -> codeBuilder.newLabel()), labels.computeIfAbsent(end, _ -> codeBuilder.newLabel()), labels.computeIfAbsent(handler, _ -> codeBuilder.newLabel()), ClassDesc.ofInternalName(type));
                 }
             });
         }
 
         @Override
-        public void visitMaxs(int maxStack, int maxLocals) { }
+        public void visitMaxs(int maxStack, int maxLocals) {
+        }
 
         @Override
         public void visitEnd() {
@@ -1189,27 +1019,21 @@ public class JdkClassWriter extends ClassVisitor {
         if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
             classFile = ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE, ClassFile.StackMapsOption.DROP_STACK_MAPS);
         } else {
-            classFile = ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE,
-                    ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED,
-                    ClassFile.ClassHierarchyResolverOption.of(classDesc -> {
-                        if (!classDesc.isClassOrInterface()) {
-                            return null;
-                        } else if (classDesc.equals(ConstantDescs.CD_Object)) {
-                            return ClassHierarchyResolver.ClassHierarchyInfo.ofClass(null);
-                        }
-                        String superClass = getSuperClass(classDesc.displayName().replace('.', '/'));
-                        return superClass == null
-                                ? ClassHierarchyResolver.ClassHierarchyInfo.ofInterface()
-                                : ClassHierarchyResolver.ClassHierarchyInfo.ofClass(ClassDesc.ofInternalName(superClass));
-                    }));
+            classFile = ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE, ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED, ClassFile.ClassHierarchyResolverOption.of(classDesc -> {
+                if (!classDesc.isClassOrInterface()) {
+                    return null;
+                } else if (classDesc.equals(ConstantDescs.CD_Object)) {
+                    return ClassHierarchyResolver.ClassHierarchyInfo.ofClass(null);
+                }
+                String superClass = getSuperClass(classDesc.displayName().replace('.', '/'));
+                return superClass == null ? ClassHierarchyResolver.ClassHierarchyInfo.ofInterface() : ClassHierarchyResolver.ClassHierarchyInfo.ofClass(ClassDesc.ofInternalName(superClass));
+            }));
         }
         if (classModel == null) {
             bytes = classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
         } else {
             ConstantPoolBuilder constantPoolBuilder = ConstantPoolBuilder.of(classModel);
-            bytes = classFile.build(constantPoolBuilder.classEntry(thisClass),
-                    constantPoolBuilder,
-                    classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+            bytes = classFile.build(constantPoolBuilder.classEntry(thisClass), constantPoolBuilder, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
         }
     }
 
@@ -1225,25 +1049,14 @@ public class JdkClassWriter extends ClassVisitor {
                 case Type.METHOD -> MethodTypeDesc.ofDescriptor(value.getDescriptor());
                 default -> throw new IllegalArgumentException("Unexpected type sort: " + value.getSort());
             };
-            case Handle value -> MethodHandleDesc.of(
-                    DirectMethodHandleDesc.Kind.valueOf(value.getTag(), value.isInterface()),
-                    ClassDesc.ofInternalName(value.getOwner()),
-                    value.getName(),
-                    value.getDesc());
+            case Handle value ->
+                    MethodHandleDesc.of(DirectMethodHandleDesc.Kind.valueOf(value.getTag(), value.isInterface()), ClassDesc.ofInternalName(value.getOwner()), value.getName(), value.getDesc());
             case ConstantDynamic value -> {
                 ConstantDesc[] constants = new ConstantDesc[value.getBootstrapMethodArgumentCount()];
                 for (int index = 0; index < value.getBootstrapMethodArgumentCount(); index++) {
                     constants[index] = toConstantDesc(value.getBootstrapMethodArgument(index));
                 }
-                yield DynamicConstantDesc.ofNamed(
-                        MethodHandleDesc.of(
-                                DirectMethodHandleDesc.Kind.valueOf(value.getBootstrapMethod().getTag(), value.getBootstrapMethod().isInterface()),
-                                ClassDesc.ofInternalName(value.getBootstrapMethod().getOwner()),
-                                value.getBootstrapMethod().getName(),
-                                value.getBootstrapMethod().getDesc()),
-                        value.getName(),
-                        ClassDesc.ofDescriptor(value.getDescriptor()),
-                        constants);
+                yield DynamicConstantDesc.ofNamed(MethodHandleDesc.of(DirectMethodHandleDesc.Kind.valueOf(value.getBootstrapMethod().getTag(), value.getBootstrapMethod().isInterface()), ClassDesc.ofInternalName(value.getBootstrapMethod().getOwner()), value.getBootstrapMethod().getName(), value.getBootstrapMethod().getDesc()), value.getName(), ClassDesc.ofDescriptor(value.getDescriptor()), constants);
             }
             case null, default -> throw new IllegalArgumentException("Unexpected constant: " + asm);
         };
@@ -1261,6 +1074,16 @@ public class JdkClassWriter extends ClassVisitor {
         return bytes;
     }
 
+    /**
+     * Returns the super class of the class that is provided by name. The default implementation
+     * resolves the super class from this instance's class' {@link ClassLoader}, unless
+     * {@link #getClassLoader()} is overridden.
+     *
+     * This is used for generating stack map frames.
+     *
+     * @param name The name of the class for which to resolve the super class.
+     * @return The name of the resolved super class.
+     */
     protected String getSuperClass(String name) {
         ClassLoader classLoader = getClassLoader();
         Class<?> type;
@@ -1276,6 +1099,11 @@ public class JdkClassWriter extends ClassVisitor {
         }
     }
 
+    /**
+     * Returns the class loader to use for resolving the super class of a discovered class.
+     *
+     * @return The class loader to use for resolving a super class's name.
+     */
     protected ClassLoader getClassLoader() {
         return getClass().getClassLoader();
     }
@@ -1287,28 +1115,31 @@ public class JdkClassWriter extends ClassVisitor {
 
         private static AnnotationVisitor of(JdkClassWriter classWriter, String descriptor, Consumer<Annotation> consumer) {
             List<AnnotationElement> elements = new ArrayList<>();
-            return classWriter.new WritingAnnotationVisitor(
-                    (name, value) -> elements.add(AnnotationElement.of(name, value)),
-                    () -> consumer.accept(Annotation.of(ClassDesc.ofDescriptor(descriptor), elements)));
+            return classWriter.new WritingAnnotationVisitor((name, value) -> elements.add(AnnotationElement.of(name, value)), () -> consumer.accept(Annotation.of(ClassDesc.ofDescriptor(descriptor), elements)));
         }
 
         private static AnnotationVisitor ofValue(JdkClassWriter classWriter, Consumer<AnnotationValue> consumer) {
-            return classWriter.new WritingAnnotationVisitor(
-                    (_, value) -> consumer.accept(value),
-                    () -> { });
+            return classWriter.new WritingAnnotationVisitor((_, value) -> consumer.accept(value), () -> {
+            });
         }
 
         private static AnnotationVisitor ofTypeAnnotation(JdkClassWriter classWriter, String descriptor, int typeRef, TypePath typePath, Consumer<TypeAnnotation> consumer) {
             return ofUnresolvedTypeAnnotation(classWriter, descriptor, typeRef, typePath, function -> consumer.accept(function.apply(reference -> switch (reference.getSort()) {
-                case TypeReference.CLASS_TYPE_PARAMETER -> TypeAnnotation.TargetInfo.ofClassTypeParameter(reference.getTypeParameterIndex());
-                case TypeReference.METHOD_TYPE_PARAMETER -> TypeAnnotation.TargetInfo.ofMethodTypeParameter(reference.getTypeParameterIndex());
-                case TypeReference.CLASS_EXTENDS -> TypeAnnotation.TargetInfo.ofClassExtends(reference.getSuperTypeIndex());
-                case TypeReference.CLASS_TYPE_PARAMETER_BOUND -> TypeAnnotation.TargetInfo.ofClassTypeParameterBound(reference.getTypeParameterIndex(), reference.getTypeParameterBoundIndex());
-                case TypeReference.METHOD_TYPE_PARAMETER_BOUND -> TypeAnnotation.TargetInfo.ofMethodTypeParameterBound(reference.getTypeParameterIndex(), reference.getTypeParameterBoundIndex());
+                case TypeReference.CLASS_TYPE_PARAMETER ->
+                        TypeAnnotation.TargetInfo.ofClassTypeParameter(reference.getTypeParameterIndex());
+                case TypeReference.METHOD_TYPE_PARAMETER ->
+                        TypeAnnotation.TargetInfo.ofMethodTypeParameter(reference.getTypeParameterIndex());
+                case TypeReference.CLASS_EXTENDS ->
+                        TypeAnnotation.TargetInfo.ofClassExtends(reference.getSuperTypeIndex());
+                case TypeReference.CLASS_TYPE_PARAMETER_BOUND ->
+                        TypeAnnotation.TargetInfo.ofClassTypeParameterBound(reference.getTypeParameterIndex(), reference.getTypeParameterBoundIndex());
+                case TypeReference.METHOD_TYPE_PARAMETER_BOUND ->
+                        TypeAnnotation.TargetInfo.ofMethodTypeParameterBound(reference.getTypeParameterIndex(), reference.getTypeParameterBoundIndex());
                 case TypeReference.FIELD -> TypeAnnotation.TargetInfo.ofField();
                 case TypeReference.METHOD_RETURN -> TypeAnnotation.TargetInfo.ofMethodReturn();
                 case TypeReference.METHOD_RECEIVER -> TypeAnnotation.TargetInfo.ofMethodReceiver();
-                case TypeReference.METHOD_FORMAL_PARAMETER -> TypeAnnotation.TargetInfo.ofMethodFormalParameter(reference.getFormalParameterIndex());
+                case TypeReference.METHOD_FORMAL_PARAMETER ->
+                        TypeAnnotation.TargetInfo.ofMethodFormalParameter(reference.getFormalParameterIndex());
                 case TypeReference.THROWS -> TypeAnnotation.TargetInfo.ofThrows(reference.getExceptionIndex());
                 default -> throw new IllegalArgumentException("Unexpected reference sort: " + reference.getSort());
             })));
@@ -1327,11 +1158,16 @@ public class JdkClassWriter extends ClassVisitor {
                 case TypeReference.NEW -> TypeAnnotation.TargetInfo.ofNewExpr(label);
                 case TypeReference.CONSTRUCTOR_REFERENCE -> TypeAnnotation.TargetInfo.ofConstructorReference(label);
                 case TypeReference.METHOD_REFERENCE -> TypeAnnotation.TargetInfo.ofMethodReference(label);
-                case TypeReference.CAST -> TypeAnnotation.TargetInfo.ofCastExpr(label, reference.getTypeArgumentIndex());
-                case TypeReference.CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorInvocationTypeArgument(label, reference.getTypeArgumentIndex());
-                case TypeReference.METHOD_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodInvocationTypeArgument(label, reference.getTypeArgumentIndex());
-                case TypeReference.CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorReferenceTypeArgument(label, reference.getTypeArgumentIndex());
-                case TypeReference.METHOD_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodReferenceTypeArgument(label, reference.getTypeArgumentIndex());
+                case TypeReference.CAST ->
+                        TypeAnnotation.TargetInfo.ofCastExpr(label, reference.getTypeArgumentIndex());
+                case TypeReference.CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT ->
+                        TypeAnnotation.TargetInfo.ofConstructorInvocationTypeArgument(label, reference.getTypeArgumentIndex());
+                case TypeReference.METHOD_INVOCATION_TYPE_ARGUMENT ->
+                        TypeAnnotation.TargetInfo.ofMethodInvocationTypeArgument(label, reference.getTypeArgumentIndex());
+                case TypeReference.CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT ->
+                        TypeAnnotation.TargetInfo.ofConstructorReferenceTypeArgument(label, reference.getTypeArgumentIndex());
+                case TypeReference.METHOD_REFERENCE_TYPE_ARGUMENT ->
+                        TypeAnnotation.TargetInfo.ofMethodReferenceTypeArgument(label, reference.getTypeArgumentIndex());
                 default -> throw new IllegalArgumentException("Unexpected reference sort: " + reference.getSort());
             })));
         }
@@ -1356,20 +1192,15 @@ public class JdkClassWriter extends ClassVisitor {
                         case TypePath.ARRAY_ELEMENT -> TypeAnnotation.TypePathComponent.ARRAY;
                         case TypePath.INNER_TYPE -> TypeAnnotation.TypePathComponent.INNER_TYPE;
                         case TypePath.WILDCARD_BOUND -> TypeAnnotation.TypePathComponent.WILDCARD;
-                        case TypePath.TYPE_ARGUMENT -> TypeAnnotation.TypePathComponent.of(TypeAnnotation.TypePathComponent.Kind.TYPE_ARGUMENT, typePath.getStepArgument(index));
-                        default -> throw new IllegalArgumentException("Unkniwn type path type: " + typePath.getStep(index));
+                        case TypePath.TYPE_ARGUMENT ->
+                                TypeAnnotation.TypePathComponent.of(TypeAnnotation.TypePathComponent.Kind.TYPE_ARGUMENT, typePath.getStepArgument(index));
+                        default ->
+                                throw new IllegalArgumentException("Unkniwn type path type: " + typePath.getStep(index));
                     });
                 }
             }
             TypeReference reference = new TypeReference(typeRef);
-            return classWriter.new WritingAnnotationVisitor(
-                    (name, value) -> elements.add(AnnotationElement.of(name, value)),
-                    () -> consumer.accept(targeting -> TypeAnnotation.of(
-                            targeting.apply(reference),
-                            components,
-                            Annotation.of(
-                                ClassDesc.ofDescriptor(descriptor),
-                                elements))));
+            return classWriter.new WritingAnnotationVisitor((name, value) -> elements.add(AnnotationElement.of(name, value)), () -> consumer.accept(targeting -> TypeAnnotation.of(targeting.apply(reference), components, Annotation.of(ClassDesc.ofDescriptor(descriptor), elements))));
         }
 
         private WritingAnnotationVisitor(BiConsumer<String, AnnotationValue> consumer, Runnable onEnd) {
@@ -1397,7 +1228,7 @@ public class JdkClassWriter extends ClassVisitor {
                 case Long value -> AnnotationValue.ofLong(value);
                 case Float value -> AnnotationValue.ofFloat(value);
                 case Double value -> AnnotationValue.ofDouble(value);
-                case String value ->  AnnotationValue.ofString(value);
+                case String value -> AnnotationValue.ofString(value);
                 case boolean[] array -> {
                     AnnotationValue[] values = new AnnotationValue[array.length];
                     for (int index = 0; index < array.length; index++) {
@@ -1468,24 +1299,18 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitEnum(String name, String descriptor, String value) {
-            consumer.accept(name, AnnotationValue.ofEnum(
-                    ClassDesc.ofDescriptor(descriptor),
-                    value));
+            consumer.accept(name, AnnotationValue.ofEnum(ClassDesc.ofDescriptor(descriptor), value));
         }
 
         @Override
         public AnnotationVisitor visitAnnotation(String name, String descriptor) {
-            return WritingAnnotationVisitor.of(JdkClassWriter.this, descriptor, annotation -> consumer.accept(
-                    name,
-                    AnnotationValue.ofAnnotation(annotation)));
+            return WritingAnnotationVisitor.of(JdkClassWriter.this, descriptor, annotation -> consumer.accept(name, AnnotationValue.ofAnnotation(annotation)));
         }
 
         @Override
         public AnnotationVisitor visitArray(String name) {
             List<AnnotationValue> values = new ArrayList<>();
-            return new WritingAnnotationVisitor(
-                    (_, value) -> values.add(value),
-                    () -> consumer.accept(name, AnnotationValue.ofArray(values)));
+            return new WritingAnnotationVisitor((_, value) -> values.add(value), () -> consumer.accept(name, AnnotationValue.ofArray(values)));
         }
 
         @Override
