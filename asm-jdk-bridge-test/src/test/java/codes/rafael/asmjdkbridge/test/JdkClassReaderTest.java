@@ -1,27 +1,12 @@
-package codes.rafael.asmjdkbridge;
+package codes.rafael.asmjdkbridge.test;
 
-import codes.rafael.asmjdkbridge.sample.Annotations;
-import codes.rafael.asmjdkbridge.sample.ArrayInstructions;
-import codes.rafael.asmjdkbridge.sample.BranchesAndStackMapFrames;
-import codes.rafael.asmjdkbridge.sample.CustomAttributeExtractable;
-import codes.rafael.asmjdkbridge.sample.DeprecatedClass;
-import codes.rafael.asmjdkbridge.sample.FieldConstructorAndMethod;
-import codes.rafael.asmjdkbridge.sample.Invokedynamic;
-import codes.rafael.asmjdkbridge.sample.LoadStoreAndReturn;
+import codes.rafael.asmjdkbridge.JdkClassReader;
 import codes.rafael.asmjdkbridge.sample.NoRecordComponents;
-import codes.rafael.asmjdkbridge.sample.Operations;
 import codes.rafael.asmjdkbridge.sample.RecordComponents;
-import codes.rafael.asmjdkbridge.sample.Switches;
-import codes.rafael.asmjdkbridge.sample.SyntheticConstructor;
-import codes.rafael.asmjdkbridge.sample.SyntheticParameters;
-import codes.rafael.asmjdkbridge.sample.Trivial;
-import codes.rafael.asmjdkbridge.sample.TryThrowCatch;
-import codes.rafael.asmjdkbridge.sample.TypeAnnotationsInCode;
-import codes.rafael.asmjdkbridge.sample.TypeAnnotationsWithPath;
-import codes.rafael.asmjdkbridge.sample.TypeAnnotationsWithoutPath;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.util.TraceClassVisitor;
@@ -37,7 +22,7 @@ import java.util.Collection;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
-public class JdkClassReplicationTest {
+public class JdkClassReaderTest {
 
     @SuppressWarnings("deprecation")
     @Parameterized.Parameters(name = "{0} (reader={1})")
@@ -53,6 +38,8 @@ public class JdkClassReplicationTest {
                 {Invokedynamic.class, 0},
                 {BranchesAndStackMapFrames.class, 0},
                 {BranchesAndStackMapFrames.class, ClassReader.EXPAND_FRAMES},
+                {BranchesAndStackMapFrames.class, ClassReader.SKIP_FRAMES},
+                {BranchesAndStackMapFrames.class, ClassReader.SKIP_CODE},
                 {Switches.class, 0},
                 {TryThrowCatch.class, 0},
                 {RecordComponents.class, 0},
@@ -74,7 +61,7 @@ public class JdkClassReplicationTest {
 
     private final int flags;
 
-    public JdkClassReplicationTest(Class<?> target, int flags) {
+    public JdkClassReaderTest(Class<?> target, int flags) {
         this.target = target;
         this.flags = flags;
     }
@@ -85,13 +72,10 @@ public class JdkClassReplicationTest {
         try (InputStream inputStream = target.getResourceAsStream(target.getName().substring(target.getPackageName().length() + 1) + ".class")) {
             classFile = inputStream.readAllBytes();
         }
-        StringWriter original = new StringWriter(), replicated = new StringWriter();
-        JdkClassReader classReader = new JdkClassReader(classFile);
-        JdkClassWriter classWriter = new JdkClassWriter(classReader, 0);
-        classReader.accept(classWriter, 0);
-        toClassReader(classFile).accept(toVisitor(original), flags);
-        toClassReader(classWriter.toByteArray()).accept(toVisitor(replicated), flags);
-        assertEquals(original.toString(), replicated.toString());
+        StringWriter asm = new StringWriter(), jdk = new StringWriter();
+        toClassReader(classFile).accept(toVisitor(asm), new Attribute[]{ new AsmTestAttribute(), new AsmTestAttribute.AsmCodeTestAttribute() }, flags);
+        new JdkClassReader(classFile, new AsmTestAttribute(), new AsmTestAttribute.AsmCodeTestAttribute()).accept(toVisitor(jdk), flags);
+        assertEquals(asm.toString(), jdk.toString());
     }
 
     private static ClassVisitor toVisitor(StringWriter writer) {

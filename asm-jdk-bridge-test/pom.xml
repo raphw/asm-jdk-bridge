@@ -11,7 +11,16 @@
 
     <artifactId>asm-jdk-bridge-test</artifactId>
 
+    <properties>
+        <maven.compiler.release>24</maven.compiler.release>
+    </properties>
+
     <dependencies>
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm</artifactId>
+            <version>9.7.1</version>
+        </dependency>
         <dependency>
             <groupId>codes.rafael.asmjdkbridge</groupId>
             <artifactId>asm-jdk-bridge</artifactId>

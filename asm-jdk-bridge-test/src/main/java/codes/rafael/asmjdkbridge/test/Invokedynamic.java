@@ -1,4 +1,4 @@
-package codes.rafael.asmjdkbridge.sample;
+package codes.rafael.asmjdkbridge.test;
 
 import java.util.function.Function;
 

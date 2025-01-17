@@ -1,6 +1,5 @@
-package codes.rafael.asmjdkbridge.sample;
+package codes.rafael.asmjdkbridge.test;
 
-import codes.rafael.asmjdkbridge.AsmTestAttribute;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.MethodVisitor;

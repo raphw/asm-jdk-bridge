@@ -1,5 +1,6 @@
-package codes.rafael.asmjdkbridge;
+package codes.rafael.asmjdkbridge.test;
 
+import codes.rafael.asmjdkbridge.ProbingClassReader;
 import org.junit.Test;
 
 import java.io.InputStream;

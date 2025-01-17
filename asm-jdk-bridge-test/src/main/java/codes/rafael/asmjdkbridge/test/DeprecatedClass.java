@@ -1,4 +1,4 @@
-package codes.rafael.asmjdkbridge.sample;
+package codes.rafael.asmjdkbridge.test;
 
 @Deprecated
 public class DeprecatedClass {

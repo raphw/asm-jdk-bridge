@@ -1,6 +1,7 @@
-package codes.rafael.asmjdkbridge;
+package codes.rafael.asmjdkbridge.test;
 
-import codes.rafael.asmjdkbridge.sample.CustomAttributeExtractable;
+import codes.rafael.asmjdkbridge.JdkClassReader;
+import codes.rafael.asmjdkbridge.JdkClassWriter;
 import org.junit.Test;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ByteVector;
@@ -17,11 +18,6 @@ import java.util.function.Consumer;
 import static org.junit.Assert.assertEquals;
 
 public class AsmAttributeTest {
-
-    @Test
-    public void name() {
-        System.out.println(Runtime.version().toString());
-    }
 
     @Test
     public void can_read_attribute_properties() throws Exception {

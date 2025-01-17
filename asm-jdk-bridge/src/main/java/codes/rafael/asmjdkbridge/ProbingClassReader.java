@@ -5,6 +5,7 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -34,7 +35,7 @@ public class ProbingClassReader {
      * @throws IOException If the stream cannot be read.
      */
     public ProbingClassReader(InputStream inputStream, Attribute... attributePrototypes) throws IOException {
-        this(inputStream.readAllBytes(), attributePrototypes);
+        this(readAllBytes(inputStream), attributePrototypes);
     }
 
     /**
@@ -47,9 +48,19 @@ public class ProbingClassReader {
     public ProbingClassReader(String className, Attribute... attributePrototypes) throws IOException {
         byte[] classFile;
         try (InputStream inputStream = ClassLoader.getSystemResourceAsStream(className.replace('.', '/') + ".class")) {
-            classFile = inputStream.readAllBytes();
+            classFile = readAllBytes(inputStream);
         }
         resolver = ProbingResolver.ofClassFile(classFile, attributePrototypes);
+    }
+
+    private static byte[] readAllBytes(InputStream inputStream) throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        byte[] buffer = new byte[1024 * 8];
+        int length;
+        while ((length = inputStream.read(buffer)) != -1) {
+            outputStream.write(buffer, 0, length);
+        }
+        return outputStream.toByteArray();
     }
 
     /**

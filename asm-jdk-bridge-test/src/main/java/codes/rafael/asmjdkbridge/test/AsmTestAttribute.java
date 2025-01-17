@@ -1,4 +1,4 @@
-package codes.rafael.asmjdkbridge;
+package codes.rafael.asmjdkbridge.test;
 
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ByteVector;

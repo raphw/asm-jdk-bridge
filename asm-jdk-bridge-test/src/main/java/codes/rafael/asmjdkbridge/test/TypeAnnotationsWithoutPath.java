@@ -1,4 +1,4 @@
-package codes.rafael.asmjdkbridge.sample;
+package codes.rafael.asmjdkbridge.test;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
