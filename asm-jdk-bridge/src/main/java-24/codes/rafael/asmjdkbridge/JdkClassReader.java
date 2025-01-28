@@ -83,16 +83,7 @@ import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AccessFlag;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -288,7 +279,7 @@ public class JdkClassReader {
                     Map<Label, StackMapFrameInfo> frames = (flags & ClassReader.SKIP_FRAMES) == 0 ? code.findAttribute(Attributes.stackMapTable())
                             .map(stackMapTable -> stackMapTable.entries().stream().collect(Collectors.toMap(StackMapFrameInfo::target, Function.identity())))
                             .orElse(Collections.emptyMap()) : Map.of();
-                    Map<MergedLocalVariableKey, MergedLocalVariableValue> localVariables = new LinkedHashMap<>();
+                    SequencedMap<MergedLocalVariableKey, MergedLocalVariableValue> localVariables = new LinkedHashMap<>();
                     Map<org.objectweb.asm.Label, List<Map.Entry<TypeAnnotation, Boolean>>> offsetTypeAnnotations = new IdentityHashMap<>();
                     List<Map.Entry<TypeAnnotation, Boolean>> localVariableAnnotations = new ArrayList<>();
                     List<CharacterRange> characterRanges = new ArrayList<>();
