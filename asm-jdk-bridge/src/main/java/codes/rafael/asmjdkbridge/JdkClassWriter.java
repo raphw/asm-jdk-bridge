@@ -1,7 +1,14 @@
 package codes.rafael.asmjdkbridge;
 
+import org.objectweb.asm.AnnotationVisitor;
+import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.FieldVisitor;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.ModuleVisitor;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.RecordComponentVisitor;
+import org.objectweb.asm.TypePath;
 
 import java.lang.reflect.Method;
 import java.util.function.Function;
@@ -115,6 +122,80 @@ public class JdkClassWriter extends ClassVisitor {
      * @return The class loader to use for resolving a super class's name.
      */
     protected ClassLoader getClassLoader() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
+        throw new UnsupportedOperationException();
+    }
+    @Override
+    public void visitSource(String source, String debug) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ModuleVisitor visitModule(String name, int access, String version) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void visitNestHost(String nestHost) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void visitOuterClass(String owner, String name, String descriptor) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void visitAttribute(Attribute attribute) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void visitNestMember(String nestMember) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void visitPermittedSubclass(String permittedSubclass) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void visitInnerClass(String name, String outerName, String innerName, int access) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public RecordComponentVisitor visitRecordComponent(String name, String descriptor, String signature) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void visitEnd() {
         throw new UnsupportedOperationException();
     }
 }
