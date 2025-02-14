@@ -498,7 +498,7 @@ public class JdkClassWriter extends ClassVisitor {
         private final List<Annotation> visibleAnnotations = new ArrayList<>(), invisibleAnnotations = new ArrayList<>();
         private final List<TypeAnnotation> visibleTypeAnnotations = new ArrayList<>(), invisibleTypeAnnotations = new ArrayList<>();
         private final Map<Integer, List<Annotation>> visibleParameterAnnotations = new HashMap<>(), invisibleParameterAnnotations = new HashMap<>();
-        private int visibleParameterAnnotationsCount, invisibleParameterAnnotationsCount;
+        private int visibleParameterAnnotationsCount = -1, invisibleParameterAnnotationsCount = -1;
 
         private Map<Label, Integer> lineNumbers;
 
@@ -1066,14 +1066,18 @@ public class JdkClassWriter extends ClassVisitor {
                 }
                 if (!visibleParameterAnnotations.isEmpty()) {
                     List<List<Annotation>> annotations = new ArrayList<>();
-                    for (int index = 0; index < Math.max(visibleParameterAnnotationsCount, visibleParameterAnnotations.size()); index++) {
+                    for (int index = 0; index < (visibleParameterAnnotationsCount < 0
+                            ? methodParameters.size()
+                            : visibleParameterAnnotationsCount); index++) {
                         annotations.add(visibleParameterAnnotations.getOrDefault(index, List.of()));
                     }
                     methodBuilder.with(RuntimeVisibleParameterAnnotationsAttribute.of(annotations));
                 }
                 if (!invisibleParameterAnnotations.isEmpty()) {
                     List<List<Annotation>> annotations = new ArrayList<>();
-                    for (int index = 0; index < Math.max(invisibleParameterAnnotationsCount, invisibleParameterAnnotations.size()); index++) {
+                    for (int index = 0; index < (invisibleParameterAnnotationsCount < 0
+                            ? methodParameters.size()
+                            : invisibleParameterAnnotationsCount); index++) {
                         annotations.add(invisibleParameterAnnotations.getOrDefault(index, List.of()));
                     }
                     methodBuilder.with(RuntimeInvisibleParameterAnnotationsAttribute.of(annotations));
