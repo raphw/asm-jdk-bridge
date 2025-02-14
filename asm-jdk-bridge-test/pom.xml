@@ -4,7 +4,7 @@
     <parent>
         <groupId>codes.rafael.asmjdkbridge</groupId>
         <artifactId>asm-jdk-bridge-parent</artifactId>
-        <version>0.0.4-SNAPSHOT</version>
+        <version>0.0.4</version>
     </parent>
 
     <artifactId>asm-jdk-bridge-test</artifactId>
