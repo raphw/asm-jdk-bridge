@@ -1029,7 +1029,8 @@ public class JdkClassWriter extends ClassVisitor {
 
         @Override
         public void visitEnd() {
-            classConsumers.add(classBuilder -> classBuilder.withMethod(name, MethodTypeDesc.ofDescriptor(descriptor), access & ~Opcodes.ACC_DEPRECATED, methodBuilder -> {
+            MethodTypeDesc methodTypeDesc = MethodTypeDesc.ofDescriptor(descriptor);
+            classConsumers.add(classBuilder -> classBuilder.withMethod(name, methodTypeDesc, access & ~Opcodes.ACC_DEPRECATED, methodBuilder -> {
                 if ((access & Opcodes.ACC_DEPRECATED) != 0) {
                     methodBuilder.with(DeprecatedAttribute.of());
                 }
@@ -1067,7 +1068,7 @@ public class JdkClassWriter extends ClassVisitor {
                 if (!visibleParameterAnnotations.isEmpty()) {
                     List<List<Annotation>> annotations = new ArrayList<>();
                     for (int index = 0; index < (visibleParameterAnnotationsCount < 0
-                            ? methodParameters.size()
+                            ? methodTypeDesc.parameterCount()
                             : visibleParameterAnnotationsCount); index++) {
                         annotations.add(visibleParameterAnnotations.getOrDefault(index, List.of()));
                     }
@@ -1076,7 +1077,7 @@ public class JdkClassWriter extends ClassVisitor {
                 if (!invisibleParameterAnnotations.isEmpty()) {
                     List<List<Annotation>> annotations = new ArrayList<>();
                     for (int index = 0; index < (invisibleParameterAnnotationsCount < 0
-                            ? methodParameters.size()
+                            ? methodTypeDesc.parameterCount()
                             : invisibleParameterAnnotationsCount); index++) {
                         annotations.add(invisibleParameterAnnotations.getOrDefault(index, List.of()));
                     }
