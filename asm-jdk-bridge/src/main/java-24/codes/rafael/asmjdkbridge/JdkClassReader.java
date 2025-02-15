@@ -434,8 +434,12 @@ public class JdkClassReader {
                             case CharacterRange characterRange -> characterRanges.add(characterRange);
                             case RuntimeVisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), true, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
                             case RuntimeInvisibleTypeAnnotationsAttribute value -> appendCodeAnnotations(value.annotations(), false, methodVisitor, labels, localVariableAnnotations, offsetTypeAnnotations);
-                            case DiscontinuedInstruction.JsrInstruction value -> methodVisitor.visitJumpInsn(value.opcode().bytecode(), labels.computeIfAbsent(value.target(), _ -> new org.objectweb.asm.Label()));
-                            case DiscontinuedInstruction.RetInstruction value -> methodVisitor.visitVarInsn(value.opcode().bytecode(), value.slot());
+                            case DiscontinuedInstruction.JsrInstruction value -> methodVisitor.visitJumpInsn(
+                                (value.opcode() == Opcode.JSR_W ? Opcode.JSR : value.opcode()).bytecode(),
+                                    labels.computeIfAbsent(value.target(), _ -> new org.objectweb.asm.Label()));
+                            case DiscontinuedInstruction.RetInstruction value -> methodVisitor.visitVarInsn(
+                                (value.opcode() == Opcode.RET_W ? Opcode.RET : value.opcode()).bytecode(),
+                                    value.slot());
                             default -> throw new UnsupportedOperationException("Unknown value: " + element);
                         }
                         if (element instanceof Instruction) {
