@@ -717,6 +717,7 @@ public class JdkClassWriter extends ClassVisitor {
                 case Opcodes.LCONST_1 -> CodeBuilder::lconst_1;
                 case Opcodes.FCONST_0 -> CodeBuilder::fconst_0;
                 case Opcodes.FCONST_1 -> CodeBuilder::fconst_1;
+                case Opcodes.FCONST_2 -> CodeBuilder::fconst_2;
                 case Opcodes.DCONST_0 -> CodeBuilder::dconst_0;
                 case Opcodes.DCONST_1 -> CodeBuilder::dconst_1;
                 case Opcodes.IALOAD -> CodeBuilder::iaload;
