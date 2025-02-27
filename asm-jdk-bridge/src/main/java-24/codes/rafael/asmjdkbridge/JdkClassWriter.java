@@ -388,6 +388,9 @@ public class JdkClassWriter extends ClassVisitor {
                 if (!invisibleTypeAnnotations.isEmpty()) {
                     attributes.add(RuntimeInvisibleTypeAnnotationsAttribute.of(invisibleTypeAnnotations));
                 }
+                if (signature != null) {
+                    attributes.add(SignatureAttribute.of(ClassSignature.parseFrom(signature)));
+                } 
                 recordComponents.add(RecordComponentInfo.of(name, ClassDesc.ofDescriptor(descriptor), attributes));
             }
         };
