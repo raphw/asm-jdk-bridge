@@ -153,6 +153,7 @@ public class JdkClassReader {
         classVisitor.visit(classModel.minorVersion() << 16 | classModel.majorVersion(),
                 classModel.flags().flagsMask()
                         | (classModel.findAttribute(Attributes.deprecated()).isPresent() ? Opcodes.ACC_DEPRECATED : 0)
+                        | (classModel.findAttribute(Attributes.synthetic()).isPresent() ? Opcodes.ACC_SYNTHETIC: 0)
                         | (classModel.findAttribute(Attributes.record()).isPresent() ? Opcodes.ACC_RECORD : 0),
                 classModel.thisClass().asInternalName(),
                 classModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
@@ -236,7 +237,9 @@ public class JdkClassReader {
                     }
                 });
         for (FieldModel fieldModel : classModel.fields()) {
-            FieldVisitor fieldVisitor = classVisitor.visitField(fieldModel.flags().flagsMask() | (fieldModel.findAttribute(Attributes.deprecated()).isPresent() ? Opcodes.ACC_DEPRECATED : 0),
+            FieldVisitor fieldVisitor = classVisitor.visitField(fieldModel.flags().flagsMask()
+                    | (fieldModel.findAttribute(Attributes.deprecated()).isPresent() ? Opcodes.ACC_DEPRECATED : 0)
+                    | (fieldModel.findAttribute(Attributes.synthetic()).isPresent() ? Opcodes.ACC_SYNTHETIC : 0),
                     fieldModel.fieldName().stringValue(),
                     fieldModel.fieldType().stringValue(),
                     fieldModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
@@ -250,7 +253,9 @@ public class JdkClassReader {
             }
         }
         for (MethodModel methodModel : classModel.methods()) {
-            MethodVisitor methodVisitor = classVisitor.visitMethod(methodModel.flags().flagsMask() | (methodModel.findAttribute(Attributes.deprecated()).isPresent() ? Opcodes.ACC_DEPRECATED : 0),
+            MethodVisitor methodVisitor = classVisitor.visitMethod(methodModel.flags().flagsMask()
+                    | (methodModel.findAttribute(Attributes.deprecated()).isPresent() ? Opcodes.ACC_DEPRECATED : 0)
+                    | (methodModel.findAttribute(Attributes.synthetic()).isPresent() ? Opcodes.ACC_SYNTHETIC : 0),
                     methodModel.methodName().stringValue(),
                     methodModel.methodType().stringValue(),
                     methodModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
