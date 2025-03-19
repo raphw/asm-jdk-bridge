@@ -4,7 +4,7 @@
 
     <groupId>codes.rafael.asmjdkbridge</groupId>
     <artifactId>asm-jdk-bridge-parent</artifactId>
-    <version>0.0.7</version>
+    <version>0.0.8-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <inceptionYear>2025</inceptionYear>
