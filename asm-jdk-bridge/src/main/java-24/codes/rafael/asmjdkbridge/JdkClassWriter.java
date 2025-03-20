@@ -1,19 +1,92 @@
 package codes.rafael.asmjdkbridge;
 
+import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.Attribute;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.ConstantDynamic;
+import org.objectweb.asm.FieldVisitor;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.*;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.ModuleVisitor;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.RecordComponentVisitor;
+import org.objectweb.asm.Type;
+import org.objectweb.asm.TypePath;
+import org.objectweb.asm.TypeReference;
 
-import java.lang.classfile.*;
-import java.lang.classfile.attribute.*;
+import java.lang.classfile.Annotation;
+import java.lang.classfile.AnnotationElement;
+import java.lang.classfile.AnnotationValue;
+import java.lang.classfile.ClassBuilder;
+import java.lang.classfile.ClassElement;
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.ClassHierarchyResolver;
+import java.lang.classfile.ClassModel;
+import java.lang.classfile.ClassSignature;
+import java.lang.classfile.CodeBuilder;
+import java.lang.classfile.CodeElement;
+import java.lang.classfile.FieldElement;
+import java.lang.classfile.FieldModel;
+import java.lang.classfile.MethodElement;
+import java.lang.classfile.MethodModel;
+import java.lang.classfile.Opcode;
+import java.lang.classfile.Signature;
+import java.lang.classfile.TypeAnnotation;
+import java.lang.classfile.TypeKind;
+import java.lang.classfile.attribute.AnnotationDefaultAttribute;
+import java.lang.classfile.attribute.ConstantValueAttribute;
+import java.lang.classfile.attribute.DeprecatedAttribute;
+import java.lang.classfile.attribute.EnclosingMethodAttribute;
+import java.lang.classfile.attribute.ExceptionsAttribute;
+import java.lang.classfile.attribute.InnerClassInfo;
+import java.lang.classfile.attribute.InnerClassesAttribute;
+import java.lang.classfile.attribute.MethodParameterInfo;
+import java.lang.classfile.attribute.MethodParametersAttribute;
+import java.lang.classfile.attribute.ModuleAttribute;
+import java.lang.classfile.attribute.ModuleMainClassAttribute;
+import java.lang.classfile.attribute.ModulePackagesAttribute;
+import java.lang.classfile.attribute.NestHostAttribute;
+import java.lang.classfile.attribute.NestMembersAttribute;
+import java.lang.classfile.attribute.PermittedSubclassesAttribute;
+import java.lang.classfile.attribute.RecordAttribute;
+import java.lang.classfile.attribute.RecordComponentInfo;
+import java.lang.classfile.attribute.RuntimeInvisibleAnnotationsAttribute;
+import java.lang.classfile.attribute.RuntimeInvisibleParameterAnnotationsAttribute;
+import java.lang.classfile.attribute.RuntimeInvisibleTypeAnnotationsAttribute;
+import java.lang.classfile.attribute.RuntimeVisibleAnnotationsAttribute;
+import java.lang.classfile.attribute.RuntimeVisibleParameterAnnotationsAttribute;
+import java.lang.classfile.attribute.RuntimeVisibleTypeAnnotationsAttribute;
+import java.lang.classfile.attribute.SignatureAttribute;
+import java.lang.classfile.attribute.SourceDebugExtensionAttribute;
+import java.lang.classfile.attribute.SourceFileAttribute;
+import java.lang.classfile.attribute.StackMapFrameInfo;
+import java.lang.classfile.attribute.StackMapTableAttribute;
 import java.lang.classfile.constantpool.ConstantPoolBuilder;
 import java.lang.classfile.instruction.DiscontinuedInstruction;
 import java.lang.classfile.instruction.SwitchCase;
-import java.lang.constant.*;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.ConstantDesc;
+import java.lang.constant.ConstantDescs;
+import java.lang.constant.DirectMethodHandleDesc;
+import java.lang.constant.DynamicCallSiteDesc;
+import java.lang.constant.DynamicConstantDesc;
+import java.lang.constant.MethodHandleDesc;
+import java.lang.constant.MethodTypeDesc;
+import java.lang.constant.ModuleDesc;
+import java.lang.constant.PackageDesc;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -229,8 +302,11 @@ public class JdkClassWriter extends ClassVisitor {
             this.version = version;
         }
 
-        boolean has(ClassModel classModel) {
-            return Objects.equals(JdkClassWriter.this.classModel, classModel);
+        boolean has(ClassModel classModel, String name, int access, String version) {
+            return Objects.equals(JdkClassWriter.this.classModel, classModel)
+                    && Objects.equals(this.name, name)
+                    && this.access == access
+                    && Objects.equals(this.version, version);
         }
 
         void add(ClassElement element) {
@@ -422,8 +498,13 @@ public class JdkClassWriter extends ClassVisitor {
             this.value = value;
         }
 
-        boolean has(ClassModel classModel) {
-            return Objects.equals(JdkClassWriter.this.classModel, classModel);
+        boolean has(ClassModel classModel, int access, String name, String descriptor, String signature, Object value) {
+            return Objects.equals(JdkClassWriter.this.classModel, classModel)
+                    && this.access == access
+                    && Objects.equals(this.name, name)
+                    && Objects.equals(this.descriptor, descriptor)
+                    && Objects.equals(this.signature, signature)
+                    && Objects.equals(this.value, value);
         }
 
         void add(FieldModel field) {
@@ -530,8 +611,13 @@ public class JdkClassWriter extends ClassVisitor {
             this.exceptions = exceptions;
         }
 
-        boolean has(ClassModel classModel) {
-            return Objects.equals(JdkClassWriter.this.classModel, classModel);
+        boolean has(ClassModel classModel, int access, String name, String descriptor, String signature, String[] exceptions) {
+            return Objects.equals(JdkClassWriter.this.classModel, classModel)
+                    && this.access == access
+                    && Objects.equals(this.name, name)
+                    && Objects.equals(this.descriptor, descriptor)
+                    && Objects.equals(this.signature, signature)
+                    && Arrays.equals(this.exceptions, exceptions);
         }
 
         void add(MethodModel model) {

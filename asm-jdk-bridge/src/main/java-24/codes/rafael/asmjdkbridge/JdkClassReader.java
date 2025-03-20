@@ -2,8 +2,6 @@ package codes.rafael.asmjdkbridge;
 
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.Attribute;
-import org.objectweb.asm.Attribute;
-import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ConstantDynamic;
@@ -30,7 +28,6 @@ import java.lang.classfile.ClassModel;
 import java.lang.classfile.CodeElement;
 import java.lang.classfile.FieldModel;
 import java.lang.classfile.Instruction;
-import java.lang.classfile.Label;
 import java.lang.classfile.Label;
 import java.lang.classfile.MethodModel;
 import java.lang.classfile.Opcode;
@@ -83,7 +80,17 @@ import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AccessFlag;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.SequencedMap;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -171,10 +178,11 @@ public class JdkClassReader {
             }
         }
         classModel.findAttribute(Attributes.module()).ifPresent(module -> {
-            ModuleVisitor moduleVisitor = classVisitor.visitModule(module.moduleName().name().stringValue(),
-                    module.moduleFlagsMask(),
-                    module.moduleVersion().map(Utf8Entry::stringValue).orElse(null));
-            if (moduleVisitor instanceof JdkClassWriter.WritingModuleVisitor writingModuleVisitor && writingModuleVisitor.has(classModel)) {
+            String moduleName = module.moduleName().name().stringValue();
+            int moduleFlags = module.moduleFlagsMask();
+            String moduleVersion = module.moduleVersion().map(Utf8Entry::stringValue).orElse(null);
+            ModuleVisitor moduleVisitor = classVisitor.visitModule(moduleName, moduleFlags, moduleVersion);
+            if (moduleVisitor instanceof JdkClassWriter.WritingModuleVisitor writingModuleVisitor && writingModuleVisitor.has(classModel, moduleName, moduleFlags, moduleVersion)) {
                 classModel.findAttribute(Attributes.moduleMainClass()).ifPresent(writingModuleVisitor::add);
                 classModel.findAttribute(Attributes.modulePackages()).ifPresent(writingModuleVisitor::add);
                 writingModuleVisitor.add(module);
@@ -237,14 +245,15 @@ public class JdkClassReader {
                     }
                 });
         for (FieldModel fieldModel : classModel.fields()) {
-            FieldVisitor fieldVisitor = classVisitor.visitField(fieldModel.flags().flagsMask()
+            int fieldFlags = fieldModel.flags().flagsMask()
                     | (fieldModel.findAttribute(Attributes.deprecated()).isPresent() ? Opcodes.ACC_DEPRECATED : 0)
-                    | (fieldModel.findAttribute(Attributes.synthetic()).isPresent() ? Opcodes.ACC_SYNTHETIC : 0),
-                    fieldModel.fieldName().stringValue(),
-                    fieldModel.fieldType().stringValue(),
-                    fieldModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
-                    fieldModel.findAttribute(Attributes.constantValue()).map(constantValue -> toAsmConstant(constantValue.constant().constantValue())).orElse(null));
-            if (fieldVisitor instanceof JdkClassWriter.WritingFieldVisitor writingFieldVisitor && writingFieldVisitor.has(classModel)) {
+                    | (fieldModel.findAttribute(Attributes.synthetic()).isPresent() ? Opcodes.ACC_SYNTHETIC : 0);
+            String fieldName = fieldModel.fieldName().stringValue();
+            String fieldType = fieldModel.fieldType().stringValue();
+            String fieldSignature = fieldModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null);
+            Object fieldConstant = fieldModel.findAttribute(Attributes.constantValue()).map(constantValue -> toAsmConstant(constantValue.constant().constantValue())).orElse(null);
+            FieldVisitor fieldVisitor = classVisitor.visitField(fieldFlags, fieldName, fieldType, fieldSignature, fieldConstant);
+            if (fieldVisitor instanceof JdkClassWriter.WritingFieldVisitor writingFieldVisitor && writingFieldVisitor.has(classModel, fieldFlags, fieldName, fieldType, fieldSignature, fieldConstant)) {
                 writingFieldVisitor.add(fieldModel);
             } else if (fieldVisitor != null) {
                 acceptAnnotations(fieldModel, fieldVisitor::visitAnnotation, fieldVisitor::visitTypeAnnotation);
@@ -253,14 +262,15 @@ public class JdkClassReader {
             }
         }
         for (MethodModel methodModel : classModel.methods()) {
-            MethodVisitor methodVisitor = classVisitor.visitMethod(methodModel.flags().flagsMask()
+            int methodFlags = methodModel.flags().flagsMask()
                     | (methodModel.findAttribute(Attributes.deprecated()).isPresent() ? Opcodes.ACC_DEPRECATED : 0)
-                    | (methodModel.findAttribute(Attributes.synthetic()).isPresent() ? Opcodes.ACC_SYNTHETIC : 0),
-                    methodModel.methodName().stringValue(),
-                    methodModel.methodType().stringValue(),
-                    methodModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
-                    methodModel.findAttribute(Attributes.exceptions()).map(exceptions -> exceptions.exceptions().stream().map(ClassEntry::asInternalName).toArray(String[]::new)).orElse(null));
-            if (methodVisitor instanceof JdkClassWriter.WritingMethodVisitor writingMethodVisitor && writingMethodVisitor.has(classModel)) {
+                    | (methodModel.findAttribute(Attributes.synthetic()).isPresent() ? Opcodes.ACC_SYNTHETIC : 0);
+            String methodName = methodModel.methodName().stringValue();
+            String methodType = methodModel.methodType().stringValue();
+            String methodSignature = methodModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null);
+            String[] methodExceptions = methodModel.findAttribute(Attributes.exceptions()).map(exceptions -> exceptions.exceptions().stream().map(ClassEntry::asInternalName).toArray(String[]::new)).orElse(null);
+            MethodVisitor methodVisitor = classVisitor.visitMethod(methodFlags, methodName, methodType, methodSignature, methodExceptions);
+            if (methodVisitor instanceof JdkClassWriter.WritingMethodVisitor writingMethodVisitor && writingMethodVisitor.has(classModel, methodFlags, methodName, methodType, methodSignature, methodExceptions)) {
                 writingMethodVisitor.add(methodModel);
             } else if (methodVisitor != null) {
                 if ((flags & ClassReader.SKIP_DEBUG) == 0) {
