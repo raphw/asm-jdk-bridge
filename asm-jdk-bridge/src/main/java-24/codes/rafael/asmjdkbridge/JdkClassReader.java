@@ -94,6 +94,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
@@ -342,13 +343,22 @@ public class JdkClassReader {
                                 default -> throw new IllegalStateException("Unexpected type: " + value.typeKind());
                             }, value.slot());
                             case NewReferenceArrayInstruction value -> methodVisitor.visitTypeInsn(value.opcode().bytecode(), value.componentType().asInternalName());
-                            case LookupSwitchInstruction value -> methodVisitor.visitLookupSwitchInsn(labels.computeIfAbsent(value.defaultTarget(), _ -> new org.objectweb.asm.Label()),
+                            case LookupSwitchInstruction value -> {
+                                methodVisitor.visitLookupSwitchInsn(labels.computeIfAbsent(value.defaultTarget(), _ -> new org.objectweb.asm.Label()),
                                     value.cases().stream().mapToInt(SwitchCase::caseValue).toArray(),
                                     value.cases().stream().map(aCase -> labels.computeIfAbsent(aCase.target(), _ -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
-                            case TableSwitchInstruction value -> methodVisitor.visitTableSwitchInsn(value.lowValue(),
+                            }
+                            case TableSwitchInstruction value -> {
+                                Map<Integer, SwitchCase> cases = value.cases().stream().collect(Collectors.toMap(SwitchCase::caseValue, Function.identity()));
+                                org.objectweb.asm.Label dflt = labels.computeIfAbsent(value.defaultTarget(), _ -> new org.objectweb.asm.Label());
+                                methodVisitor.visitTableSwitchInsn(value.lowValue(),
                                     value.highValue(),
-                                    labels.computeIfAbsent(value.defaultTarget(), _ -> new org.objectweb.asm.Label()),
-                                    value.cases().stream().map(aCase -> labels.computeIfAbsent(aCase.target(), _ -> new org.objectweb.asm.Label())).toArray(org.objectweb.asm.Label[]::new));
+                                    dflt,
+                                    IntStream.rangeClosed(value.lowValue(), value.highValue()).mapToObj(index -> {
+                                        SwitchCase switchCase = cases.get(index);
+                                        return switchCase == null ? dflt : labels.computeIfAbsent(switchCase.target(), _ -> new org.objectweb.asm.Label());
+                                    }).toArray(org.objectweb.asm.Label[]::new));
+                            }
                             case ArrayStoreInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case ArrayLoadInstruction value -> methodVisitor.visitInsn(value.opcode().bytecode());
                             case ConstantInstruction value -> {

@@ -11,6 +11,15 @@ public class Switches {
         };
     }
 
+    int t2(int i) {
+        return switch (i) {
+            case 0 -> 1;
+            case 1 -> 2;
+            case 3 -> 4;
+            default -> 5;
+        };
+    }
+
     int s(int i) {
         return switch (i) {
             case 0 -> 1;

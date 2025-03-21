@@ -1042,11 +1042,13 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public void visitTableSwitchInsn(int min, int max, Label dflt, Label... labels) {
             Consumer<CodeBuilder> codeConsumer = codeBuilder -> {
-                SwitchCase[] switchCases = new SwitchCase[labels.length];
+                List<SwitchCase> switchCases = new ArrayList<>();
                 for (int index = 0; index < labels.length; index++) {
-                    switchCases[index] = SwitchCase.of(min + index, this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel()));
+                    if (!Objects.equals(labels[index], dflt)) {
+                        switchCases.add(SwitchCase.of(min + index, this.labels.computeIfAbsent(labels[index], _ -> codeBuilder.newLabel())));
+                    }
                 }
-                codeBuilder.tableswitch(min, max, this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()), List.of(switchCases));
+                codeBuilder.tableswitch(min, max, this.labels.computeIfAbsent(dflt, _ -> codeBuilder.newLabel()), switchCases);
             };
             addInstruction(codeConsumer);
         }
