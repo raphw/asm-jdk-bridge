@@ -640,13 +640,11 @@ public class JdkClassWriter extends ClassVisitor {
                 Type type = Type.getMethodType(descriptor);
                 for (Type argumentType : type.getArgumentTypes()) {
                     locals.add(switch (argumentType.getSort()) {
-                        case Type.BOOLEAN, Type.BYTE, Type.SHORT, Type.CHAR, Type.INT ->
-                                StackMapFrameInfo.SimpleVerificationTypeInfo.INTEGER;
+                        case Type.BOOLEAN, Type.BYTE, Type.SHORT, Type.CHAR, Type.INT -> StackMapFrameInfo.SimpleVerificationTypeInfo.INTEGER;
                         case Type.LONG -> StackMapFrameInfo.SimpleVerificationTypeInfo.LONG;
                         case Type.FLOAT -> StackMapFrameInfo.SimpleVerificationTypeInfo.FLOAT;
                         case Type.DOUBLE -> StackMapFrameInfo.SimpleVerificationTypeInfo.DOUBLE;
-                        default ->
-                                StackMapFrameInfo.ObjectVerificationTypeInfo.of(ClassDesc.ofDescriptor(argumentType.getDescriptor()));
+                        default -> StackMapFrameInfo.ObjectVerificationTypeInfo.of(ClassDesc.ofDescriptor(argumentType.getDescriptor()));
                     });
                 }
             }
@@ -929,8 +927,7 @@ public class JdkClassWriter extends ClassVisitor {
                 case Opcodes.FSTORE -> codeBuilder -> codeBuilder.fstore(varIndex);
                 case Opcodes.DSTORE -> codeBuilder -> codeBuilder.dstore(varIndex);
                 case Opcodes.ASTORE -> codeBuilder -> codeBuilder.astore(varIndex);
-                case Opcodes.RET ->
-                        codeBuilder -> codeBuilder.with(DiscontinuedInstruction.RetInstruction.of(varIndex));
+                case Opcodes.RET -> codeBuilder -> codeBuilder.with(DiscontinuedInstruction.RetInstruction.of(varIndex));
                 default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
             };
             addInstruction(codeConsumer);
