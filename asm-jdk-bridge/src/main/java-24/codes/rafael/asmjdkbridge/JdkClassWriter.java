@@ -973,42 +973,24 @@ public class JdkClassWriter extends ClassVisitor {
         @Override
         public void visitJumpInsn(int opcode, Label label) {
             Consumer<CodeBuilder> codeConsumer = switch (opcode) {
-                case Opcodes.IFEQ ->
-                        codeBuilder -> codeBuilder.ifeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFNE ->
-                        codeBuilder -> codeBuilder.ifne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFLT ->
-                        codeBuilder -> codeBuilder.iflt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFGE ->
-                        codeBuilder -> codeBuilder.ifge(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFGT ->
-                        codeBuilder -> codeBuilder.ifgt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFLE ->
-                        codeBuilder -> codeBuilder.ifle(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ICMPEQ ->
-                        codeBuilder -> codeBuilder.if_icmpeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ICMPNE ->
-                        codeBuilder -> codeBuilder.if_icmpne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ICMPLT ->
-                        codeBuilder -> codeBuilder.if_icmplt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ICMPGE ->
-                        codeBuilder -> codeBuilder.if_icmpge(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ICMPGT ->
-                        codeBuilder -> codeBuilder.if_icmpgt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ICMPLE ->
-                        codeBuilder -> codeBuilder.if_icmple(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ACMPEQ ->
-                        codeBuilder -> codeBuilder.if_acmpeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IF_ACMPNE ->
-                        codeBuilder -> codeBuilder.if_acmpne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.GOTO ->
-                        codeBuilder -> codeBuilder.goto_(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFNULL ->
-                        codeBuilder -> codeBuilder.ifnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.IFNONNULL ->
-                        codeBuilder -> codeBuilder.ifnonnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
-                case Opcodes.JSR ->
-                        codeBuilder -> codeBuilder.with(DiscontinuedInstruction.JsrInstruction.of(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
+                case Opcodes.IFEQ -> codeBuilder -> codeBuilder.ifeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFNE -> codeBuilder -> codeBuilder.ifne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFLT -> codeBuilder -> codeBuilder.iflt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFGE -> codeBuilder -> codeBuilder.ifge(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFGT -> codeBuilder -> codeBuilder.ifgt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFLE -> codeBuilder -> codeBuilder.ifle(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPEQ -> codeBuilder -> codeBuilder.if_icmpeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPNE -> codeBuilder -> codeBuilder.if_icmpne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPLT -> codeBuilder -> codeBuilder.if_icmplt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPGE -> codeBuilder -> codeBuilder.if_icmpge(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPGT -> codeBuilder -> codeBuilder.if_icmpgt(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ICMPLE -> codeBuilder -> codeBuilder.if_icmple(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ACMPEQ -> codeBuilder -> codeBuilder.if_acmpeq(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IF_ACMPNE -> codeBuilder -> codeBuilder.if_acmpne(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.GOTO -> codeBuilder -> codeBuilder.goto_(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFNULL -> codeBuilder -> codeBuilder.ifnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.IFNONNULL -> codeBuilder -> codeBuilder.ifnonnull(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel()));
+                case Opcodes.JSR -> codeBuilder -> codeBuilder.with(DiscontinuedInstruction.JsrInstruction.of(labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
                 default -> throw new IllegalArgumentException("Unexpected opcode: " + opcode);
             };
             addInstruction(codeConsumer);
