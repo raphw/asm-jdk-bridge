@@ -161,7 +161,7 @@ public class JdkClassReader {
         classVisitor.visit(classModel.minorVersion() << 16 | classModel.majorVersion(),
                 classModel.flags().flagsMask()
                         | (classModel.findAttribute(Attributes.deprecated()).isPresent() ? Opcodes.ACC_DEPRECATED : 0)
-                        | (classModel.findAttribute(Attributes.synthetic()).isPresent() ? Opcodes.ACC_SYNTHETIC: 0)
+                        | (classModel.findAttribute(Attributes.synthetic()).isPresent() ? Opcodes.ACC_SYNTHETIC : 0)
                         | (classModel.findAttribute(Attributes.record()).isPresent() ? Opcodes.ACC_RECORD : 0),
                 classModel.thisClass().asInternalName(),
                 classModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
@@ -658,11 +658,11 @@ public class JdkClassReader {
     }
 
     private void appendCodeAnnotations(List<TypeAnnotation> typeAnnotations,
-                                              boolean visible,
-                                              MethodVisitor methodVisitor,
-                                              Map<Label, org.objectweb.asm.Label> labels,
-                                              List<Map.Entry<TypeAnnotation, Boolean>> localVariableAnnotations,
-                                              Map<org.objectweb.asm.Label, List<Map.Entry<TypeAnnotation, Boolean>>> offsetTypeAnnotations) {
+                                       boolean visible,
+                                       MethodVisitor methodVisitor,
+                                       Map<Label, org.objectweb.asm.Label> labels,
+                                       List<Map.Entry<TypeAnnotation, Boolean>> localVariableAnnotations,
+                                       Map<org.objectweb.asm.Label, List<Map.Entry<TypeAnnotation, Boolean>>> offsetTypeAnnotations) {
         typeAnnotations.forEach(typeAnnotation -> {
             switch (typeAnnotation.targetInfo()) {
                 case TypeAnnotation.LocalVarTarget ignored -> localVariableAnnotations.add(Map.entry(typeAnnotation, visible));
