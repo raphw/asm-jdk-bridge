@@ -71,6 +71,14 @@ abstract class ProbingResolver {
         }
     }
 
+    abstract int getAccess();
+
+    abstract String getClassName();
+
+    abstract String getSuperName();
+
+    abstract String[] getInterfaces();
+
     abstract void accept(ClassVisitor classVisitor, int flags);
 
     abstract ProbingClassReader.ClassWriterContainer<?> toClassWriter(int flags);
@@ -83,6 +91,26 @@ abstract class ProbingResolver {
         OfAsm(byte[] classFile, Attribute[] attributePrototypes) {
             classReader = new ClassReader(classFile);
             this.attributePrototypes = attributePrototypes;
+        }
+
+        @Override
+        int getAccess() {
+            return classReader.getAccess();
+        }
+
+        @Override
+        String getClassName() {
+            return classReader.getClassName();
+        }
+
+        @Override
+        String getSuperName() {
+            return classReader.getSuperName();
+        }
+
+        @Override
+        String[] getInterfaces() {
+            return classReader.getInterfaces();
         }
 
         @Override
@@ -102,6 +130,26 @@ abstract class ProbingResolver {
 
         OfJdk(byte[] classFile, Attribute[] attributePrototypes) {
             classReader = new JdkClassReader(classFile, attributePrototypes);
+        }
+
+        @Override
+        int getAccess() {
+            return classReader.getAccess();
+        }
+
+        @Override
+        String getClassName() {
+            return classReader.getClassName();
+        }
+
+        @Override
+        String getSuperName() {
+            return classReader.getSuperName();
+        }
+
+        @Override
+        String[] getInterfaces() {
+            return classReader.getInterfaces();
         }
 
         @Override

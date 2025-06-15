@@ -2,6 +2,7 @@ package codes.rafael.asmjdkbridge;
 
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.Type;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,6 +41,42 @@ public class JdkClassReader {
      * @throws IOException If the class file cannot be read.
      */
     public JdkClassReader(String className, Attribute... attributePrototypes) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns the access flags of this class as stored in the class file.
+     *
+     * @return The access flags of this class as stored in the class file.
+     */
+    public int getAccess() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns the internal name of this class.
+     *
+     * @return The internal name of this class.
+     */
+    public String getClassName() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns the internal super class name of this class or {@code null} for {@link Object}.
+     *
+     * @return The internal super class name of this class or {@code null} for {@link Object}.
+     */
+    public String getSuperName() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns the internal interface names of this class. Maybe {@code null}.
+     *
+     * @return The internal interface names of this class.
+     */
+    public String[] getInterfaces() {
         throw new UnsupportedOperationException();
     }
 

@@ -150,6 +150,33 @@ public class JdkClassReader {
         return classModel;
     }
 
+
+    public int getAccess() {
+        return classModel.flags().flagsMask();
+    }
+
+    public String getClassName() {
+        return classModel.thisClass().asInternalName();
+    }
+
+    /**
+     * Returns the super class name of this class or {@code null} for {@link Object}.
+     *
+     * @return The super class name of this class or {@code null} for {@link Object}.
+     */
+    public String getSuperName() {
+        return classModel.superclass().map(ClassEntry::asInternalName).orElse(null);
+    }
+
+    /**
+     * Returns the interface names of this class.
+     *
+     * @return The interface names of this class.
+     */
+    public String[] getInterfaces() {
+        return classModel.interfaces().stream().map(ClassEntry::asInternalName).toArray(String[]::new);
+    }
+
     /**
      * Accepts a class visitor for the represented class file.
      *
@@ -159,14 +186,14 @@ public class JdkClassReader {
     public void accept(ClassVisitor classVisitor, int flags) {
         Map<Label, org.objectweb.asm.Label> labels = new HashMap<>();
         classVisitor.visit(classModel.minorVersion() << 16 | classModel.majorVersion(),
-                classModel.flags().flagsMask()
+                getAccess()
                         | (classModel.findAttribute(Attributes.deprecated()).isPresent() ? Opcodes.ACC_DEPRECATED : 0)
                         | (classModel.findAttribute(Attributes.synthetic()).isPresent() ? Opcodes.ACC_SYNTHETIC : 0)
                         | (classModel.findAttribute(Attributes.record()).isPresent() ? Opcodes.ACC_RECORD : 0),
-                classModel.thisClass().asInternalName(),
+                getClassName(),
                 classModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
-                classModel.superclass().map(ClassEntry::asInternalName).orElse(null),
-                classModel.interfaces().stream().map(ClassEntry::asInternalName).toArray(String[]::new));
+                getSuperName(),
+                getInterfaces());
         if ((flags & ClassReader.SKIP_DEBUG) == 0) {
             String sourceFile = classModel.findAttribute(Attributes.sourceFile())
                     .map(attribute -> attribute.sourceFile().stringValue())

@@ -19,6 +19,7 @@ import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
@@ -28,6 +29,8 @@ public class JdkClassReaderTest {
     @Parameterized.Parameters(name = "{0} (reader={1})")
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][]{
+                {Object.class, 0},
+                {Runnable.class, 0},
                 {Trivial.class, 0},
                 {LoadStoreAndReturn.class, 0},
                 {FieldConstructorAndMethod.class, 0},
@@ -76,6 +79,20 @@ public class JdkClassReaderTest {
         toClassReader(classFile).accept(toVisitor(asm), new Attribute[]{ new AsmTestAttribute(), new AsmTestAttribute.AsmCodeTestAttribute() }, flags);
         new JdkClassReader(classFile, new AsmTestAttribute(), new AsmTestAttribute.AsmCodeTestAttribute()).accept(toVisitor(jdk), flags);
         assertEquals(asm.toString(), jdk.toString());
+    }
+
+    @Test
+    public void properties_are_equal() throws IOException {
+        byte[] classFile;
+        try (InputStream inputStream = target.getResourceAsStream(target.getName().substring(target.getPackageName().length() + 1) + ".class")) {
+            classFile = inputStream.readAllBytes();
+        }
+        ClassReader asm = toClassReader(classFile);
+        JdkClassReader jdk = new JdkClassReader(classFile);
+        assertEquals(asm.getAccess(), jdk.getAccess());
+        assertEquals(asm.getClassName(), jdk.getClassName());
+        assertEquals(asm.getSuperName(), jdk.getSuperName());
+        assertArrayEquals(asm.getInterfaces(), jdk.getInterfaces());
     }
 
     private static ClassVisitor toVisitor(StringWriter writer) {

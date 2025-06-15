@@ -29,6 +29,8 @@ public class JdkClassWriterTest {
     @Parameterized.Parameters(name = "{0} (reader={1}, writer={2})")
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][]{
+                {Object.class, 0, 0},
+                {Runnable.class, 0, 0},
                 {Trivial.class, 0, 0},
                 {LoadStoreAndReturn.class, 0, 0},
                 {FieldConstructorAndMethod.class, 0, 0},
