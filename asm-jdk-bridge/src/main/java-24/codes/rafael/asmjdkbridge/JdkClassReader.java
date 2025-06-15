@@ -150,28 +150,37 @@ public class JdkClassReader {
         return classModel;
     }
 
-
+    /**
+     * Returns the access flags of this class as stored in the class file.
+     *
+     * @return The access flags of this class as stored in the class file.
+     */
     public int getAccess() {
         return classModel.flags().flagsMask();
     }
 
+    /**
+     * Returns the internal name of this class.
+     *
+     * @return The internal name of this class.
+     */
     public String getClassName() {
         return classModel.thisClass().asInternalName();
     }
 
     /**
-     * Returns the super class name of this class or {@code null} for {@link Object}.
+     * Returns the internal super class name of this class or {@code null} for {@link Object}.
      *
-     * @return The super class name of this class or {@code null} for {@link Object}.
+     * @return The internal super class name of this class or {@code null} for {@link Object}.
      */
     public String getSuperName() {
         return classModel.superclass().map(ClassEntry::asInternalName).orElse(null);
     }
 
     /**
-     * Returns the interface names of this class.
+     * Returns the internal interface names of this class. Maybe {@code null}.
      *
-     * @return The interface names of this class.
+     * @return The internal interface names of this class.
      */
     public String[] getInterfaces() {
         return classModel.interfaces().stream().map(ClassEntry::asInternalName).toArray(String[]::new);
