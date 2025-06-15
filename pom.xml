@@ -4,7 +4,7 @@
 
     <groupId>codes.rafael.asmjdkbridge</groupId>
     <artifactId>asm-jdk-bridge-parent</artifactId>
-    <version>0.0.10</version>
+    <version>0.0.11-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>ASM to OpenJDK Class API bridge (parent)</name>
