@@ -7,6 +7,9 @@
     <version>0.0.10-SNAPSHOT</version>
     <packaging>pom</packaging>
 
+    <name>ASM to OpenJDK Class API bridge (parent)</name>
+    <description>A common parent for the ASM to OpenJDK Class File API.</description>
+
     <inceptionYear>2025</inceptionYear>
     <modules>
         <module>asm-jdk-bridge</module>

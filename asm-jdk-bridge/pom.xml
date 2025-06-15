@@ -9,7 +9,7 @@
 
     <artifactId>asm-jdk-bridge</artifactId>
 
-    <name>A bridge to translate ASM from and to the OpenJDK class file API</name>
+    <name>ASM to OpenJDK Class API bridge</name>
     <description>Implements adapters to translate between ASM visitors and the OpenJDK class file API.</description>
 
     <dependencies>

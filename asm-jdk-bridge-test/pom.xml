@@ -9,6 +9,9 @@
 
     <artifactId>asm-jdk-bridge-test</artifactId>
 
+    <name>ASM to OpenJDK Class API bridge (test)</name>
+    <description>Contains tests where the API is loaded as a module to assure that the modularization works.</description>
+
     <properties>
         <maven.compiler.release>24</maven.compiler.release>
     </properties>
