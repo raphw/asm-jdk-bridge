@@ -8,6 +8,8 @@ import org.objectweb.asm.ClassWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * A class reader that automatically resolves a suitable reader, either based on ASM (if ASM officially
@@ -16,7 +18,6 @@ import java.io.InputStream;
 public class ProbingClassReader {
 
     private final ProbingResolver resolver;
-
     /**
      * Creates a new class reader.
      *
@@ -24,7 +25,7 @@ public class ProbingClassReader {
      * @param attributePrototypes Prototypes of ASM attributes to map if discovered.
      */
     public ProbingClassReader(byte[] classFile, Attribute... attributePrototypes) {
-        resolver = ProbingResolver.ofClassFile(classFile, attributePrototypes);
+        resolver = ProbingResolver.ofClassFile(null, classFile, attributePrototypes);
     }
 
     /**
@@ -35,7 +36,7 @@ public class ProbingClassReader {
      * @throws IOException If the stream cannot be read.
      */
     public ProbingClassReader(InputStream inputStream, Attribute... attributePrototypes) throws IOException {
-        this(readAllBytes(inputStream), attributePrototypes);
+        this(readAllBytes(inputStream), null, attributePrototypes);
     }
 
     /**
@@ -50,7 +51,47 @@ public class ProbingClassReader {
         try (InputStream inputStream = ClassLoader.getSystemResourceAsStream(className.replace('.', '/') + ".class")) {
             classFile = readAllBytes(inputStream);
         }
-        resolver = ProbingResolver.ofClassFile(classFile, attributePrototypes);
+        resolver = ProbingResolver.ofClassFile(null, classFile, attributePrototypes);
+    }
+
+    /**
+     * Creates a new class reader.
+     *
+     * @param classFile           The class file to represent.
+     * @param attributePrototypes Prototypes of ASM attributes to map if discovered.
+     */
+    public ProbingClassReader(byte[] classFile, Function<String, String> getSuperClass, Attribute... attributePrototypes) {
+        resolver = ProbingResolver.ofClassFile(getSuperClass, classFile, attributePrototypes);
+    }
+
+    /**
+     * Creates a new class reader.
+     *
+     * @param inputStream         An input stream of the class file to represent.
+     * @param attributePrototypes Prototypes of ASM attributes to map if discovered.
+     * @throws IOException If the stream cannot be read.
+     */
+    public ProbingClassReader(InputStream inputStream,
+                              Function<String, String> getSuperClass,
+                              Attribute... attributePrototypes) throws IOException {
+        this(readAllBytes(inputStream), getSuperClass, attributePrototypes);
+    }
+
+    /**
+     * Creates a new class reader.
+     *
+     * @param className           The name of the class to represent. The class must be resolvable from the system loader.
+     * @param attributePrototypes Prototypes of ASM attributes to map if discovered.
+     * @throws IOException If the class file cannot be read.
+     */
+    public ProbingClassReader(String className,
+                              Function<String, String> getSuperClass,
+                              Attribute... attributePrototypes) throws IOException {
+        byte[] classFile;
+        try (InputStream inputStream = ClassLoader.getSystemResourceAsStream(className.replace('.', '/') + ".class")) {
+            classFile = readAllBytes(inputStream);
+        }
+        resolver = ProbingResolver.ofClassFile(getSuperClass, classFile, attributePrototypes);
     }
 
     private static byte[] readAllBytes(InputStream inputStream) throws IOException {
@@ -151,8 +192,34 @@ public class ProbingClassReader {
 
         static class OfAsm extends ClassWriterContainer<ClassWriter> {
 
-            OfAsm(ClassReader classReader, int flags) {
-                super(new ClassWriter(classReader, flags));
+            OfAsm(ClassReader classReader, int flags, Function<String, String> getSuperClass) {
+                super(new ClassWriter(classReader, flags) {
+                    @Override
+                    protected String getCommonSuperClass(String left, String right) {
+                        if (getSuperClass == null) {
+                            return super.getCommonSuperClass(left, right);
+                        } else {
+                            String resolved = doGetCommonSuperClass(left, right, getSuperClass);
+                            if (resolved == null) {
+                                resolved = doGetCommonSuperClass(right, left, getSuperClass);
+                            }
+                            if (resolved == null) {
+                                return "java/lang/Object";
+                            } else {
+                                return resolved;
+                            }
+                        }
+                    }
+                });
+            }
+
+            private static String doGetCommonSuperClass(String constant,
+                                                        String dynamic,
+                                                        Function<String, String> getSuperClass) {
+                while (!Objects.equals(constant, dynamic) && dynamic != null) {
+                    dynamic = getSuperClass.apply(dynamic);
+                }
+                return dynamic;
             }
 
             @Override
@@ -163,8 +230,8 @@ public class ProbingClassReader {
 
         static class OfJdk extends ClassWriterContainer<JdkClassWriter> {
 
-            OfJdk(JdkClassReader classReader, int flags) {
-                super(new JdkClassWriter(classReader, flags));
+            OfJdk(JdkClassReader classReader, int flags, Function<String, String> getSuperClass) {
+                super(new JdkClassWriter(classReader, flags, getSuperClass));
             }
 
             @Override

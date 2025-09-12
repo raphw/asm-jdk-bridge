@@ -26,6 +26,10 @@ abstract class ProbingResolver {
         SUPPORTED = version & 0xFFFF;
     }
 
+    ProbingResolver(Function<String, String> getSuperClass) {
+        this.getSuperClass = getSuperClass;
+    }
+
     static ClassVisitor ofVersion(int flags, int version, Function<String, String> getSuperClass) {
         if (version > SUPPORTED) {
             return new JdkClassWriter(flags, getSuperClass);
@@ -62,14 +66,18 @@ abstract class ProbingResolver {
         }
     }
 
-    static ProbingResolver ofClassFile(byte[] classFile, Attribute[] attributePrototypes) {
+    static ProbingResolver ofClassFile(Function<String, String> getSuperClass,
+                                       byte[] classFile,
+                                       Attribute[] attributePrototypes) {
         int majorVersion = classFile[6] << 8 | classFile[7];
         if (majorVersion > SUPPORTED) {
-            return new OfJdk(classFile, attributePrototypes);
+            return new OfJdk(getSuperClass, classFile, attributePrototypes);
         } else {
-            return new OfAsm(classFile, attributePrototypes);
+            return new OfAsm(getSuperClass, classFile, attributePrototypes);
         }
     }
+
+    final Function<String, String> getSuperClass;
 
     abstract int getAccess();
 
@@ -88,7 +96,8 @@ abstract class ProbingResolver {
         private final ClassReader classReader;
         private final Attribute[] attributePrototypes;
 
-        OfAsm(byte[] classFile, Attribute[] attributePrototypes) {
+        OfAsm(Function<String, String> getSuperClass, byte[] classFile, Attribute[] attributePrototypes) {
+            super(getSuperClass);
             classReader = new ClassReader(classFile);
             this.attributePrototypes = attributePrototypes;
         }
@@ -120,7 +129,7 @@ abstract class ProbingResolver {
 
         @Override
         ProbingClassReader.ClassWriterContainer<?> toClassWriter(int flags) {
-            return new ProbingClassReader.ClassWriterContainer.OfAsm(classReader, flags);
+            return new ProbingClassReader.ClassWriterContainer.OfAsm(classReader, flags, getSuperClass);
         }
     }
 
@@ -128,7 +137,8 @@ abstract class ProbingResolver {
 
         private final JdkClassReader classReader;
 
-        OfJdk(byte[] classFile, Attribute[] attributePrototypes) {
+        OfJdk(Function<String, String> getSuperClass, byte[] classFile, Attribute[] attributePrototypes) {
+            super(getSuperClass);
             classReader = new JdkClassReader(classFile, attributePrototypes);
         }
 
@@ -159,7 +169,7 @@ abstract class ProbingResolver {
 
         @Override
         ProbingClassReader.ClassWriterContainer<?> toClassWriter(int flags) {
-            return new ProbingClassReader.ClassWriterContainer.OfJdk(classReader, flags);
+            return new ProbingClassReader.ClassWriterContainer.OfJdk(classReader, flags, getSuperClass);
         }
     }
 }
