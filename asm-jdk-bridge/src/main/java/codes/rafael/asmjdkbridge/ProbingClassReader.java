@@ -58,9 +58,12 @@ public class ProbingClassReader {
      * Creates a new class reader.
      *
      * @param classFile           The class file to represent.
+     * @param getSuperClass       A resolver to use for finding super classes when computing stack map frames.
      * @param attributePrototypes Prototypes of ASM attributes to map if discovered.
      */
-    public ProbingClassReader(byte[] classFile, Function<String, String> getSuperClass, Attribute... attributePrototypes) {
+    public ProbingClassReader(byte[] classFile,
+                              Function<String, String> getSuperClass,
+                              Attribute... attributePrototypes) {
         resolver = ProbingResolver.ofClassFile(getSuperClass, classFile, attributePrototypes);
     }
 
@@ -68,6 +71,7 @@ public class ProbingClassReader {
      * Creates a new class reader.
      *
      * @param inputStream         An input stream of the class file to represent.
+     * @param getSuperClass       A resolver to use for finding super classes when computing stack map frames.
      * @param attributePrototypes Prototypes of ASM attributes to map if discovered.
      * @throws IOException If the stream cannot be read.
      */
@@ -81,6 +85,7 @@ public class ProbingClassReader {
      * Creates a new class reader.
      *
      * @param className           The name of the class to represent. The class must be resolvable from the system loader.
+     * @param getSuperClass       A resolver to use for finding super classes when computing stack map frames.
      * @param attributePrototypes Prototypes of ASM attributes to map if discovered.
      * @throws IOException If the class file cannot be read.
      */
