@@ -18,6 +18,7 @@ import java.util.function.Function;
 public class ProbingClassReader {
 
     private final ProbingResolver resolver;
+
     /**
      * Creates a new class reader.
      *
