@@ -1182,7 +1182,7 @@ public class JdkClassWriter extends ClassVisitor {
                 } else if (classDesc.equals(ConstantDescs.CD_Object)) {
                     return ClassHierarchyResolver.ClassHierarchyInfo.ofClass(null);
                 }
-                String superClass = getSuperClass(classDesc.displayName().replace('.', '/'));
+                String descriptor = classDesc.descriptorString(), superClass = getSuperClass(descriptor.substring(1, descriptor.length()  - 1));
                 return superClass == null ? ClassHierarchyResolver.ClassHierarchyInfo.ofInterface() : ClassHierarchyResolver.ClassHierarchyInfo.ofClass(ClassDesc.ofInternalName(superClass));
             }));
         }
