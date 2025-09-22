@@ -1172,18 +1172,23 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitEnd() {
-        ClassFile classFile = (ClassFile) getClassFile(flags);
-        if (classModel == null) {
-            bytes = classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+        if (getClassFile(flags) instanceof ClassFile classFile) {
+            if (classModel == null) {
+                bytes = classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+            } else {
+                ConstantPoolBuilder constantPoolBuilder = ConstantPoolBuilder.of(classModel);
+                bytes = classFile.build(constantPoolBuilder.classEntry(thisClass), constantPoolBuilder, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+            }
         } else {
-            ConstantPoolBuilder constantPoolBuilder = ConstantPoolBuilder.of(classModel);
-            bytes = classFile.build(constantPoolBuilder.classEntry(thisClass), constantPoolBuilder, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+            throw new IllegalStateException("Expected instance of class file by overriden getClassFile(int) method");
         }
     }
 
     /**
+     * Returns an appropriate {@code ClassFile} instance. Can be overridden to return custom instances.
+     *
      * @param classWriterFlags {@link ClassWriter} flags.
-     * @return An instance of {@link ClassFile} configured according to the given flags.
+     * @return An instance of {@code ClassFile} configured according to the given flags.
      */
     protected Object getClassFile(int classWriterFlags) {
         if ((classWriterFlags & ClassWriter.COMPUTE_FRAMES) != 0) {

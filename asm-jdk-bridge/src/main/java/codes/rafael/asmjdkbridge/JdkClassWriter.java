@@ -201,6 +201,8 @@ public class JdkClassWriter extends ClassVisitor {
     }
 
     /**
+     * Returns an appropriate {@code ClassFile} instance. Can be overridden to return custom instances.
+     *
      * @param classWriterFlags {@link ClassWriter} flags.
      * @return An instance of {@code ClassFile} configured according to the given flags.
      */
