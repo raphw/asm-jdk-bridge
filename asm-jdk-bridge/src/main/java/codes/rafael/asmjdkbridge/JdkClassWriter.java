@@ -3,6 +3,7 @@ package codes.rafael.asmjdkbridge;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.ModuleVisitor;
@@ -196,6 +197,14 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitEnd() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * @param classWriterFlags {@link ClassWriter} flags.
+     * @return An instance of {@code ClassFile} configured according to the given flags.
+     */
+    protected Object getClassFile(int classWriterFlags) {
         throw new UnsupportedOperationException();
     }
 }

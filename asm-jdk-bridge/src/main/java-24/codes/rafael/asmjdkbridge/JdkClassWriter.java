@@ -1172,11 +1172,24 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitEnd() {
-        ClassFile classFile;
-        if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
-            classFile = ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE, ClassFile.StackMapsOption.DROP_STACK_MAPS);
+        ClassFile classFile = (ClassFile) getClassFile(flags);
+        if (classModel == null) {
+            bytes = classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
         } else {
-            classFile = ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE, ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED, ClassFile.ClassHierarchyResolverOption.of(classDesc -> {
+            ConstantPoolBuilder constantPoolBuilder = ConstantPoolBuilder.of(classModel);
+            bytes = classFile.build(constantPoolBuilder.classEntry(thisClass), constantPoolBuilder, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+        }
+    }
+
+    /**
+     * @param classWriterFlags {@link ClassWriter} flags.
+     * @return An instance of {@link ClassFile} configured according to the given flags.
+     */
+    protected Object getClassFile(int classWriterFlags) {
+        if ((classWriterFlags & ClassWriter.COMPUTE_FRAMES) != 0) {
+            return ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE, ClassFile.StackMapsOption.DROP_STACK_MAPS);
+        } else {
+            return ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE, ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED, ClassFile.ClassHierarchyResolverOption.of(classDesc -> {
                 if (!classDesc.isClassOrInterface()) {
                     return null;
                 } else if (classDesc.equals(ConstantDescs.CD_Object)) {
@@ -1185,12 +1198,6 @@ public class JdkClassWriter extends ClassVisitor {
                 String superClass = getSuperClass(classDesc.displayName().replace('.', '/'));
                 return superClass == null ? ClassHierarchyResolver.ClassHierarchyInfo.ofInterface() : ClassHierarchyResolver.ClassHierarchyInfo.ofClass(ClassDesc.ofInternalName(superClass));
             }));
-        }
-        if (classModel == null) {
-            bytes = classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
-        } else {
-            ConstantPoolBuilder constantPoolBuilder = ConstantPoolBuilder.of(classModel);
-            bytes = classFile.build(constantPoolBuilder.classEntry(thisClass), constantPoolBuilder, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
         }
     }
 
