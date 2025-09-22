@@ -1172,20 +1172,7 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitEnd() {
-        ClassFile classFile;
-        if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
-            classFile = ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE, ClassFile.StackMapsOption.DROP_STACK_MAPS);
-        } else {
-            classFile = ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE, ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED, ClassFile.ClassHierarchyResolverOption.of(classDesc -> {
-                if (!classDesc.isClassOrInterface()) {
-                    return null;
-                } else if (classDesc.equals(ConstantDescs.CD_Object)) {
-                    return ClassHierarchyResolver.ClassHierarchyInfo.ofClass(null);
-                }
-                String descriptor = classDesc.descriptorString(), superClass = getSuperClass(descriptor.substring(1, descriptor.length()  - 1));
-                return superClass == null ? ClassHierarchyResolver.ClassHierarchyInfo.ofInterface() : ClassHierarchyResolver.ClassHierarchyInfo.ofClass(ClassDesc.ofInternalName(superClass));
-            }));
-        }
+        ClassFile classFile = getClassFile(flags);
         if (classModel == null) {
             bytes = classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
         } else {
@@ -1197,11 +1184,11 @@ public class JdkClassWriter extends ClassVisitor {
     /**
      * Returns an appropriate {@code ClassFile} instance. Can be overridden to return custom instances.
      *
-     * @param classWriterFlags {@link ClassWriter} flags.
+     * @param flags {@link ClassWriter} flags.
      * @return An instance of {@code ClassFile} configured according to the given flags.
      */
-    protected Object getClassFile(int classWriterFlags) {
-        if ((classWriterFlags & ClassWriter.COMPUTE_FRAMES) != 0) {
+    protected ClassFile getClassFile(int flags) {
+        if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
             return ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE, ClassFile.StackMapsOption.DROP_STACK_MAPS);
         } else {
             return ClassFile.of(ClassFile.DeadCodeOption.PATCH_DEAD_CODE, ClassFile.StackMapsOption.STACK_MAPS_WHEN_REQUIRED, ClassFile.ClassHierarchyResolverOption.of(classDesc -> {
@@ -1210,7 +1197,7 @@ public class JdkClassWriter extends ClassVisitor {
                 } else if (classDesc.equals(ConstantDescs.CD_Object)) {
                     return ClassHierarchyResolver.ClassHierarchyInfo.ofClass(null);
                 }
-                String descriptor = classDesc.descriptorString(), superClass = getSuperClass(descriptor.substring(1, descriptor.length() - 1));
+                String descriptor = classDesc.descriptorString(), superClass = getSuperClass(descriptor.substring(1, descriptor.length()  - 1));
                 return superClass == null ? ClassHierarchyResolver.ClassHierarchyInfo.ofInterface() : ClassHierarchyResolver.ClassHierarchyInfo.ofClass(ClassDesc.ofInternalName(superClass));
             }));
         }
