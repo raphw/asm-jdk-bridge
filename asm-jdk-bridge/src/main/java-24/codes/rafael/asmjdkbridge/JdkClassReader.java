@@ -747,7 +747,7 @@ public class JdkClassReader {
 
     private static TypeReference toTypeReference(TypeAnnotation.TargetInfo targetInfo) {
         return switch (targetInfo) {
-            case TypeAnnotation.SupertypeTarget value -> TypeReference.newSuperTypeReference(value.supertypeIndex());
+            case TypeAnnotation.SupertypeTarget value -> TypeReference.newSuperTypeReference(value.supertypeIndex() == 0xFFFF ? -1 : value.supertypeIndex());
             case TypeAnnotation.TypeParameterTarget value -> TypeReference.newTypeParameterReference(value.targetType().targetTypeValue(), value.typeParameterIndex());
             case TypeAnnotation.TypeParameterBoundTarget value -> TypeReference.newTypeParameterBoundReference(value.targetType().targetTypeValue(), value.typeParameterIndex(), value.boundIndex());
             case TypeAnnotation.ThrowsTarget value -> TypeReference.newExceptionReference(value.throwsTargetIndex());
