@@ -738,9 +738,7 @@ public class JdkClassWriter extends ClassVisitor {
                     stacks.add(toVerificationTypeInfo(stack[index], label -> labels.computeIfAbsent(label, _ -> codeBuilder.newLabel())));
                 }
                 switch (type) {
-                    case Opcodes.F_SAME:
-                        break;
-                    case Opcodes.F_SAME1:
+                    case Opcodes.F_SAME, Opcodes.F_SAME1:
                         break;
                     case Opcodes.F_APPEND:
                         for (int index = 0; index < numLocal; index++) {
@@ -1294,21 +1292,18 @@ public class JdkClassWriter extends ClassVisitor {
 
         private static AnnotationVisitor ofTypeAnnotation(JdkClassWriter classWriter, String descriptor, int typeRef, TypePath typePath, Consumer<TypeAnnotation> consumer) {
             return ofUnresolvedTypeAnnotation(classWriter, descriptor, typeRef, typePath, function -> consumer.accept(function.apply(reference -> switch (reference.getSort()) {
-                case TypeReference.CLASS_TYPE_PARAMETER ->
-                        TypeAnnotation.TargetInfo.ofClassTypeParameter(reference.getTypeParameterIndex());
-                case TypeReference.METHOD_TYPE_PARAMETER ->
-                        TypeAnnotation.TargetInfo.ofMethodTypeParameter(reference.getTypeParameterIndex());
-                case TypeReference.CLASS_EXTENDS ->
-                        TypeAnnotation.TargetInfo.ofClassExtends(reference.getSuperTypeIndex());
-                case TypeReference.CLASS_TYPE_PARAMETER_BOUND ->
-                        TypeAnnotation.TargetInfo.ofClassTypeParameterBound(reference.getTypeParameterIndex(), reference.getTypeParameterBoundIndex());
-                case TypeReference.METHOD_TYPE_PARAMETER_BOUND ->
-                        TypeAnnotation.TargetInfo.ofMethodTypeParameterBound(reference.getTypeParameterIndex(), reference.getTypeParameterBoundIndex());
+                case TypeReference.CLASS_TYPE_PARAMETER -> TypeAnnotation.TargetInfo.ofClassTypeParameter(reference.getTypeParameterIndex());
+                case TypeReference.METHOD_TYPE_PARAMETER -> TypeAnnotation.TargetInfo.ofMethodTypeParameter(reference.getTypeParameterIndex());
+                case TypeReference.CLASS_EXTENDS -> {
+                    int index = reference.getSuperTypeIndex();
+                    yield TypeAnnotation.TargetInfo.ofClassExtends(index == -1 ? 0xFFFF : index);
+                }
+                case TypeReference.CLASS_TYPE_PARAMETER_BOUND -> TypeAnnotation.TargetInfo.ofClassTypeParameterBound(reference.getTypeParameterIndex(), reference.getTypeParameterBoundIndex());
+                case TypeReference.METHOD_TYPE_PARAMETER_BOUND -> TypeAnnotation.TargetInfo.ofMethodTypeParameterBound(reference.getTypeParameterIndex(), reference.getTypeParameterBoundIndex());
                 case TypeReference.FIELD -> TypeAnnotation.TargetInfo.ofField();
                 case TypeReference.METHOD_RETURN -> TypeAnnotation.TargetInfo.ofMethodReturn();
                 case TypeReference.METHOD_RECEIVER -> TypeAnnotation.TargetInfo.ofMethodReceiver();
-                case TypeReference.METHOD_FORMAL_PARAMETER ->
-                        TypeAnnotation.TargetInfo.ofMethodFormalParameter(reference.getFormalParameterIndex());
+                case TypeReference.METHOD_FORMAL_PARAMETER -> TypeAnnotation.TargetInfo.ofMethodFormalParameter(reference.getFormalParameterIndex());
                 case TypeReference.THROWS -> TypeAnnotation.TargetInfo.ofThrows(reference.getExceptionIndex());
                 default -> throw new IllegalArgumentException("Unexpected reference sort: " + reference.getSort());
             })));
@@ -1327,16 +1322,11 @@ public class JdkClassWriter extends ClassVisitor {
                 case TypeReference.NEW -> TypeAnnotation.TargetInfo.ofNewExpr(label);
                 case TypeReference.CONSTRUCTOR_REFERENCE -> TypeAnnotation.TargetInfo.ofConstructorReference(label);
                 case TypeReference.METHOD_REFERENCE -> TypeAnnotation.TargetInfo.ofMethodReference(label);
-                case TypeReference.CAST ->
-                        TypeAnnotation.TargetInfo.ofCastExpr(label, reference.getTypeArgumentIndex());
-                case TypeReference.CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT ->
-                        TypeAnnotation.TargetInfo.ofConstructorInvocationTypeArgument(label, reference.getTypeArgumentIndex());
-                case TypeReference.METHOD_INVOCATION_TYPE_ARGUMENT ->
-                        TypeAnnotation.TargetInfo.ofMethodInvocationTypeArgument(label, reference.getTypeArgumentIndex());
-                case TypeReference.CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT ->
-                        TypeAnnotation.TargetInfo.ofConstructorReferenceTypeArgument(label, reference.getTypeArgumentIndex());
-                case TypeReference.METHOD_REFERENCE_TYPE_ARGUMENT ->
-                        TypeAnnotation.TargetInfo.ofMethodReferenceTypeArgument(label, reference.getTypeArgumentIndex());
+                case TypeReference.CAST -> TypeAnnotation.TargetInfo.ofCastExpr(label, reference.getTypeArgumentIndex());
+                case TypeReference.CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorInvocationTypeArgument(label, reference.getTypeArgumentIndex());
+                case TypeReference.METHOD_INVOCATION_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodInvocationTypeArgument(label, reference.getTypeArgumentIndex());
+                case TypeReference.CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofConstructorReferenceTypeArgument(label, reference.getTypeArgumentIndex());
+                case TypeReference.METHOD_REFERENCE_TYPE_ARGUMENT -> TypeAnnotation.TargetInfo.ofMethodReferenceTypeArgument(label, reference.getTypeArgumentIndex());
                 default -> throw new IllegalArgumentException("Unexpected reference sort: " + reference.getSort());
             })));
         }
@@ -1361,10 +1351,8 @@ public class JdkClassWriter extends ClassVisitor {
                         case TypePath.ARRAY_ELEMENT -> TypeAnnotation.TypePathComponent.ARRAY;
                         case TypePath.INNER_TYPE -> TypeAnnotation.TypePathComponent.INNER_TYPE;
                         case TypePath.WILDCARD_BOUND -> TypeAnnotation.TypePathComponent.WILDCARD;
-                        case TypePath.TYPE_ARGUMENT ->
-                                TypeAnnotation.TypePathComponent.of(TypeAnnotation.TypePathComponent.Kind.TYPE_ARGUMENT, typePath.getStepArgument(index));
-                        default ->
-                                throw new IllegalArgumentException("Unkniwn type path type: " + typePath.getStep(index));
+                        case TypePath.TYPE_ARGUMENT -> TypeAnnotation.TypePathComponent.of(TypeAnnotation.TypePathComponent.Kind.TYPE_ARGUMENT, typePath.getStepArgument(index));
+                        default -> throw new IllegalArgumentException("Unkniwn type path type: " + typePath.getStep(index));
                     });
                 }
             }
