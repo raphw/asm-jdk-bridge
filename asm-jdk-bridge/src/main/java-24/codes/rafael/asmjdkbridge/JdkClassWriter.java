@@ -1170,12 +1170,15 @@ public class JdkClassWriter extends ClassVisitor {
 
     @Override
     public void visitEnd() {
-        ClassFile classFile = getClassFile(flags);
-        if (classModel == null) {
-            bytes = classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+        if (getClassFile(flags) instanceof ClassFile classFile) {
+            if (classModel == null) {
+                bytes = classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+            } else {
+                ConstantPoolBuilder constantPoolBuilder = ConstantPoolBuilder.of(classModel);
+                bytes = classFile.build(constantPoolBuilder.classEntry(thisClass), constantPoolBuilder, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+            }
         } else {
-            ConstantPoolBuilder constantPoolBuilder = ConstantPoolBuilder.of(classModel);
-            bytes = classFile.build(constantPoolBuilder.classEntry(thisClass), constantPoolBuilder, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
+            throw new IllegalStateException("Expected a JDK ClassFile instance to be returned from getClassFile(int) method");
         }
     }
 
@@ -1185,7 +1188,7 @@ public class JdkClassWriter extends ClassVisitor {
      * @param flags {@link ClassWriter} flags.
      * @return An instance of {@code ClassFile} configured according to the given flags.
      */
-    protected ClassFile getClassFile(int flags) {
+    protected Object getClassFile(int flags) {
         if ((flags & ClassWriter.COMPUTE_FRAMES) == 0) {
             return ClassFile.of(ClassFile.DeadCodeOption.KEEP_DEAD_CODE, ClassFile.StackMapsOption.DROP_STACK_MAPS);
         } else {

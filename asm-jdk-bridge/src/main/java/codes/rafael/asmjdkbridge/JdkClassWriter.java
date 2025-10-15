@@ -199,4 +199,14 @@ public class JdkClassWriter extends ClassVisitor {
     public void visitEnd() {
         throw new UnsupportedOperationException();
     }
+
+    /**
+     * Returns an appropriate {@code ClassFile} instance. Can be overridden to return custom instances.
+     *
+     * @param flags {@link ClassWriter} flags.
+     * @return An instance of {@code ClassFile} configured according to the given flags.
+     */
+    protected Object getClassFile(int flags) {
+        throw new UnsupportedOperationException();
+    }
 }
