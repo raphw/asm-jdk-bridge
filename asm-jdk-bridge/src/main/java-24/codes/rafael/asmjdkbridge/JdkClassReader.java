@@ -506,6 +506,7 @@ public class JdkClassReader {
                             case DiscontinuedInstruction.RetInstruction value -> methodVisitor.visitVarInsn(
                                 (value.opcode() == Opcode.RET_W ? Opcode.RET : value.opcode()).bytecode(),
                                     value.slot());
+                            case java.lang.classfile.Attribute<?> _ -> { } // Already handled via explicit extraction.
                             default -> throw new UnsupportedOperationException("Unknown value: " + element);
                         }
                         if (element instanceof Instruction) {
