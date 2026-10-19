@@ -98,7 +98,8 @@ public class JdkClassWriter extends ClassVisitor {
 
     private final int flags;
     private final Function<String, String> getSuperClass;
-    private final ClassModel classModel;
+    private final JdkClassReader classReader;
+    private ClassModel classModel;
 
     private final List<ClassDesc> nestMembers = new ArrayList<>();
     private final List<InnerClassInfo> innerClasses = new ArrayList<>();
@@ -150,7 +151,7 @@ public class JdkClassWriter extends ClassVisitor {
     public JdkClassWriter(int flags) {
         super(Opcodes.ASM9);
         this.flags = flags;
-        classModel = null;
+        classReader = null;
         getSuperClass = null;
     }
 
@@ -163,7 +164,7 @@ public class JdkClassWriter extends ClassVisitor {
     public JdkClassWriter(JdkClassReader classReader, int flags) {
         super(Opcodes.ASM9);
         this.flags = flags;
-        classModel = classReader == null ? null : classReader.getClassModel();
+        this.classReader = classReader;
         getSuperClass = null;
     }
 
@@ -179,7 +180,7 @@ public class JdkClassWriter extends ClassVisitor {
     public JdkClassWriter(int flags, Method getSuperClass, Object target) {
         super(Opcodes.ASM9);
         this.flags = flags;
-        classModel = null;
+        classReader = null;
         this.getSuperClass = getSuperClass == null ? null : name -> {
             try {
                 return (String) getSuperClass.invoke(target, name);
@@ -202,7 +203,7 @@ public class JdkClassWriter extends ClassVisitor {
     public JdkClassWriter(JdkClassReader classReader, int flags, Method getSuperClass, Object target) {
         super(Opcodes.ASM9);
         this.flags = flags;
-        classModel = classReader == null ? null : classReader.getClassModel();
+        this.classReader = classReader;
         this.getSuperClass = getSuperClass == null ? null : name -> {
             try {
                 return (String) getSuperClass.invoke(target, name);
@@ -222,7 +223,7 @@ public class JdkClassWriter extends ClassVisitor {
     public JdkClassWriter(int flags, Function<String, String> getSuperClass) {
         super(Opcodes.ASM9);
         this.flags = flags;
-        classModel = null;
+        classReader = null;
         this.getSuperClass = getSuperClass;
     }
 
@@ -237,8 +238,17 @@ public class JdkClassWriter extends ClassVisitor {
     public JdkClassWriter(JdkClassReader classReader, int flags, Function<String, String> getSuperClass) {
         super(Opcodes.ASM9);
         this.flags = flags;
-        classModel = classReader == null ? null : classReader.getClassModel();
+        this.classReader = classReader;
         this.getSuperClass = getSuperClass;
+    }
+
+    private boolean canCopyFrom(JdkClassReader classReader, ClassModel classModel) {
+        if (this.classReader == null || this.classReader != classReader) {
+            return false;
+        } else if (this.classModel == null) {
+            this.classModel = classModel;
+        }
+        return this.classModel == classModel;
     }
 
     @Override
@@ -302,8 +312,8 @@ public class JdkClassWriter extends ClassVisitor {
             this.version = version;
         }
 
-        boolean has(ClassModel classModel, String name, int access, String version) {
-            return Objects.equals(JdkClassWriter.this.classModel, classModel)
+        boolean has(JdkClassReader classReader, ClassModel classModel, String name, int access, String version) {
+            return canCopyFrom(classReader, classModel)
                     && Objects.equals(this.name, name)
                     && this.access == access
                     && Objects.equals(this.version, version);
@@ -498,8 +508,8 @@ public class JdkClassWriter extends ClassVisitor {
             this.value = value;
         }
 
-        boolean has(ClassModel classModel, int access, String name, String descriptor, String signature, Object value) {
-            return Objects.equals(JdkClassWriter.this.classModel, classModel)
+        boolean has(JdkClassReader classReader, ClassModel classModel, int access, String name, String descriptor, String signature, Object value) {
+            return canCopyFrom(classReader, classModel)
                     && this.access == access
                     && Objects.equals(this.name, name)
                     && Objects.equals(this.descriptor, descriptor)
@@ -611,8 +621,8 @@ public class JdkClassWriter extends ClassVisitor {
             this.exceptions = exceptions;
         }
 
-        boolean has(ClassModel classModel, int access, String name, String descriptor, String signature, String[] exceptions) {
-            return Objects.equals(JdkClassWriter.this.classModel, classModel)
+        boolean has(JdkClassReader classReader, ClassModel classModel, int access, String name, String descriptor, String signature, String[] exceptions) {
+            return canCopyFrom(classReader, classModel)
                     && this.access == access
                     && Objects.equals(this.name, name)
                     && Objects.equals(this.descriptor, descriptor)
@@ -1171,10 +1181,10 @@ public class JdkClassWriter extends ClassVisitor {
     @Override
     public void visitEnd() {
         if (getClassFile(flags) instanceof ClassFile classFile) {
-            if (classModel == null) {
+            if (classReader == null) {
                 bytes = classFile.build(thisClass, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
             } else {
-                ConstantPoolBuilder constantPoolBuilder = ConstantPoolBuilder.of(classModel);
+                ConstantPoolBuilder constantPoolBuilder = ConstantPoolBuilder.of(classModel == null ? classReader.toClassModel() : classModel);
                 bytes = classFile.build(constantPoolBuilder.classEntry(thisClass), constantPoolBuilder, classBuilder -> classConsumers.forEach(classConsumer -> classConsumer.accept(classBuilder)));
             }
         } else {
@@ -1369,8 +1379,8 @@ public class JdkClassWriter extends ClassVisitor {
             this.onEnd = onEnd;
         }
 
-        boolean has(ClassModel classModel) {
-            return Objects.equals(JdkClassWriter.this.classModel, classModel);
+        boolean has(JdkClassReader classReader) {
+            return JdkClassWriter.this.classReader == classReader;
         }
 
         void add(String name, AnnotationValue annotationValue) {

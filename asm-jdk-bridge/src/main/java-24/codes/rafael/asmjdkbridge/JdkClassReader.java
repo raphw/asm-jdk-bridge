@@ -98,7 +98,9 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
- * A reader for class files that uses the JDK class file API. The created class reader is immutable.
+ * A reader for class files that uses the JDK class file API. The created class reader is immutable and thread-safe.
+ * As a JDK {@link ClassModel} is inflated lazily and is therefore not thread-safe, the class file is parsed anew
+ * whenever it is accessed.
  */
 public class JdkClassReader {
 
@@ -106,8 +108,9 @@ public class JdkClassReader {
             SAME_LOCALS_1_STACK_ITEM_EXTENDED = 247,
             SAME_EXTENDED = 251;
 
-    private final ClassModel classModel;
+    private final byte[] bytes;
     private final AttributeFunction attributes;
+    private final ClassFile classFile;
 
     /**
      * Creates a new class reader.
@@ -116,8 +119,9 @@ public class JdkClassReader {
      * @param attributePrototypes Prototypes of ASM attributes to map if discovered.
      */
     public JdkClassReader(byte[] classFile, Attribute... attributePrototypes) {
+        bytes = classFile;
         attributes = new AttributeFunction(attributePrototypes);
-        classModel = ClassFile.of(ClassFile.AttributeMapperOption.of(attributes)).parse(classFile);
+        this.classFile = ClassFile.of(ClassFile.AttributeMapperOption.of(attributes));
     }
 
     /**
@@ -139,15 +143,15 @@ public class JdkClassReader {
      * @throws IOException If the class file cannot be read.
      */
     public JdkClassReader(String className, Attribute... attributePrototypes) throws IOException {
-        attributes = new AttributeFunction(attributePrototypes);
-        ClassFile classFile = ClassFile.of(ClassFile.AttributeMapperOption.of(attributes));
         try (InputStream inputStream = ClassLoader.getSystemResourceAsStream(className.replace('.', '/') + ".class")) {
-            classModel = classFile.parse(inputStream.readAllBytes());
+            bytes = inputStream.readAllBytes();
         }
+        attributes = new AttributeFunction(attributePrototypes);
+        classFile = ClassFile.of(ClassFile.AttributeMapperOption.of(attributes));
     }
 
-    ClassModel getClassModel() {
-        return classModel;
+    ClassModel toClassModel() {
+        return classFile.parse(bytes);
     }
 
     /**
@@ -156,7 +160,7 @@ public class JdkClassReader {
      * @return The access flags of this class as stored in the class file.
      */
     public int getAccess() {
-        return classModel.flags().flagsMask();
+        return toClassModel().flags().flagsMask();
     }
 
     /**
@@ -165,7 +169,7 @@ public class JdkClassReader {
      * @return The internal name of this class.
      */
     public String getClassName() {
-        return classModel.thisClass().asInternalName();
+        return toClassModel().thisClass().asInternalName();
     }
 
     /**
@@ -174,7 +178,7 @@ public class JdkClassReader {
      * @return The internal super class name of this class or {@code null} for {@link Object}.
      */
     public String getSuperName() {
-        return classModel.superclass().map(ClassEntry::asInternalName).orElse(null);
+        return toClassModel().superclass().map(ClassEntry::asInternalName).orElse(null);
     }
 
     /**
@@ -183,7 +187,7 @@ public class JdkClassReader {
      * @return The internal interface names of this class.
      */
     public String[] getInterfaces() {
-        return classModel.interfaces().stream().map(ClassEntry::asInternalName).toArray(String[]::new);
+        return toClassModel().interfaces().stream().map(ClassEntry::asInternalName).toArray(String[]::new);
     }
 
     /**
@@ -193,16 +197,17 @@ public class JdkClassReader {
      * @param flags        The ASM flags to consider when visiting the class file.
      */
     public void accept(ClassVisitor classVisitor, int flags) {
+        ClassModel classModel = toClassModel();
         Map<Label, org.objectweb.asm.Label> labels = new HashMap<>();
         classVisitor.visit(classModel.minorVersion() << 16 | classModel.majorVersion(),
-                getAccess()
+                classModel.flags().flagsMask()
                         | (classModel.findAttribute(Attributes.deprecated()).isPresent() ? Opcodes.ACC_DEPRECATED : 0)
                         | (classModel.findAttribute(Attributes.synthetic()).isPresent() ? Opcodes.ACC_SYNTHETIC : 0)
                         | (classModel.findAttribute(Attributes.record()).isPresent() ? Opcodes.ACC_RECORD : 0),
-                getClassName(),
+                classModel.thisClass().asInternalName(),
                 classModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null),
-                getSuperName(),
-                getInterfaces());
+                classModel.superclass().map(ClassEntry::asInternalName).orElse(null),
+                classModel.interfaces().stream().map(ClassEntry::asInternalName).toArray(String[]::new));
         if ((flags & ClassReader.SKIP_DEBUG) == 0) {
             String sourceFile = classModel.findAttribute(Attributes.sourceFile())
                     .map(attribute -> attribute.sourceFile().stringValue())
@@ -219,7 +224,7 @@ public class JdkClassReader {
             int moduleFlags = module.moduleFlagsMask();
             String moduleVersion = module.moduleVersion().map(Utf8Entry::stringValue).orElse(null);
             ModuleVisitor moduleVisitor = classVisitor.visitModule(moduleName, moduleFlags, moduleVersion);
-            if (moduleVisitor instanceof JdkClassWriter.WritingModuleVisitor writingModuleVisitor && writingModuleVisitor.has(classModel, moduleName, moduleFlags, moduleVersion)) {
+            if (moduleVisitor instanceof JdkClassWriter.WritingModuleVisitor writingModuleVisitor && writingModuleVisitor.has(this, classModel, moduleName, moduleFlags, moduleVersion)) {
                 classModel.findAttribute(Attributes.moduleMainClass()).ifPresent(writingModuleVisitor::add);
                 classModel.findAttribute(Attributes.modulePackages()).ifPresent(writingModuleVisitor::add);
                 writingModuleVisitor.add(module);
@@ -290,7 +295,7 @@ public class JdkClassReader {
             String fieldSignature = fieldModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null);
             Object fieldConstant = fieldModel.findAttribute(Attributes.constantValue()).map(constantValue -> toAsmConstant(constantValue.constant().constantValue())).orElse(null);
             FieldVisitor fieldVisitor = classVisitor.visitField(fieldFlags, fieldName, fieldType, fieldSignature, fieldConstant);
-            if (fieldVisitor instanceof JdkClassWriter.WritingFieldVisitor writingFieldVisitor && writingFieldVisitor.has(classModel, fieldFlags, fieldName, fieldType, fieldSignature, fieldConstant)) {
+            if (fieldVisitor instanceof JdkClassWriter.WritingFieldVisitor writingFieldVisitor && writingFieldVisitor.has(this, classModel, fieldFlags, fieldName, fieldType, fieldSignature, fieldConstant)) {
                 writingFieldVisitor.add(fieldModel);
             } else if (fieldVisitor != null) {
                 acceptAnnotations(fieldModel, fieldVisitor::visitAnnotation, fieldVisitor::visitTypeAnnotation);
@@ -307,7 +312,7 @@ public class JdkClassReader {
             String methodSignature = methodModel.findAttribute(Attributes.signature()).map(signature -> signature.signature().stringValue()).orElse(null);
             String[] methodExceptions = methodModel.findAttribute(Attributes.exceptions()).map(exceptions -> exceptions.exceptions().stream().map(ClassEntry::asInternalName).toArray(String[]::new)).orElse(null);
             MethodVisitor methodVisitor = classVisitor.visitMethod(methodFlags, methodName, methodType, methodSignature, methodExceptions);
-            if (methodVisitor instanceof JdkClassWriter.WritingMethodVisitor writingMethodVisitor && writingMethodVisitor.has(classModel, methodFlags, methodName, methodType, methodSignature, methodExceptions)) {
+            if (methodVisitor instanceof JdkClassWriter.WritingMethodVisitor writingMethodVisitor && writingMethodVisitor.has(this, classModel, methodFlags, methodName, methodType, methodSignature, methodExceptions)) {
                 writingMethodVisitor.add(methodModel);
             } else if (methodVisitor != null) {
                 if ((flags & ClassReader.SKIP_DEBUG) == 0) {
@@ -596,7 +601,7 @@ public class JdkClassReader {
     }
 
     private void appendAnnotationValue(AnnotationVisitor annotationVisitor, String name, AnnotationValue annotationValue) {
-        if (annotationVisitor instanceof JdkClassWriter.WritingAnnotationVisitor writingAnnotationVisitor && writingAnnotationVisitor.has(classModel)) {
+        if (annotationVisitor instanceof JdkClassWriter.WritingAnnotationVisitor writingAnnotationVisitor && writingAnnotationVisitor.has(this)) {
             writingAnnotationVisitor.add(name, annotationValue);
             return;
         }
