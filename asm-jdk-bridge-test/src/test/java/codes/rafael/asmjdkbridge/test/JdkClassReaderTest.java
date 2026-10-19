@@ -18,6 +18,13 @@ import java.io.StringWriter;
 import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -79,6 +86,31 @@ public class JdkClassReaderTest {
         toClassReader(classFile).accept(toVisitor(asm), new Attribute[]{ new AsmTestAttribute(), new AsmTestAttribute.AsmCodeTestAttribute() }, flags);
         new JdkClassReader(classFile, new AsmTestAttribute(), new AsmTestAttribute.AsmCodeTestAttribute()).accept(toVisitor(jdk), flags);
         assertEquals(asm.toString(), jdk.toString());
+    }
+
+    @Test
+    public void concurrently_parsed_class_files_are_equal() throws Exception {
+        byte[] classFile;
+        try (InputStream inputStream = target.getResourceAsStream(target.getName().substring(target.getPackageName().length() + 1) + ".class")) {
+            classFile = inputStream.readAllBytes();
+        }
+        StringWriter asm = new StringWriter();
+        toClassReader(classFile).accept(toVisitor(asm), new Attribute[]{ new AsmTestAttribute(), new AsmTestAttribute.AsmCodeTestAttribute() }, flags);
+        JdkClassReader classReader = new JdkClassReader(classFile, new AsmTestAttribute(), new AsmTestAttribute.AsmCodeTestAttribute());
+        int threads = 8;
+        CountDownLatch latch = new CountDownLatch(threads);
+        try (ExecutorService executorService = Executors.newFixedThreadPool(threads)) {
+            List<Future<String>> futures = executorService.invokeAll(Collections.nCopies(threads, (Callable<String>) () -> {
+                latch.countDown();
+                latch.await();
+                StringWriter jdk = new StringWriter();
+                classReader.accept(toVisitor(jdk), flags);
+                return jdk.toString();
+            }));
+            for (Future<String> future : futures) {
+                assertEquals(asm.toString(), future.get());
+            }
+        }
     }
 
     @Test

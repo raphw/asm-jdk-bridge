@@ -18,6 +18,13 @@ import java.io.StringWriter;
 import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.junit.Assert.assertEquals;
 
@@ -77,6 +84,33 @@ public class JdkClassReplicationTest {
         toClassReader(classFile).accept(toVisitor(original), flags);
         toClassReader(classWriter.toByteArray()).accept(toVisitor(replicated), flags);
         assertEquals(original.toString(), replicated.toString());
+    }
+
+    @Test
+    public void concurrently_replicated_class_files_are_equal() throws Exception {
+        byte[] classFile;
+        try (InputStream inputStream = target.getResourceAsStream(target.getName().substring(target.getPackageName().length() + 1) + ".class")) {
+            classFile = inputStream.readAllBytes();
+        }
+        StringWriter original = new StringWriter();
+        toClassReader(classFile).accept(toVisitor(original), flags);
+        JdkClassReader classReader = new JdkClassReader(classFile);
+        int threads = 8;
+        CountDownLatch latch = new CountDownLatch(threads);
+        try (ExecutorService executorService = Executors.newFixedThreadPool(threads)) {
+            List<Future<String>> futures = executorService.invokeAll(Collections.nCopies(threads, (Callable<String>) () -> {
+                latch.countDown();
+                latch.await();
+                JdkClassWriter classWriter = new JdkClassWriter(classReader, 0);
+                classReader.accept(classWriter, 0);
+                StringWriter replicated = new StringWriter();
+                toClassReader(classWriter.toByteArray()).accept(toVisitor(replicated), flags);
+                return replicated.toString();
+            }));
+            for (Future<String> future : futures) {
+                assertEquals(original.toString(), future.get());
+            }
+        }
     }
 
     private static ClassVisitor toVisitor(StringWriter writer) {
